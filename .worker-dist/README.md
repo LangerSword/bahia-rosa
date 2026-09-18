@@ -1,0 +1,1 @@
+This folder contains the built output assets for the worker "fifteen-minutes" generated at 2026-09-18T19:10:02.177Z.

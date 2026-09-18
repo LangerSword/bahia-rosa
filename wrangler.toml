@@ -1,0 +1,19 @@
+# FIFTEEN MINUTES — one Worker serves the built SPA and owns the one AI route.
+name = "fifteen-minutes"
+main = "worker/index.ts"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+# Workers AI binding: no API key in code or env — the binding is scoped by the account.
+[ai]
+binding = "AI"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
+binding = "ASSETS"
+# Without this the SPA fallback would swallow /api/* before the Worker sees it.
+run_worker_first = ["/api/*"]
+
+[observability]
+enabled = true

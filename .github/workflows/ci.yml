@@ -19,3 +19,5 @@ jobs:
       - run: npm ci --include=dev
       - run: npm run test
       - run: npm run build
+      # Bundles the Worker and validates wrangler.toml (bindings, assets) without credentials.
+      - run: npm run deploy:dry
