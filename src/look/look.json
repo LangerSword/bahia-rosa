@@ -134,34 +134,55 @@
 
   "scenery": "palm-lined boulevard, pastel Art Deco facades with chrome trim, neon shopfront signs, plate glass, a marina of masts behind, a ferris wheel on the pier, sunset sky streaked with warm cloud, haze between buildings, soft bokeh of passing traffic.",
   "locations": {
-    "note": "Where the subject is standing. One photo should not always print the same street, so the desk rotates through these unless a location is named. Each entry overrides the scenery clause.",
+    "note": "Where the subject is standing. One photo should not always print the same street, so the desk rotates through these unless a location is named. Every location is authored to the same shape — time, scenery, lighting, palette — and every scenery line reads ground plane, then mid-ground architecture, then sky, then one or two signature props. That is what keeps seven different places looking like one city.",
     "boulevard": {
       "label": "Palm boulevard",
-      "scenery": "palm-lined boulevard at golden hour, pastel deco facades, chrome trim, shopfront glass, long shadows raking across the asphalt."
+      "time": "golden hour",
+      "scenery": "wide asphalt boulevard, pastel Art Deco facades with chrome trim on both sides, a huge warm sky with streaked cloud, palm fronds crossing the frame and a streetcar line running into the distance.",
+      "lighting": "golden-hour-coastal",
+      "palette": "cinematic-warm"
     },
     "marina": {
       "label": "Marina pier",
-      "scenery": "waterfront promenade, yacht masts, a ferris wheel turning on the pier, moored hulls, warm dock lights coming on."
+      "time": "sunset into dusk",
+      "scenery": "warm concrete promenade, yacht masts and a low pier building, a pink-and-gold sky over open water, a ferris wheel turning at the far end and mooring bollards in the near foreground.",
+      "lighting": "golden-hour-coastal",
+      "palette": "cinematic-warm"
     },
     "downtown": {
       "label": "Downtown canyon",
-      "scenery": "downtown street canyon, glass towers stacked against a bright sky, neon shopfronts, traffic lights and thin light trails."
+      "time": "dusk",
+      "scenery": "narrow downtown street, glass towers stacked up both sides of the frame, a deep blue evening sky between them, neon shopfront signs and thin red light trails from traffic.",
+      "lighting": "dusk-neon",
+      "palette": "neon-wet"
     },
     "rooftop": {
       "label": "Rooftop",
-      "scenery": "rooftop terrace above the city, water tanks and aerials, the skyline glowing behind, deep dusk sky above."
+      "time": "dusk",
+      "scenery": "gravel rooftop terrace, rooftop water tanks and aerials behind the subject, a violet-to-amber sky, the lit city skyline spread out below the parapet.",
+      "lighting": "dusk-neon",
+      "palette": "warm-dusk"
     },
     "market": {
       "label": "Night market",
-      "scenery": "night market street, striped awnings, string lights, food stalls, crowd bokeh and warm cooking smoke."
+      "time": "night",
+      "scenery": "crowded market street, striped awnings and food stalls receding in a row, a black sky cut by strings of bare bulbs, steam and crowd bokeh drifting through the light.",
+      "lighting": "dusk-neon",
+      "palette": "neon-wet"
     },
     "seafront": {
       "label": "Seafront road",
-      "scenery": "coastal road along a seawall, ocean haze, mooring bollards, gulls, the sun low over the water."
+      "time": "midday",
+      "scenery": "coastal road running beside a low seawall, whitewashed buildings and a faded motel sign, a bleached white sky full of heat haze, the ocean and mooring bollards along the edge.",
+      "lighting": "midday-haze",
+      "palette": "bleached-day"
     },
     "hillside": {
       "label": "Hillside overlook",
-      "scenery": "hillside overlook above the city, a switchback road behind, the whole city glittering below through warm haze."
+      "time": "dusk",
+      "scenery": "dry hillside verge above a switchback road, scrub and a leaning radio tower on the ridge, a burnt-orange sky, the whole city glittering below through warm haze.",
+      "lighting": "dusk-neon",
+      "palette": "warm-dusk"
     }
   },
   "camera": {

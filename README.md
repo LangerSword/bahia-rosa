@@ -44,13 +44,17 @@ photo → frame.py ──► print.mjs ──► plate ──► editor
   never written by hand, and a test enforces that every compiled prompt stays inside the budget a 4B
   distilled model actually reads.
 - **`tools/print-desk/print.mjs`** — one plate: compile → upload → sample → restore the face from the
-  photo (`facefix.py`) → write with provenance (register, seed, spec version in the filename).
-  `--hq` switches to the base model at 26 steps and guidance 1.0 for quality over speed.
+  photo (`facefix.py`: eye-aligned, full-resolution, colour-clamped, Poisson-blended) → write with
+  provenance (register, location, seed, spec version in the filename). `--hq` switches to the base
+  model at 26 steps and guidance 1.0 for quality over speed.
+- **`tools/print-desk/identity.py`** — ArcFace identity and landmark geometry against the photo.
+  Calibrated on this pipeline: the raw model output measures 0.083 cosine (a different person), the
+  face-restored plate 0.69. This is the harness's strictest gate.
 - **`tools/print-desk/harness.mjs`** — quality harness: print a batch, gate it numerically
   (`critique.py`), judge it with a local vision model (`judge.py` — Qwen2.5-VL in 4-bit, scoring
   identity, lighting, colour, background, composition and artifacts against your reference photo),
-  keep the best, reprint with a corrective brief if nothing clears the bar, and write a contact sheet
-  plus a manifest. Locations rotate across candidates so a batch shows the city, not one street.
+  measure identity with `identity.py`, and rank **identity first**, then the judge, then the gate.
+  Locations rotate across candidates so a batch shows the city, not one street.
 - **`tools/desk/desk.sh`** — start/stop/status/warm for the whole stack.
 
 Generated plates, framed references and comparison sheets land in `print-desk-out/` (gitignored):
@@ -66,6 +70,9 @@ Generated plates, framed references and comparison sheets land in `print-desk-ou
 
 Every option is read from `src/look/look.json`, so the UI and the desk can never disagree about what
 a "location" or a "style" is.
+
+The wordmark uses a self-hosted copperplate script in the spirit of the game's logo (Pinyon Script,
+OFL — `public/fonts/`), so nothing is fetched at runtime.
 
 ## How the editor is used
 

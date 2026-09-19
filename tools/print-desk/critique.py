@@ -38,6 +38,16 @@ def load_palettes():
 
 PALETTES = load_palettes()
 
+# What each palette is allowed to look like. Contrast floor and saturation window per palette.
+BANDS = {
+    "default": {"contrast": 30, "saturation": (25, 110)},
+    "neon-wet": {"contrast": 28, "saturation": (30, 150)},
+    "cinematic-warm": {"contrast": 26, "saturation": (20, 115)},
+    "bleached-day": {"contrast": 20, "saturation": (8, 80)},
+    "deco-pastel": {"contrast": 18, "saturation": (12, 95)},
+    "warm-dusk": {"contrast": 22, "saturation": (18, 110)},
+}
+
 
 def hex_to_rgb(value):
     value = value.lstrip("#")
@@ -97,10 +107,13 @@ def critique(path, palette, expect_portrait):
     exposure = stat.mean[0]
     contrast = stat.stddev[0]
 
+    # Bands are palette-aware: a night market plate is meant to be saturated and a bleached midday
+    # plate is meant to be low-contrast, so one global band would flag correct plates as failures.
+    band = BANDS.get(palette, BANDS["default"])
     checks = {
         "exposure": {"value": round(exposure, 1), "ok": 45 <= exposure <= 190},
-        "contrast": {"value": round(contrast, 1), "ok": contrast >= 30},
-        "saturation": {"value": round(sat, 1), "ok": 25 <= sat <= 110},
+        "contrast": {"value": round(contrast, 1), "ok": contrast >= band["contrast"]},
+        "saturation": {"value": round(sat, 1), "ok": band["saturation"][0] <= sat <= band["saturation"][1]},
         "detail": {"value": round(detail, 2), "ok": detail >= 12},
         "entropy": {"value": round(ent, 2), "ok": ent >= 3.0},
     }

@@ -84,8 +84,8 @@ export function App() {
     <main className="mx-auto max-w-[1440px] px-8 py-10">
       <header className="mb-8">
         <p className="text-xs tracking-[0.35em] text-paper/60 uppercase">Bahía Rosa · La Gaviota</p>
-        <h1 className="font-display text-6xl leading-none tracking-tight">FIFTEEN MINUTES</h1>
-        <p className="mt-2 max-w-prose text-sm text-paper/70">
+        <h1 className="wordmark text-7xl">Fifteen Minutes</h1>
+        <p className="mt-3 max-w-prose text-sm text-paper/70">
           Your face, on everything the city prints. Bring a photo — the desk restyles it in the
           city's own light — then take the loading screen and the front page.
         </p>

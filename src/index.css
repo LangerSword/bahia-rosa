@@ -7,6 +7,41 @@
   --color-ink: #0d0b0b;
   --color-paper: #f4efe6;
   --font-display: "Anton", "Archivo Black", "Haettenschweiler", system-ui, sans-serif;
+  --font-script: "Pinyon Script", "Italianno", cursive;
+  --font-signature: "Italianno", "Pinyon Script", cursive;
+}
+
+/* The city's own lettering: a copperplate script in the spirit of the game's logo, self-hosted so
+   nothing is fetched at runtime. Both faces are OFL — see public/fonts/OFL.txt. */
+@font-face {
+  font-family: "Pinyon Script";
+  src: url("/fonts/PinyonScript-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Italianno";
+  src: url("/fonts/Italianno-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+
+/* The wordmark: script, wide tracking, warm-to-magenta gradient — the logo treatment, not the body copy. */
+.wordmark {
+  font-family: var(--font-script);
+  background: linear-gradient(96deg, #ffd9a0 0%, #ff8ec4 42%, #7fe3ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  text-shadow: 0 0 28px rgba(255, 142, 196, 0.18);
+}
+
+.signature {
+  font-family: var(--font-signature);
+  letter-spacing: 0.01em;
 }
 
 html,

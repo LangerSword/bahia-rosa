@@ -58,6 +58,10 @@ export function printChoices() {
   return { surfaces, locations };
 }
 
+/** The quality preset, in one place so the graph and the progress bar can never disagree. */
+export const HQ_UNET = "flux-2-klein-base-4b-fp8.safetensors";
+export const HQ_STEPS = 26;
+
 export class PrintDeskOffline extends Error {
   constructor() {
     super("no print desk is answering — the desk runs locally (see docs/print-desk.md)");
@@ -78,7 +82,9 @@ export interface ComfyEvent {
 
 /**
  * Turn one ComfyUI event into a progress update. Pure, so it is unit-tested without a server.
- * klein is a fixed 4-step sampler, so each step is 25% of the generating time.
+ *
+ * The denominator is the event's own `max`, never the spec's step count: the quality preset runs 26
+ * steps against a spec that says 4, and dividing by the spec made the bar reach 440%.
  */
 export function progressFromEvent(event: ComfyEvent, steps = look.render.steps): PrintProgress | null {
   switch (event.type) {
@@ -89,14 +95,15 @@ export function progressFromEvent(event: ComfyEvent, steps = look.render.steps):
     case "executing":
       return { stage: "sampling", percent: 0.2, message: "printing", step: 0, steps };
     case "progress": {
-      const value = Math.max(0, Math.min(event.data?.max ?? steps, event.data?.value ?? 0));
-      const share = steps > 0 ? value / steps : 0;
+      const total = Math.max(1, event.data?.max ?? steps);
+      const value = Math.max(0, Math.min(total, event.data?.value ?? 0));
+      const share = Math.min(1, value / total);
       return {
         stage: "sampling",
-        percent: 0.2 + share * 0.65,
+        percent: Math.min(0.85, 0.2 + share * 0.65),
         message: "printing",
         step: value,
-        steps: event.data?.max ?? steps,
+        steps: total,
       };
     }
     case "executed":
@@ -176,6 +183,9 @@ export async function printPlate(options: PrintOptions): Promise<PrintResult> {
     render: { width: number; height: number; steps: number; guidance: number };
   };
 
+  // Declared before the socket opens: the progress handler reads it the moment the first event lands.
+  const effectiveSteps = options.quality ? HQ_STEPS : compiled.render.steps;
+
   const clientId = `fifteen-${Math.random().toString(36).slice(2, 10)}`;
   const socketUrl = `${baseUrl.replace(/^http/, "ws")}/ws?clientId=${clientId}`;
   let socket: WebSocket | null = null;
@@ -190,7 +200,7 @@ export async function printPlate(options: PrintOptions): Promise<PrintResult> {
     socket.onmessage = (message) => {
       try {
         const event = JSON.parse(String(message.data)) as ComfyEvent;
-        const progress = progressFromEvent(event, compiled.render.steps);
+        const progress = progressFromEvent(event, effectiveSteps);
         if (progress) {
           report(progress);
           if (progress.stage === "failed") reject(new Error(progress.message));
@@ -220,8 +230,8 @@ export async function printPlate(options: PrintOptions): Promise<PrintResult> {
   // The quality preset mirrors `print.mjs --hq`: base 4B at 26 steps, guidance 1.0. CFG above 1 on
   // this family both burns the colours and doubles the cost of every step, so it is not used.
   if (options.quality) {
-    graph["1"].inputs.unet_name = "flux-2-klein-base-4b-fp8.safetensors";
-    graph["12"].inputs.steps = 26;
+    graph["1"].inputs.unet_name = HQ_UNET;
+    graph["12"].inputs.steps = HQ_STEPS;
     graph["15"].inputs.cfg = 1.0;
   }
 

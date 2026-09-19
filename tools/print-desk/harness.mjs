@@ -21,7 +21,7 @@
 import { execFile } from "node:child_process";
 import { copyFile, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
@@ -72,6 +72,20 @@ async function gate(file, palette) {
   }
 }
 
+/** ArcFace identity + landmark geometry against the photo — the strictest gate in the harness. */
+async function faceIdentity(plate, reference) {
+  try {
+    const { stdout } = await run(PYTHON, ["tools/print-desk/identity.py", plate, reference], {
+      cwd: PROJECT,
+      maxBuffer: 8 * 1024 * 1024,
+      timeout: 300_000,
+    });
+    return JSON.parse(stdout);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message.slice(0, 200) : String(error), pass: false, similarity: 0 };
+  }
+}
+
 /** Unload ComfyUI's models so the judge can have the GPU — the two never need to be resident at once. */
 async function freeDesk(server = "http://127.0.0.1:8188") {
   try {
@@ -93,7 +107,10 @@ async function judgeReady() {
     let bytes = 0;
     for (const name of weights) bytes += (await stat(join(JUDGE_MODEL, name))).size;
     return bytes > 3 * 1024 ** 3;
-  } catch {
+  } catch (error) {
+    // Never swallow this: a missing import here once read as "the judge is not installed" and
+    // silently downgraded every batch to gate-only ranking.
+    console.warn(`  judge check failed (${JUDGE_MODEL}): ${error instanceof Error ? error.message : error}`);
     return false;
   }
 }
@@ -110,6 +127,13 @@ async function judge(file, reference) {
   }
 }
 
+/** Strictness order: identity first, then the judge, then the numeric gate. */
+const byStrictness = (a, b) =>
+  Number(b.identity_pass ?? true) - Number(a.identity_pass ?? true) ||
+  (b.identity_similarity ?? 0) - (a.identity_similarity ?? 0) ||
+  (b.judge_mean ?? 0) - (a.judge_mean ?? 0) ||
+  (b.gate_score ?? 0) - (a.gate_score ?? 0);
+
 async function contactSheet(candidates, out) {
   const script = `
 from PIL import Image, ImageDraw
@@ -121,7 +145,7 @@ d = ImageDraw.Draw(sheet)
 for n, info in enumerate(items):
     im = Image.open(info["file"]).convert("RGB").resize((width, height))
     sheet.paste(im, (n * width, 0))
-    label = f"judge {info.get('judge_mean', '-')}  gate {info.get('gate_score', '-')}  seed {info.get('seed', '?')}"
+    label = f"judge {info.get('judge_mean', '-')}  gate {info.get('gate_score', '-')}  id {info.get('identity_similarity', '-')}  {info.get('seed', '?')}"
     note = (info.get("judge_note") or info.get("failed") or "")[:64]
     d.text((n * width + 8, 392), label, fill=(240, 236, 228))
     d.text((n * width + 8, 410), note, fill=(200, 140, 160))
@@ -188,6 +212,7 @@ async function main() {
     for (const item of batch) {
       const gates = await gate(item.file, palette);
       const verdict = await judge(item.file, photo);
+      const identity = await faceIdentity(item.file, photo);
       // A judge that crashed is no judge: fall back to the numeric gate, scaled onto the same 0-10 axis.
       const judged = verdict && !verdict.error ? verdict.mean : null;
       const record = {
@@ -197,19 +222,26 @@ async function main() {
         judge: verdict,
         judge_mean: judged ?? 0,
         judge_note: verdict?.notes ?? verdict?.error ?? null,
+        identity_similarity: identity?.similarity ?? 0,
+        identity_pass: identity?.pass ?? null,
+        identity_drift: identity?.worst_drift ?? null,
+        identity_verdict: identity?.verdict ?? identity?.error ?? null,
         rank: judged ?? gates.score * 10,
       };
       history.push(record);
       console.log(
-        `  judge ${record.judge_mean || "-"} · gate ${gates.score}${gates.failed.length ? ` (failed: ${gates.failed.join(", ")})` : ""}${record.judge_note ? ` · ${record.judge_note}` : ""}`,
+        `  identity ${record.identity_similarity} (${record.identity_verdict ?? "n/a"}) · judge ${record.judge_mean || "-"} · gate ${gates.score}${gates.failed.length ? ` (failed: ${gates.failed.join(", ")})` : ""}${record.judge_note ? ` · ${record.judge_note}` : ""}`,
       );
     }
-    const bestThisRound = history.filter((h) => h.round === round).sort((a, b) => b.rank - a.rank)[0];
-    if (bestThisRound && bestThisRound.rank >= threshold && !bestThisRound.failed.length) break;
-    console.log(`round ${round + 1}: nothing cleared ${threshold} (best ${bestThisRound?.rank.toFixed(2) ?? 0}) — reprinting with a corrective brief`);
+    const bestThisRound = [...history].filter((h) => h.round === round).sort(byStrictness)[0];
+    const cleared = bestThisRound && bestThisRound.rank >= threshold && !bestThisRound.failed.length && bestThisRound.identity_pass !== false;
+    if (cleared) break;
+    console.log(
+      `round ${round + 1}: nothing cleared ${threshold} (best ${bestThisRound?.rank.toFixed(2) ?? 0}, identity ${bestThisRound?.identity_similarity ?? "n/a"}) — reprinting with a corrective brief`,
+    );
   }
 
-  const ranked = [...history].sort((a, b) => b.rank - a.rank || b.gate_score - a.gate_score);
+  const ranked = [...history].sort(byStrictness);
   const winner = ranked[0];
   const final = resolve(PROJECT, args.out ?? "print-desk-out/harness/best.png");
   await copyFile(winner.file, final);
@@ -222,6 +254,7 @@ async function main() {
       judge_note: h.judge_note,
       gate_score: h.gate_score,
       failed: h.failed,
+      identity_similarity: h.identity_similarity,
     })),
     resolve(outdir, "contact-sheet.png"),
   );

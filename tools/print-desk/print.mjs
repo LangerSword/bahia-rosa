@@ -269,7 +269,17 @@ async function main() {
     try {
       const { stdout } = await runAsync(
         PYTHON,
-        [resolve(HERE, "facefix.py"), out, reference, "--out", fixed, "--mode", args["facefix-mode"] ?? "mixed"],
+        [
+          resolve(HERE, "facefix.py"),
+          out,
+          reference,
+          // The face is cut from the original photo at full resolution, not the 1024px framed copy.
+          ...(reference !== resolve(args.photo) ? ["--source", resolve(args.photo)] : []),
+          "--out",
+          fixed,
+          "--mode",
+          args["facefix-mode"] ?? "mixed",
+        ],
         { maxBuffer: 4 * 1024 * 1024 },
       );
       const report = JSON.parse(stdout);
@@ -278,7 +288,10 @@ async function main() {
         fixed = out;
       } else {
         await copyFile(out, out.replace(/\.png$/, "") + "-raw.png");
-        console.log(`  face restored: colour gap ${report.colour_gap.before} → ${report.colour_gap.after} · mask ${report.mask_pixels}px`);
+        const alignment = report.alignment?.mode === "eyes" ? `eyes (${report.alignment.angle_deg}°, ×${report.alignment.scale})` : "box";
+        console.log(
+          `  face restored: ${alignment} · colour gap ${report.colour_gap.before} → ${report.colour_gap.after} · mask ${report.mask_pixels}px`,
+        );
       }
     } catch (error) {
       console.warn(`  face restore failed: ${error instanceof Error ? error.message.split("\n")[0] : error}`);
