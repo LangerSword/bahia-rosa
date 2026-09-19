@@ -1,0 +1,20 @@
+[
+  {
+    "id": "s1-marisol",
+    "seed": 1101,
+    "prompt": "photograph, straight-on head-and-shoulders portrait of a 27 year old woman with dark wavy shoulder-length hair, warm olive skin, plain relaxed expression, plain pale grey wall behind her, soft even daylight, sharp focus on the eyes, 50mm lens, natural skin texture",
+    "note": "Fictional demo subject 1 — used for the loading-screen and front-page plates."
+  },
+  {
+    "id": "s2-tomas",
+    "seed": 2202,
+    "prompt": "photograph, straight-on head-and-shoulders portrait of a 34 year old man with short black hair and light stubble, thin rectangular glasses, calm expression, plain off-white wall behind him, soft window light, sharp focus on the eyes, 50mm lens, natural skin texture",
+    "note": "Fictional demo subject 2 — glasses case, so identity preservation is visible."
+  },
+  {
+    "id": "s3-elias",
+    "seed": 3303,
+    "prompt": "photograph, straight-on head-and-shoulders portrait of a 58 year old man with short grey hair, sun-weathered face and deep smile lines, neutral expression, plain sand-coloured wall behind him, soft overcast daylight, sharp focus on the eyes, 50mm lens, natural skin texture",
+    "note": "Fictional demo subject 3 — age and texture case."
+  }
+]

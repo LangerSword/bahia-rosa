@@ -39,6 +39,12 @@ test("editor mounts with loading-screen gating", async ({ page }) => {
 
   await page.goto("/");
 
+  // The cast must actually load: a broken path here would ship a picker full of empty tiles.
+  const plates = page.locator('[data-testid^="plate-"] img');
+  await expect.poll(async () => plates.count(), { timeout: 15_000 }).toBeGreaterThanOrEqual(4);
+  const loaded = await plates.evaluateAll((imgs) => imgs.map((img) => (img as HTMLImageElement).naturalWidth));
+  expect(loaded.every((width) => width > 0)).toBe(true);
+
   // Intake first: take a baked proof plate so this suite never touches the network for a plate.
   await page.getByTestId("plate-placeholder").click();
   await expect(page.getByTestId("editor-surface-loading")).toBeAttached();

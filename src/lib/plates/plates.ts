@@ -25,13 +25,43 @@ export interface BakedPlate {
   src: string;
 }
 
-/** Baked at build time by the print desk; see public/plates/README.md. */
+/**
+ * Baked by the print desk (see docs/print-desk.md). Every face here is fictional, invented by the
+ * casting desk (`tools/print-desk/subject.mjs` → SDXL) and restyled by the look spec. The one
+ * non-character plate is the proof plate, kept because the end-to-end test uses it.
+ */
+const ART = `${import.meta.env.BASE_URL}art/demo/`;
+
 export const BAKED_PLATES: BakedPlate[] = [
   {
+    id: "marisol",
+    label: "Marisol",
+    note: "Key-art plate — a clean straight-on shot for the loading screen.",
+    src: `${ART}s1-marisol-keyart.jpg`,
+  },
+  {
+    id: "tomas",
+    label: "Tomás",
+    note: "Key-art plate — wears glasses, so the restyle has to keep them.",
+    src: `${ART}s2-tomas-keyart.jpg`,
+  },
+  {
+    id: "elias",
+    label: "Elías",
+    note: "Key-art plate — weathered face, the hardest likeness case.",
+    src: `${ART}s3-elias-keyart.jpg`,
+  },
+  {
+    id: "tomas-press",
+    label: "Tomás · press",
+    note: "The same face in the photoreal register — what the front page runs.",
+    src: `${ART}s2-tomas-press.jpg`,
+  },
+  {
     id: "placeholder",
-    label: "Press plate",
-    note: "The proof plate the desk prints before a run.",
-    src: `${import.meta.env.BASE_URL}art/demo/placeholder.png`,
+    label: "Proof plate",
+    note: "The empty desk plate, printed before any run.",
+    src: `${ART}placeholder.png`,
   },
 ];
 
