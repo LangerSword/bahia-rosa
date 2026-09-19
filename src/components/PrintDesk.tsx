@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PrintDeskOffline, printPlate, type PrintProgress } from "../lib/printdesk/client";
 import type { PlateSource } from "../lib/plates/plates";
+import type { PrintChoice } from "./PlateGate";
 
 /**
  * The printing screen. The bar is driven by the desk's own execution events (see
@@ -10,7 +11,8 @@ import type { PlateSource } from "../lib/plates/plates";
 
 interface PrintDeskProps {
   file: File;
-  onPrinted: (plate: PlateSource, meta: { seed: number; register: string; seconds: number }) => void;
+  choice: PrintChoice;
+  onPrinted: (plate: PlateSource, meta: { seed: number; register: string; location: string | null; seconds: number }) => void;
   onUseCastPlate: () => void;
 }
 
@@ -24,7 +26,7 @@ const STAGE_LABEL: Record<PrintProgress["stage"], string> = {
   failed: "the desk jammed",
 };
 
-export function PrintDesk({ file, onPrinted, onUseCastPlate }: PrintDeskProps) {
+export function PrintDesk({ file, choice, onPrinted, onUseCastPlate }: PrintDeskProps) {
   const [progress, setProgress] = useState<PrintProgress>({ stage: "preparing", percent: 0, message: "warming the desk" });
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +45,9 @@ export function PrintDesk({ file, onPrinted, onUseCastPlate }: PrintDeskProps) {
 
     printPlate({
       file,
-      surface: "debut",
+      surface: choice.surface,
+      location: choice.location,
+      quality: choice.quality,
       onProgress: (update) => {
         setProgress(update);
         setLog((lines) => {
@@ -57,6 +61,7 @@ export function PrintDesk({ file, onPrinted, onUseCastPlate }: PrintDeskProps) {
         onPrinted({ kind: "photo", objectUrl: printed.dataUrl, name: "printed plate" }, {
           seed: printed.seed,
           register: printed.register,
+          location: printed.location,
           seconds: printed.seconds,
         });
       })
@@ -78,6 +83,11 @@ export function PrintDesk({ file, onPrinted, onUseCastPlate }: PrintDeskProps) {
           <h2 className="font-display text-4xl leading-tight">
             {error ? "The desk stopped" : result ? "Plate ready" : "Printing your plate"}
           </h2>
+          <p className="mt-1 font-mono text-[11px] text-paper/50">
+            {choice.surface}
+            {choice.location ? ` · ${choice.location}` : " · rotating location"}
+            {choice.quality ? " · quality print (26 steps)" : " · fast print (4 steps)"}
+          </p>
         </div>
         <p className="font-mono text-sm text-paper/60">{seconds.toFixed(1)}s</p>
       </header>

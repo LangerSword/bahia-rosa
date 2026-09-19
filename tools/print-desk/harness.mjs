@@ -49,9 +49,9 @@ const correction = (round) =>
     ? ""
     : "Make the subject unmistakably the person in the reference photo, fill the frame with a head-and-shoulders portrait, light the face clearly and keep the background simple and out of focus.";
 
-async function print({ photo, surface, seed, out, brief, unet, steps, guidance, server, hq }) {
+async function print({ photo, surface, seed, out, brief, unet, steps, guidance, server, hq, location }) {
   const cli = ["tools/print-desk/print.mjs", "--photo", photo, "--seed", String(seed), "--out", out, "--surface", surface];
-  for (const [flag, value] of Object.entries({ brief, unet, steps, guidance, server })) {
+  for (const [flag, value] of Object.entries({ brief, unet, steps, guidance, server, location })) {
     if (value) cli.push(`--${flag}`, String(value));
   }
   if (hq) cli.push("--hq");
@@ -60,11 +60,16 @@ async function print({ photo, surface, seed, out, brief, unet, steps, guidance, 
 }
 
 async function gate(file, palette) {
-  const { stdout } = await run(PYTHON, ["tools/print-desk/critique.py", file, "--palette", palette, "--expect-portrait"], {
-    cwd: PROJECT,
-    maxBuffer: 8 * 1024 * 1024,
-  });
-  return JSON.parse(stdout);
+  try {
+    const { stdout } = await run(PYTHON, ["tools/print-desk/critique.py", file, "--palette", palette, "--expect-portrait"], {
+      cwd: PROJECT,
+      maxBuffer: 8 * 1024 * 1024,
+    });
+    return JSON.parse(stdout);
+  } catch (error) {
+    // A broken gate must not kill a batch of plates that are already on disk.
+    return { score: 0, failed: ["gate-error"], verdict: "unknown", error: error instanceof Error ? error.message.slice(0, 200) : String(error) };
+  }
 }
 
 /** Unload ComfyUI's models so the judge can have the GPU — the two never need to be resident at once. */
@@ -153,17 +158,20 @@ async function main() {
 
   const history = [];
   for (let round = 0; round < 2; round++) {
-    // Phase 1: print the whole batch, so the desk loads its weights once and never competes with the judge.
+    // Phase 1: print the whole batch, rotating locations so a batch shows the city, not one street.
     const batch = [];
+    const locationKeys = Object.keys(spec.locations ?? {}).filter((key) => key !== "note");
     for (let i = 0; i < candidates; i++) {
       const seed = baseSeed + round * 1000 + i * 17;
       const file = resolve(outdir, `r${round}-c${i}-s${seed}.png`);
-      process.stdout.write(`round ${round + 1}/2 · print ${i + 1}/${candidates} · seed ${seed} … `);
+      const location = args.location ?? (locationKeys.length ? locationKeys[(round * candidates + i) % locationKeys.length] : undefined);
+      process.stdout.write(`round ${round + 1}/2 · print ${i + 1}/${candidates} · ${location ?? "default"} · seed ${seed} … `);
       await print({
         photo,
         surface,
         seed,
         out: file,
+        location,
         brief: round === 0 ? undefined : [spec.surfaces[surface]?.brief, correction(round)].filter(Boolean).join(" "),
         unet: args.unet,
         steps: args.steps,
@@ -171,7 +179,7 @@ async function main() {
         server: args.server,
         hq: args.hq,
       });
-      batch.push({ file, seed, round });
+      batch.push({ file, seed, round, location });
       console.log("printed");
     }
 

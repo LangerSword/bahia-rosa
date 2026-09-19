@@ -1,23 +1,45 @@
 import { useCallback, useState } from "react";
 import { EditorSurface, type ToolGating } from "./components/EditorSurface";
-import { PlateGate } from "./components/PlateGate";
+import { PlateGate, type PrintChoice } from "./components/PlateGate";
 import { PrintDesk } from "./components/PrintDesk";
 import { plateFromBaked, type PlateSource } from "./lib/plates/plates";
 
 /**
- * Surface 1 — LOADING SCREEN (brief: clean grade, subject centred, name plate clear).
- * Gating is deliberate level design: this surface only exposes crop, resize, frame and text.
- * See docs/editor-contract.md, docs/look.md and docs/print-desk.md.
+ * The app is a loop of surfaces: intake → print → edit → next surface.
+ * Gating is deliberate level design — each surface exposes a different tool set, so "the editor is
+ * core" is structural. See docs/editor-contract.md, docs/look.md and docs/print-desk.md.
  */
-const LOADING_GATING: ToolGating = {
-  crop: true,
-  resize: true,
-  frame: true,
-  text: true,
-  filter: false,
-  draw: false,
-  shapes: false,
-  stickers: false,
+
+const TITLE_GATING: ToolGating = { crop: true, resize: true, frame: true, text: true, filter: false, draw: false, shapes: false, stickers: false };
+const PAGE_GATING: ToolGating = { crop: true, resize: true, filter: true, text: true, frame: false, draw: false, shapes: false, stickers: false };
+const POSTER_GATING: ToolGating = { crop: true, resize: true, filter: true, text: true, frame: true, draw: true, shapes: true, stickers: true };
+
+/** Which editor surface a printed style leads into, and what that surface asks for. */
+const PLANS: Record<string, { surfaceId: string; title: string; brief: string; gating: ToolGating }> = {
+  debut: {
+    surfaceId: "loading",
+    title: "the loading screen",
+    brief: "clean grade, face centred, name plate clear",
+    gating: TITLE_GATING,
+  },
+  loadingscreen: {
+    surfaceId: "loading",
+    title: "the loading screen",
+    brief: "painted panel — put your name in the clear band along the bottom",
+    gating: TITLE_GATING,
+  },
+  frontpage: {
+    surfaceId: "frontpage",
+    title: "the front page",
+    brief: "face above the fold, masthead clear, tabloid drama",
+    gating: PAGE_GATING,
+  },
+  poster: {
+    surfaceId: "poster",
+    title: "the VIP poster",
+    brief: "sell the room; you are the night's draw",
+    gating: POSTER_GATING,
+  },
 };
 
 /** Offered when no local desk is running, so the experience never dead-ends. */
@@ -33,20 +55,28 @@ type Stage = "gate" | "printing" | "editing";
 export function App() {
   const [stage, setStage] = useState<Stage>("gate");
   const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
+  const [choice, setChoice] = useState<PrintChoice>({ surface: "debut", quality: false });
   const [plate, setPlate] = useState<PlateSource | null>(null);
+  const [meta, setMeta] = useState<{ register: string; location: string | null; seed: number } | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
 
   const onSaved = useCallback((dataUrl: string) => setSaved(dataUrl), []);
 
   const image = plate ? (plate.kind === "photo" ? plate.objectUrl : plate.src) : null;
+  const plan = PLANS[choice.surface] ?? PLANS.debut;
 
-  const printed = useCallback((next: PlateSource) => {
-    setPlate(next);
-    setStage("editing");
-  }, []);
+  const printed = useCallback(
+    (next: PlateSource, printedMeta: { register: string; location: string | null; seed: number }) => {
+      setPlate(next);
+      setMeta(printedMeta);
+      setStage("editing");
+    },
+    [],
+  );
 
   const useFallback = useCallback(() => {
     setPlate(plateFromBaked(FALLBACK_PLATE));
+    setMeta(null);
     setStage("editing");
   }, []);
 
@@ -63,25 +93,27 @@ export function App() {
 
       {stage === "gate" ? (
         <PlateGate
-          onPhoto={(file) => {
+          onPhoto={(file, picked) => {
             setPendingPhoto(file);
+            setChoice(picked);
             setStage("printing");
           }}
           onPlate={(baked) => {
             setPlate(baked);
+            setMeta(null);
             setStage("editing");
           }}
         />
       ) : null}
 
       {stage === "printing" && pendingPhoto ? (
-        <PrintDesk file={pendingPhoto} onPrinted={printed} onUseCastPlate={useFallback} />
+        <PrintDesk file={pendingPhoto} choice={choice} onPrinted={printed} onUseCastPlate={useFallback} />
       ) : null}
 
       {stage === "editing" && image ? (
         <section className="editor-shell">
           <div className="mb-4 flex items-center justify-between border-b border-paper/15 pb-3">
-            <h2 className="font-display text-2xl">Step 2 — the loading screen</h2>
+            <h2 className="font-display text-2xl">Step 2 — {plan.title}</h2>
             <button
               type="button"
               data-testid="start-over"
@@ -89,6 +121,7 @@ export function App() {
                 setPlate(null);
                 setPendingPhoto(null);
                 setSaved(null);
+                setMeta(null);
                 setStage("gate");
               }}
               className="border border-paper/30 px-3 py-1 text-xs tracking-wide uppercase hover:bg-paper/10"
@@ -97,11 +130,11 @@ export function App() {
             </button>
           </div>
           <p className="mb-4 max-w-prose text-sm text-paper/70">
-            Brief: clean grade, face centred, name plate clear. You get crop, resize, frame and text —
-            nothing else. This is the shot the city opens with.
+            Brief: {plan.brief}.
+            {meta?.location ? <span className="text-paper/50"> Printed at the {meta.location}.</span> : null}
             {plate?.kind === "plate" ? <span className="text-paper/50"> (Using a cast plate.)</span> : null}
           </p>
-          <EditorSurface surfaceId="loading" image={image} gating={LOADING_GATING} onSaved={onSaved} />
+          <EditorSurface surfaceId={plan.surfaceId} image={image} gating={plan.gating} onSaved={onSaved} />
         </section>
       ) : null}
 

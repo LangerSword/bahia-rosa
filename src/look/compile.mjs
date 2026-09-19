@@ -55,6 +55,7 @@ function paletteClause(spec, key) {
  * @param {object} [options]
  * @param {string} [options.register] - key in spec.registers (default: the loading surface's register)
  * @param {string} [options.surface] - surface id from spec.surfaces; supplies register + brief
+ * @param {string} [options.location] - key in spec.locations; where the subject stands
  * @param {string} [options.lighting] - override the register's default lighting
  * @param {string} [options.palette] - override the register's default palette
  * @param {string} [options.brief] - the job's brief line (the per-surface instruction)
@@ -64,8 +65,11 @@ export function compile(spec, options = {}) {
   const surface = options.surface ? pick(spec.surfaces, options.surface, "surface") : null;
   const registerKey = options.register ?? surface?.register;
   const register = pick(spec.registers, registerKey, "register");
-  const lightingKey = options.lighting ?? register.defaultLighting;
-  const paletteKey = options.palette ?? register.defaultPalette;
+  // A location is where the subject is standing; it can also carry its own lighting and palette.
+  const locationKey = options.location ? pick(spec.locations, options.location, "location") && options.location : null;
+  const location = locationKey ? spec.locations[locationKey] : null;
+  const lightingKey = options.lighting ?? location?.lighting ?? register.defaultLighting;
+  const paletteKey = options.palette ?? location?.palette ?? register.defaultPalette;
   const brief = options.brief ?? surface?.brief ?? "";
 
   const clauses = {
@@ -74,7 +78,7 @@ export function compile(spec, options = {}) {
     identity: identityClause(spec),
     scene: brief ? `Scene: ${brief}` : "",
     background: register.background ? `Background: ${register.background}` : "",
-    scenery: spec.scenery ? `Scenery: ${spec.scenery}` : "",
+    scenery: `Scenery: ${location?.scenery ?? spec.scenery}`,
     lighting: lightingClause(spec, lightingKey),
     palette: paletteClause(spec, paletteKey),
     camera: cameraClause(spec),
@@ -99,6 +103,7 @@ export function compile(spec, options = {}) {
   return {
     prompt,
     register: registerKey,
+    location: locationKey,
     lighting: lightingKey,
     palette: paletteKey,
     seed,
@@ -117,8 +122,12 @@ export function compileForSurface(spec, surfaceId, options = {}) {
   return compile(spec, { ...options, surface: surfaceId });
 }
 
-/** Filename that records provenance: every plate is traceable to spec + register + seed. */
-export function plateFilename({ register, seed, specVersion }) {
+/**
+ * Filename that records provenance: every plate is traceable to spec + register + location + seed.
+ * @param {{ register: string, seed: number, specVersion: string, location?: string | null }} parts
+ */
+export function plateFilename({ register, seed, specVersion, location }) {
   const stamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
-  return `${stamp}-${register}-s${seed}-v${specVersion}.png`;
+  const where = location ? `-${location}` : "";
+  return `${stamp}-${register}${where}-s${seed}-v${specVersion}.png`;
 }

@@ -18,16 +18,25 @@ the harness uses these to decide whether to keep a candidate or reprint it:
 import argparse
 import json
 import math
+import sys
 from pathlib import Path
 
 from PIL import Image, ImageFilter, ImageStat
 
-PALETTES = {
-    "deco-pastel": ["#F2C6D4", "#A8CDE8", "#F4E3A1", "#C9B6E4", "#F5F1E6"],
-    "bleached-day": ["#EDE6DA", "#7FC3C0", "#D9C08A", "#2F6F6B", "#B75B3B"],
-    "neon-wet": ["#FF3E8E", "#25D8E8", "#FFB347", "#0B1030", "#2A0E4A"],
-    "warm-dusk": ["#E07A3F", "#C9738A", "#6A4C93", "#F0B37E", "#3A2B32"],
-}
+SPEC = Path(__file__).resolve().parents[2] / "src" / "look" / "look.json"
+
+
+def load_palettes():
+    """Palettes come from the look spec, so this file cannot drift from what the desk actually prints."""
+    try:
+        spec = json.loads(SPEC.read_text())
+        return {key: value["anchors"] for key, value in spec["palette"].items() if "anchors" in value}
+    except (OSError, KeyError, json.JSONDecodeError) as error:
+        print(f"could not read palettes from {SPEC}: {error}", file=sys.stderr)
+        return {"neon-wet": ["#FF3E8E", "#25D8E8", "#FFB347", "#0B1030", "#2A0E4A"]}
+
+
+PALETTES = load_palettes()
 
 
 def hex_to_rgb(value):

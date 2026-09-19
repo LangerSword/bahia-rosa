@@ -5,23 +5,40 @@ import {
   plateFromBaked,
   type PlateSource,
 } from "../lib/plates/plates";
+import { printChoices } from "../lib/printdesk/client";
 
 /**
  * Intake — one image in, one image into the editor. Everything is local: an uploaded photo is
  * read straight from the file object in the page, and the baked plates ship with the build.
- * See src/lib/plates/plates.ts for why generation is not in the request path.
+ *
+ * The choices here (surface, location, quality) are the ones the desk actually understands, and
+ * they come from the look spec rather than a hand-written list, so the UI cannot drift from it.
  */
+
+export interface PrintChoice {
+  /** Which surface style to print: character shot, loading screen, poster, press photo. */
+  surface: string;
+  /** Where the subject stands; undefined means the desk rotates through the city. */
+  location?: string;
+  /** Base model at 26 steps instead of the fast 4-step distilled one. */
+  quality: boolean;
+}
 
 interface PlateGateProps {
   /** A photo from the player — handed to the print desk, never uploaded to a server of ours. */
-  onPhoto: (file: File) => void;
+  onPhoto: (file: File, choice: PrintChoice) => void;
   /** A baked cast plate — skips printing entirely. */
   onPlate: (plate: PlateSource) => void;
 }
 
+const { surfaces, locations } = printChoices();
+
 export function PlateGate({ onPhoto, onPlate }: PlateGateProps) {
   const [problem, setProblem] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [surface, setSurface] = useState("debut");
+  const [location, setLocation] = useState("");
+  const [quality, setQuality] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const accept = useCallback(
@@ -32,9 +49,9 @@ export function PlateGate({ onPhoto, onPlate }: PlateGateProps) {
         return;
       }
       setProblem(null);
-      onPhoto(file);
+      onPhoto(file, { surface, location: location || undefined, quality });
     },
-    [onPhoto],
+    [onPhoto, surface, location, quality],
   );
 
   return (
@@ -44,6 +61,57 @@ export function PlateGate({ onPhoto, onPlate }: PlateGateProps) {
         Bring a photo, or take one of the desk's proof plates. Your file is read in this page and
         never uploaded anywhere — there is no server in this build.
       </p>
+
+      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        <label className="block">
+          <span className="text-xs tracking-[0.25em] text-paper/50 uppercase">Style</span>
+          <select
+            data-testid="choose-style"
+            value={surface}
+            onChange={(event) => setSurface(event.target.value)}
+            className="mt-2 w-full border border-paper/30 bg-transparent px-3 py-2 text-sm"
+          >
+            {surfaces.map((option) => (
+              <option key={option.id} value={option.id} className="text-black">
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="text-xs tracking-[0.25em] text-paper/50 uppercase">Location</span>
+          <select
+            data-testid="choose-location"
+            value={location}
+            onChange={(event) => setLocation(event.target.value)}
+            className="mt-2 w-full border border-paper/30 bg-transparent px-3 py-2 text-sm"
+          >
+            <option value="" className="text-black">
+              Rotate ({locations.length} places)
+            </option>
+            {locations.map((option) => (
+              <option key={option.id} value={option.id} className="text-black">
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex items-end gap-3 pb-2">
+          <input
+            data-testid="choose-quality"
+            type="checkbox"
+            checked={quality}
+            onChange={(event) => setQuality(event.target.checked)}
+            className="h-4 w-4"
+          />
+          <span className="text-sm text-paper/80">
+            Quality print
+            <span className="block text-xs text-paper/50">base model, 26 steps — slower, sharper</span>
+          </span>
+        </label>
+      </div>
 
       <div
         onDragOver={(event) => {
@@ -82,7 +150,7 @@ export function PlateGate({ onPhoto, onPlate }: PlateGateProps) {
           }}
         />
         <p className="max-w-prose text-center text-xs text-paper/50">
-          Face the camera, plain background, shoulders up — the desk works best with a straight-on shot.
+          Face the camera, plain background, shoulders up — the desk finds the face and frames it itself.
         </p>
       </div>
 

@@ -29,6 +29,7 @@ export interface PrintResult {
   dataUrl: string;
   seed: number;
   register: string;
+  location: string | null;
   seconds: number;
 }
 
@@ -36,10 +37,25 @@ export interface PrintOptions {
   file: File;
   surface?: string;
   register?: string;
+  /** Where the subject stands; omit to let the desk rotate through the city. */
+  location?: string;
+  /** The quality preset: base model, 26 steps, guidance 1.0 (~70s cold, ~10s warm). */
+  quality?: boolean;
   seed?: number;
   baseUrl?: string;
   onProgress?: (progress: PrintProgress) => void;
   signal?: AbortSignal;
+}
+
+/** The choices the intake UI offers, straight from the look spec so the two can never drift apart. */
+export function printChoices() {
+  const surfaces = Object.entries((look as { surfaces: Record<string, { register: string }> }).surfaces).map(
+    ([id, value]) => ({ id, register: value.register, label: (look as { registers: Record<string, { label?: string }> }).registers[value.register]?.label ?? id }),
+  );
+  const locations = Object.entries((look as { locations: Record<string, { label?: string; note?: string }> }).locations)
+    .filter(([key]) => key !== "note")
+    .map(([id, value]) => ({ id, label: value.label ?? id }));
+  return { surfaces, locations };
 }
 
 export class PrintDeskOffline extends Error {
@@ -150,8 +166,15 @@ export async function printPlate(options: PrintOptions): Promise<PrintResult> {
   const compiled = compile(look, {
     surface: options.surface ?? "debut",
     register: options.register,
+    location: options.location,
     seed: options.seed,
-  }) as { prompt: string; register: string; seed: number; render: { width: number; height: number; steps: number; guidance: number } };
+  }) as {
+    prompt: string;
+    register: string;
+    location: string | null;
+    seed: number;
+    render: { width: number; height: number; steps: number; guidance: number };
+  };
 
   const clientId = `fifteen-${Math.random().toString(36).slice(2, 10)}`;
   const socketUrl = `${baseUrl.replace(/^http/, "ws")}/ws?clientId=${clientId}`;
@@ -193,6 +216,14 @@ export async function printPlate(options: PrintOptions): Promise<PrintResult> {
   graph["12"].inputs.steps = compiled.render.steps;
   graph["14"].inputs.noise_seed = compiled.seed;
   graph["15"].inputs.cfg = compiled.render.guidance;
+
+  // The quality preset mirrors `print.mjs --hq`: base 4B at 26 steps, guidance 1.0. CFG above 1 on
+  // this family both burns the colours and doubles the cost of every step, so it is not used.
+  if (options.quality) {
+    graph["1"].inputs.unet_name = "flux-2-klein-base-4b-fp8.safetensors";
+    graph["12"].inputs.steps = 26;
+    graph["15"].inputs.cfg = 1.0;
+  }
 
   const queued = (await jsonFetch(`${baseUrl}/prompt`, {
     method: "POST",
@@ -239,6 +270,7 @@ export async function printPlate(options: PrintOptions): Promise<PrintResult> {
     dataUrl,
     seed: compiled.seed,
     register: compiled.register,
+    location: compiled.location ?? null,
     seconds: (Date.now() - started) / 1000,
   };
 }

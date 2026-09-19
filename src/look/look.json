@@ -1,6 +1,6 @@
 {
   "spec": "fifteen-minutes/look",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "role": "The single source of truth for how every image in this project looks. The print desk compiles a prompt from it (src/look/compile.mjs) and feeds that prompt + the reference photo to FLUX.2 [klein] 4B. Nothing visual ships that was not drawn from this file.",
   "city": {
     "name": "Bahía Rosa",
@@ -51,10 +51,10 @@
       "use": "The default conversion: your photo restyled as a current-generation open-world character portrait standing in the city.",
       "medium": "Photoreal in-engine character portrait from a current-generation open-world crime game: ray-traced global illumination, subsurface-scattered skin, strand-level hair, pores and stubble visible.",
       "background": "The invented coastal city at golden hour: palm fronds catching the sun, pastel Art Deco facades, chrome trim, a receding boulevard falling out of focus.",
-      "finish": "Cinematic grade: warm highlights against teal-and-magenta shadow, soft bloom on specular edges, wet-surface reflections, fine film grain.",
+      "finish": "Cinematic grade: warm highlights against teal shadow, natural skin tones, soft bloom on specular edges, wet-surface reflections, fine film grain.",
       "backgroundNote": "Design intent, not compiled: heat haze on a distant skyline, plate glass, palms reading as dark shapes past the frame edge.",
       "defaultLighting": "dual-rim",
-      "defaultPalette": "neon-wet",
+      "defaultPalette": "cinematic-warm",
       "render": { "width": 1024, "height": 1024, "steps": 4 }
     },
     "key-art": {
@@ -86,11 +86,21 @@
       "defaultLighting": "dusk-neon",
       "defaultPalette": "neon-wet",
       "render": { "width": 1024, "height": 768, "steps": 4 }
+    },
+    "loading-screen": {
+      "label": "Loading screen",
+      "use": "The classic loading-screen panel: the character inside a painted scene, with the bottom quarter left clean so the player types their own name into it with the editor's text tool.",
+      "medium": "Hand-painted loading-screen illustration for a high-fidelity open-world crime drama: confident brushwork over cel-shaded form, painted sky and water, simplified but readable city detail, an ink-clean edge on the figure.",
+      "background": "A painted wide city scene behind the character — boulevard, palms and deco facades under a big sky — rendered as illustration rather than photograph.",
+      "finish": "Poster-grade painted panel, high contrast, no photographic grain; the bottom quarter of the frame is calm and uncluttered, empty of detail and free of any lettering.",
+      "defaultLighting": "golden-hour-coastal",
+      "defaultPalette": "deco-pastel",
+      "render": { "width": 1024, "height": 1024, "steps": 4 }
     }
   },
 
   "lighting": {
-    "dual-rim": "warm amber rim light from one side, magenta rim light from the other, both raking hair, ear, jaw and shoulder; the face front softly lit and fully readable.",
+    "dual-rim": "warm amber key light from one side and a soft cool cyan rim from the other, raking hair, ear, jaw and shoulder; the face itself stays naturally lit and skin-coloured, never bathed in coloured light.",
     "studio-flat": "Even, soft, directionless studio light on the subject; no visible light source; no cast shadow on the field.",
     "golden-hour-coastal": "Late-afternoon subtropical sun at a low angle: warm amber key, long soft shadows, humidity haze, gentle bounce from pale walls.",
     "midday-haze": "High sun through humidity: slightly blown highlights on white surfaces, washed-out colour, heat shimmer on distant edges, hard short shadows.",
@@ -112,6 +122,10 @@
       "description": "pink-and-teal sunset running into hot magenta signage, electric cyan, amber sodium accents, deep blue-black shadow.",
       "anchors": ["#FF3E8E", "#25D8E8", "#FFB347", "#0B1030", "#2A0E4A"]
     },
+    "cinematic-warm": {
+      "description": "naturalistic cinematic colour: sun-warmed skin that stays skin-coloured, amber and gold highlights, teal shadow, deep blue-black depth, no magenta cast on faces.",
+      "anchors": ["#E8B27A", "#F0D8A8", "#2F6F7A", "#1B2A38", "#C56A3E"]
+    },
     "warm-dusk": {
       "description": "Amber dusk: burnt orange sky, dusty rose clouds, violet shadow, warm rim light.",
       "anchors": ["#E07A3F", "#C9738A", "#6A4C93", "#F0B37E", "#3A2B32"]
@@ -119,6 +133,37 @@
   },
 
   "scenery": "palm-lined boulevard, pastel Art Deco facades with chrome trim, neon shopfront signs, plate glass, a marina of masts behind, a ferris wheel on the pier, sunset sky streaked with warm cloud, haze between buildings, soft bokeh of passing traffic.",
+  "locations": {
+    "note": "Where the subject is standing. One photo should not always print the same street, so the desk rotates through these unless a location is named. Each entry overrides the scenery clause.",
+    "boulevard": {
+      "label": "Palm boulevard",
+      "scenery": "palm-lined boulevard at golden hour, pastel deco facades, chrome trim, shopfront glass, long shadows raking across the asphalt."
+    },
+    "marina": {
+      "label": "Marina pier",
+      "scenery": "waterfront promenade, yacht masts, a ferris wheel turning on the pier, moored hulls, warm dock lights coming on."
+    },
+    "downtown": {
+      "label": "Downtown canyon",
+      "scenery": "downtown street canyon, glass towers stacked against a bright sky, neon shopfronts, traffic lights and thin light trails."
+    },
+    "rooftop": {
+      "label": "Rooftop",
+      "scenery": "rooftop terrace above the city, water tanks and aerials, the skyline glowing behind, deep dusk sky above."
+    },
+    "market": {
+      "label": "Night market",
+      "scenery": "night market street, striped awnings, string lights, food stalls, crowd bokeh and warm cooking smoke."
+    },
+    "seafront": {
+      "label": "Seafront road",
+      "scenery": "coastal road along a seawall, ocean haze, mooring bollards, gulls, the sun low over the water."
+    },
+    "hillside": {
+      "label": "Hillside overlook",
+      "scenery": "hillside overlook above the city, a switchback road behind, the whole city glittering below through warm haze."
+    }
+  },
   "camera": {
     "framing": "Waist-up, subject on the left third, the city filling the rest of the frame.",
     "lens": "85mm.",
@@ -163,6 +208,7 @@
   "surfaces": {
     "debut": { "register": "character-shot", "brief": "the subject standing in the city at golden hour" },
     "loading": { "register": "key-art", "brief": "clean grade, subject centred, name plate clear" },
+    "loadingscreen": { "register": "loading-screen", "brief": "the subject painted into the city, bottom quarter calm and clear of detail" },
     "frontpage": { "register": "press-photo", "brief": "face above the fold, masthead clear, tabloid drama" },
     "poster": { "register": "neon-night", "brief": "sell the room; the subject as the night's draw" }
   }

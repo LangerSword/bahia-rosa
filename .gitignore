@@ -10,3 +10,7 @@ coverage
 test-results
 playwright-report
 .DS_Store
+
+# Generated plates, framed references and comparison sheets — outputs, not source.
+print-desk-out
+

@@ -146,18 +146,33 @@ async function main() {
     args["no-facefix"] = true;
   }
 
+  const seedForLocation = args.seed ? Number(args.seed) : Math.floor(Math.random() * 2 ** 31);
+  // Rotate the backdrop unless one is named: one photo should not always print the same street.
+  const locationKeys = Object.keys(spec.locations ?? {}).filter((key) => key !== "note");
+  const location =
+    args.location ?? (args["no-rotate-locations"] || locationKeys.length === 0 ? undefined : locationKeys[seedForLocation % locationKeys.length]);
+
   const compiled = args.prompt
     ? {
-        ...compile(spec, { surface: args.surface ?? "loading", register: args.register, lighting: args.lighting, palette: args.palette, brief: args.brief, seed: args.seed ? Number(args.seed) : undefined }),
+        ...compile(spec, {
+          surface: args.surface ?? "loading",
+          register: args.register,
+          location,
+          lighting: args.lighting,
+          palette: args.palette,
+          brief: args.brief,
+          seed: seedForLocation,
+        }),
         prompt: args.prompt,
       }
     : compile(spec, {
     surface: args.surface ?? "loading",
     register: args.register,
+    location,
     lighting: args.lighting,
     palette: args.palette,
     brief: args.brief,
-    seed: args.seed ? Number(args.seed) : undefined,
+    seed: seedForLocation,
   });
 
   // --hq: the quality preset. The plain 4-step distilled model is the fast path; the base model at
@@ -212,7 +227,7 @@ async function main() {
     body: JSON.stringify({ prompt: graph, client_id: "print-desk" }),
   });
 
-  process.stdout.write(`queued ${queued.prompt_id} · register ${compiled.register} · seed ${compiled.seed} · `);
+  process.stdout.write(`queued ${queued.prompt_id} · register ${compiled.register} · location ${compiled.location ?? "spec default"} · seed ${compiled.seed} · `);
   process.stdout.write(`${compiled.render.width}x${compiled.render.height} · ${compiled.prompt.length} prompt chars\n`);
 
   let file = null;
@@ -240,7 +255,7 @@ async function main() {
   const bytes = new Uint8Array(await (await fetch(view)).arrayBuffer());
 
   const out = resolve(
-    args.out ?? resolve(HERE, "../../print-desk-out", plateFilename({ register: compiled.register, seed: compiled.seed, specVersion: compiled.specVersion })),
+    args.out ?? resolve(HERE, "../../print-desk-out/plates", plateFilename({ register: compiled.register, location: compiled.location, seed: compiled.seed, specVersion: compiled.specVersion })),
   );
   await mkdir(dirname(out), { recursive: true });
   await writeFile(out, bytes);
