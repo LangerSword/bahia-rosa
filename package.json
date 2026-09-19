@@ -10,7 +10,14 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "desk": "bash tools/desk/desk.sh start",
+    "desk:stop": "bash tools/desk/desk.sh stop",
+    "desk:status": "bash tools/desk/desk.sh status",
+    "desk:logs": "bash tools/desk/desk.sh logs 60",
+    "print": "node tools/print-desk/print.mjs",
+    "harness": "node tools/print-desk/harness.mjs",
+    "frame": "$HOME/.venv/bin/python tools/print-desk/frame.py"
   },
   "dependencies": {
     "@unlayer/react-image-editor": "^1.0.2",
