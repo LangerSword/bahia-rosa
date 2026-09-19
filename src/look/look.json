@@ -1,6 +1,6 @@
 {
   "spec": "fifteen-minutes/look",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "role": "The single source of truth for how every image in this project looks. The print desk compiles a prompt from it (src/look/compile.mjs) and feeds that prompt + the reference photo to FLUX.2 [klein] 4B. Nothing visual ships that was not drawn from this file.",
   "city": {
     "name": "Bahía Rosa",
@@ -52,6 +52,16 @@
 
   "registers": {
     "note": "A register is the medium the plate is rendered in. Surfaces pick a register; the register picks a default lighting and palette.",
+    "character-shot": {
+      "label": "Character shot",
+      "use": "The default conversion: your photo restyled as a current-generation open-world character portrait standing in the city.",
+      "medium": "Photoreal character portrait rendered in a current-generation open-world engine: physically based materials, ray-traced global illumination with colour bouncing into shadow, believable skin lit with subsurface scattering at the ears, nose and cheekbones, hair resolved strand by strand with light passing through the tips, visible pores and fine stubble.",
+      "background": "The invented coastal city behind the subject, softly out of focus but legible: palm fronds catching the light, pastel Art Deco facades, plate glass and chrome down a receding boulevard, a hazy skyline running past the edge of the frame.",
+      "finish": "Shot on an 85mm lens at f/1.8: the subject sharp, the city dissolved into creamy bokeh, clean highlight rolloff, subtle in-camera grain, no interface overlays, no on-screen readouts.",
+      "defaultLighting": "dual-rim",
+      "defaultPalette": "neon-wet",
+      "render": { "width": 1024, "height": 1024, "steps": 4, "guidance": 3.5 }
+    },
     "key-art": {
       "label": "Key art",
       "use": "Loading screen. The illustrated portrait the city opens with.",
@@ -85,6 +95,7 @@
   },
 
   "lighting": {
+    "dual-rim": "Two rim lights frame the subject whatever the hour: a warm amber light from one side, a strong magenta light from the other, both catching the hair and the edge of the cheek and jaw, while the face itself stays softly lit and fully legible. This two-tone rim light is the signature of the city's character portraits.",
     "studio-flat": "Even, soft, directionless studio light on the subject; no visible light source; no cast shadow on the field.",
     "golden-hour-coastal": "Late-afternoon subtropical sun at a low angle: warm amber key light, long soft shadows, humidity haze in the air, gentle bounce from pale walls.",
     "midday-haze": "High sun through humidity: slightly blown highlights on white surfaces, washed-out colour, heat shimmer on distant edges, hard short shadows.",
@@ -103,7 +114,7 @@
       "anchors": ["#EDE6DA", "#7FC3C0", "#D9C08A", "#2F6F6B", "#B75B3B"]
     },
     "neon-wet": {
-      "description": "Wet-night sign palette: hot magenta, electric cyan, amber sodium accents, deep blue-black shadow.",
+      "description": "The city's signature grade: pink-and-teal sunset running into hot magenta signage, electric cyan, amber sodium accents, deep blue-black shadow, chrome highlights.",
       "anchors": ["#FF3E8E", "#25D8E8", "#FFB347", "#0B1030", "#2A0E4A"]
     },
     "warm-dusk": {
@@ -114,8 +125,9 @@
 
   "camera": {
     "framing": "Head and shoulders, subject centred, eyes on the upper third, a little headroom, shoulders filling the lower edge.",
-    "lens": "50mm equivalent for portraits, 35mm for street scenes; never a wide-angle distortion of the face.",
-    "focus": "Eyes tack sharp; background falls away softly.",
+    "lens": "85mm equivalent for character portraits, 50mm for editorial shots, 35mm for street scenes; never a wide-angle distortion of the face.",
+    "focus": "Eyes tack sharp; the background falls away softly but stays readable.",
+    "rimLight": "Keep both rim lights legible where they touch the subject — hair edge, jawline, shoulder — without blowing them out.",
     "post": "Restrained: no vignette, no tilt-shift, no HDR halos, no aggressive sharpening."
   },
 
@@ -138,7 +150,7 @@
   },
 
   "render": {
-    "model": "@cf/black-forest-labs/flux-2-klein-4b (local GGUF/fp8 through ComfyUI)",
+    "model": "FLUX.2 [klein] 4B (local fp8/GGUF through ComfyUI)",
     "seedPolicy": "random by default; every produced plate records its seed and spec version in the filename and manifest",
     "identityStrength": "preserve the reference photo's subject; do not invent a new face",
     "guidance": 3.5,
@@ -149,6 +161,7 @@
   "promptOrder": ["medium", "identity", "scene", "background", "lighting", "palette", "camera", "finish", "complianceTail"],
 
   "surfaces": {
+    "debut": { "register": "character-shot", "brief": "the character shot the city opens with: the subject standing in the city, lit by its signature two-tone rim light" },
     "loading": { "register": "key-art", "brief": "clean grade, subject centred, name plate clear" },
     "frontpage": { "register": "press-photo", "brief": "face above the fold, masthead clear, tabloid drama" },
     "poster": { "register": "neon-night", "brief": "sell the room; the subject as the night's draw" }

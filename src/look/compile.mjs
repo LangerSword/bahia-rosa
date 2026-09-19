@@ -33,7 +33,8 @@ function identityClause(spec) {
 
 function cameraClause(spec) {
   const c = spec.camera;
-  return `Camera: ${c.framing} ${c.lens} ${c.focus} Post: ${c.post}`;
+  const rim = c.rimLight ? ` ${c.rimLight}` : "";
+  return `Camera: ${c.framing} ${c.lens} ${c.focus}${rim} Post: ${c.post}`;
 }
 
 function lightingClause(spec, key) {

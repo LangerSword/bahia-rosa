@@ -112,7 +112,8 @@ describe("compliance gate", () => {
 describe("provenance", () => {
   test("filenames record register, seed and spec version", () => {
     const name = plateFilename({ register: "key-art", seed: 12345, specVersion: spec.version });
-    expect(name).toMatch(/^\d{14}-key-art-s12345-v1\.0\.0\.png$/);
+    const escaped = spec.version.replace(/\./g, "\\.");
+    expect(name).toMatch(new RegExp(`^\\d{14}-key-art-s12345-v${escaped}\\.png$`));
   });
 });
 

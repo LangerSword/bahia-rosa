@@ -3,7 +3,6 @@ import {
   BAKED_PLATES,
   describeUploadProblem,
   plateFromBaked,
-  plateFromFile,
   type PlateSource,
 } from "../lib/plates/plates";
 
@@ -14,10 +13,13 @@ import {
  */
 
 interface PlateGateProps {
+  /** A photo from the player — handed to the print desk, never uploaded to a server of ours. */
+  onPhoto: (file: File) => void;
+  /** A baked cast plate — skips printing entirely. */
   onPlate: (plate: PlateSource) => void;
 }
 
-export function PlateGate({ onPlate }: PlateGateProps) {
+export function PlateGate({ onPhoto, onPlate }: PlateGateProps) {
   const [problem, setProblem] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -30,9 +32,9 @@ export function PlateGate({ onPlate }: PlateGateProps) {
         return;
       }
       setProblem(null);
-      onPlate(plateFromFile(file));
+      onPhoto(file);
     },
-    [onPlate],
+    [onPhoto],
   );
 
   return (

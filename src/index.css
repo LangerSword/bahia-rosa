@@ -26,6 +26,20 @@ body {
   min-width: 1024px;
 }
 
+/* The printing sweep — a light bar travelling down the photo while the desk works. */
+@keyframes print-sweep {
+  0% {
+    transform: translateY(-120%);
+  }
+  100% {
+    transform: translateY(320%);
+  }
+}
+
+.print-sweep {
+  animation: print-sweep 2.2s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
