@@ -19,7 +19,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -79,8 +79,21 @@ async function freeDesk(server = "http://127.0.0.1:8188") {
   }
 }
 
+/** A judge is only real if its weights are on disk — a half-finished download has the config but no model. */
+async function judgeReady() {
+  try {
+    const entries = await readdir(JUDGE_MODEL);
+    const weights = entries.filter((name) => name.endsWith(".safetensors") || name.endsWith(".safetensors.index.json"));
+    let bytes = 0;
+    for (const name of weights) bytes += (await stat(join(JUDGE_MODEL, name))).size;
+    return bytes > 3 * 1024 ** 3;
+  } catch {
+    return false;
+  }
+}
+
 async function judge(file, reference) {
-  if (!existsSync(join(JUDGE_MODEL, "config.json"))) return null;
+  if (!(await judgeReady())) return null;
   const cli = ["tools/print-desk/judge.py", file];
   if (reference) cli.push("--reference", reference);
   try {
