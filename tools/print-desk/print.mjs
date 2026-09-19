@@ -18,6 +18,15 @@
  *   --seed <int>          fixed seed (default: random, printed for reproducibility)
  *   --out <path>          output file (default: print-desk-out/<provenance>.png)
  *   --server <url>        ComfyUI base url (default: http://127.0.0.1:8188)
+ *   --hq                  quality preset: base 4B at 26 steps, guidance 1.0 (~70s instead of ~15s)
+ *   --unet <file>         use a specific checkpoint in models/diffusion_models
+ *   --steps <n>           override the scheduler steps
+ *   --guidance <n>        override cfg (klein-family models run at 1.0)
+ *   --ref-megapixels <n>  reference scale; klein wants its input under 512px (default 0.26)
+ *   --prompt "<text>"     bypass the look compiler entirely (for A/B experiments)
+ *   --no-frame            skip face detection and crop the photo as-is
+ *   --no-facefix          keep the raw plate, do not restore the face from the photo
+ *   --warmup              load the weights with one tiny pass so the next print is fast
  *   --gguf                use the Q4_K_M GGUF build (needs the ComfyUI-GGUF node)
  *   --check               validate the graph against the server's node schemas, then exit
  */
@@ -150,6 +159,15 @@ async function main() {
     brief: args.brief,
     seed: args.seed ? Number(args.seed) : undefined,
   });
+
+  // --hq: the quality preset. The plain 4-step distilled model is the fast path; the base model at
+  // 26 steps holds detail and light far better, and it runs at guidance 1.0 — CFG above 1 both burns
+  // the picture (saturation ~160 against the model's own ~78) and doubles the cost of every step.
+  if (args.hq) {
+    graph["1"].inputs.unet_name = "flux-2-klein-base-4b-fp8.safetensors";
+    graph["12"].inputs.steps = 26;
+    graph["15"].inputs.cfg = 1.0;
+  }
 
   const problems = await checkGraph(server, graph);
   if (problems.length) {

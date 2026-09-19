@@ -43,8 +43,9 @@ photo → frame.py ──► print.mjs ──► plate ──► editor
   identity rules and the compliance floor. Prompts are *compiled* from it by `src/look/compile.mjs`,
   never written by hand, and a test enforces that every compiled prompt stays inside the budget a 4B
   distilled model actually reads.
-- **`tools/print-desk/print.mjs`** — one plate: compile → upload → sample → write with provenance
-  (register, seed, spec version in the filename).
+- **`tools/print-desk/print.mjs`** — one plate: compile → upload → sample → restore the face from the
+  photo (`facefix.py`) → write with provenance (register, seed, spec version in the filename).
+  `--hq` switches to the base model at 26 steps and guidance 1.0 for quality over speed.
 - **`tools/print-desk/harness.mjs`** — quality harness: print a batch, gate it numerically
   (`critique.py`), judge it with vision (`judge.py`), keep the best, reprint with a corrective brief
   if nothing clears the bar, and write a contact sheet plus a manifest.

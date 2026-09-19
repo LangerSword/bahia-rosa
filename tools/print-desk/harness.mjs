@@ -49,11 +49,12 @@ const correction = (round) =>
     ? ""
     : "Make the subject unmistakably the person in the reference photo, fill the frame with a head-and-shoulders portrait, light the face clearly and keep the background simple and out of focus.";
 
-async function print({ photo, surface, seed, out, brief, unet, steps, guidance, server }) {
+async function print({ photo, surface, seed, out, brief, unet, steps, guidance, server, hq }) {
   const cli = ["tools/print-desk/print.mjs", "--photo", photo, "--seed", String(seed), "--out", out, "--surface", surface];
   for (const [flag, value] of Object.entries({ brief, unet, steps, guidance, server })) {
     if (value) cli.push(`--${flag}`, String(value));
   }
+  if (hq) cli.push("--hq");
   await run("node", cli, { cwd: PROJECT, maxBuffer: 8 * 1024 * 1024 });
   return out;
 }
@@ -168,6 +169,7 @@ async function main() {
         steps: args.steps,
         guidance: args.guidance,
         server: args.server,
+        hq: args.hq,
       });
       batch.push({ file, seed, round });
       console.log("printed");
