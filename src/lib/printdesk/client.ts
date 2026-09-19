@@ -107,6 +107,12 @@ export async function blobToDataUrl(blob: Blob): Promise<string> {
 
 async function jsonFetch(url: string, init?: RequestInit): Promise<unknown> {
   const response = await fetch(url, init);
+  if (response.status === 403) {
+    throw new Error(
+      "the desk refused the upload (403). ComfyUI only accepts requests whose origin matches its own — " +
+        "in development the app's proxy sets that header, so restart the dev server if you just changed its config.",
+    );
+  }
   if (!response.ok) throw new Error(`${init?.method ?? "GET"} ${url} -> ${response.status} ${await response.text()}`);
   return response.json();
 }
