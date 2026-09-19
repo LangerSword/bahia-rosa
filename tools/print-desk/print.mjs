@@ -23,9 +23,29 @@
  */
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { basename, dirname, resolve } from "node:path";
+import { basename, dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { compile, plateFilename } from "../../src/look/compile.mjs";
+
+const runAsync = promisify(execFile);
+const PYTHON = process.env.PRINT_DESK_PYTHON ?? "/home/lakshaya/.venv/bin/python";
+
+/**
+ * Frame the reference before printing. A face that fills 4% of a landscape photo prints as mush;
+ * framed to head-and-shoulders it prints as a portrait. Returns the path to use plus the report.
+ */
+async function frameReference(photoPath) {
+  const out = join("/tmp", `framed-${basename(photoPath).replace(/\W+/g, "-")}-${Date.now()}.png`);
+  try {
+    const { stdout } = await runAsync(PYTHON, [resolve(HERE, "frame.py"), photoPath, "--out", out], { maxBuffer: 4 * 1024 * 1024 });
+    return { path: out, report: JSON.parse(stdout) };
+  } catch (error) {
+    console.warn(`  framing skipped: ${error instanceof Error ? error.message.split("\n")[0] : error}`);
+    return { path: photoPath, report: null };
+  }
+}
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LOOK_PATH = resolve(HERE, "../../src/look/look.json");
@@ -105,7 +125,12 @@ async function main() {
     process.exit(2);
   }
 
-  const compiled = compile(spec, {
+  const compiled = args.prompt
+    ? {
+        ...compile(spec, { surface: args.surface ?? "loading", register: args.register, lighting: args.lighting, palette: args.palette, brief: args.brief, seed: args.seed ? Number(args.seed) : undefined }),
+        prompt: args.prompt,
+      }
+    : compile(spec, {
     surface: args.surface ?? "loading",
     register: args.register,
     lighting: args.lighting,
@@ -121,7 +146,18 @@ async function main() {
   }
 
   const started = Date.now();
-  const uploaded = await uploadImage(server, resolve(args.photo));
+  let reference = resolve(args.photo);
+  if (!args["no-frame"]) {
+    const framed = await frameReference(reference);
+    if (framed.report?.face) {
+      const share = (framed.report.face_share_of_original * 100).toFixed(1);
+      console.log(
+        `  framed: ${framed.report.face.faces_found} face(s) found · ${framed.report.face.method} · face was ${share}% of the original · crop ${framed.report.crop?.join(",") ?? "n/a"}`,
+      );
+      reference = framed.path;
+    }
+  }
+  const uploaded = await uploadImage(server, reference);
   graph["4"].inputs.image = uploaded;
   graph["6"].inputs.text = compiled.prompt;
   graph["11"].inputs.width = compiled.render.width;

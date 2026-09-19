@@ -80,7 +80,7 @@ async function freeDesk(server = "http://127.0.0.1:8188") {
 }
 
 async function judge(file, reference) {
-  if (!existsSync(JUDGE_MODEL)) return null;
+  if (!existsSync(join(JUDGE_MODEL, "config.json"))) return null;
   const cli = ["tools/print-desk/judge.py", file];
   if (reference) cli.push("--reference", reference);
   try {
@@ -165,25 +165,28 @@ async function main() {
     for (const item of batch) {
       const gates = await gate(item.file, palette);
       const verdict = await judge(item.file, photo);
+      // A judge that crashed is no judge: fall back to the numeric gate, scaled onto the same 0-10 axis.
+      const judged = verdict && !verdict.error ? verdict.mean : null;
       const record = {
         ...item,
         gate_score: gates.score,
         failed: gates.failed,
         judge: verdict,
-        judge_mean: verdict?.mean ?? 0,
+        judge_mean: judged ?? 0,
         judge_note: verdict?.notes ?? verdict?.error ?? null,
+        rank: judged ?? gates.score * 10,
       };
       history.push(record);
       console.log(
         `  judge ${record.judge_mean || "-"} · gate ${gates.score}${gates.failed.length ? ` (failed: ${gates.failed.join(", ")})` : ""}${record.judge_note ? ` · ${record.judge_note}` : ""}`,
       );
     }
-    const bestThisRound = history.filter((h) => h.round === round).sort((a, b) => b.judge_mean - a.judge_mean)[0];
-    if (bestThisRound && bestThisRound.judge_mean >= threshold && !bestThisRound.failed.length) break;
-    console.log(`round ${round + 1}: nothing cleared ${threshold} (best ${bestThisRound?.judge_mean ?? 0}) — reprinting with a corrective brief`);
+    const bestThisRound = history.filter((h) => h.round === round).sort((a, b) => b.rank - a.rank)[0];
+    if (bestThisRound && bestThisRound.rank >= threshold && !bestThisRound.failed.length) break;
+    console.log(`round ${round + 1}: nothing cleared ${threshold} (best ${bestThisRound?.rank.toFixed(2) ?? 0}) — reprinting with a corrective brief`);
   }
 
-  const ranked = [...history].sort((a, b) => b.judge_mean - a.judge_mean || b.gate_score - a.gate_score);
+  const ranked = [...history].sort((a, b) => b.rank - a.rank || b.gate_score - a.gate_score);
   const winner = ranked[0];
   const final = resolve(PROJECT, args.out ?? "print-desk-out/harness/best.png");
   await copyFile(winner.file, final);

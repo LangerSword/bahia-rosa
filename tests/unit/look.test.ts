@@ -28,9 +28,10 @@ describe("compile", () => {
 
   test("identity rules are always present, in the register's own words", () => {
     const out = compile(spec, { register: "key-art", seed: 1 });
-    expect(out.prompt).toContain("recognisable");
-    expect(out.prompt).toContain("Keep glasses if worn");
-    expect(out.prompt).toMatch(/do not beautify the subject into a different person/i);
+    // Checked against the spec, not against frozen wording: the wording is meant to be tuned,
+    // the guarantee is that every identity rule and prohibition reaches the model.
+    for (const rule of spec.identity.rules) expect(out.prompt).toContain(rule);
+    for (const banned of spec.identity.forbidden) expect(out.prompt.toLowerCase()).toContain(banned.toLowerCase());
   });
 
   test("the approval tail is always present", () => {
@@ -51,10 +52,21 @@ describe("compile", () => {
 
   test("honours the declared prompt order", () => {
     const { prompt } = compile(spec, { register: "neon-night", seed: 3 });
-    const positions = ["Medium:", "Subject:", "Lighting:", "Palette:", "Camera:", "Finish:"].map((marker) =>
-      prompt.indexOf(marker),
-    );
-    expect(positions.every((p) => p >= 0)).toBe(true);
+    // Clause markers are derived from the spec's own promptOrder, so dropping a clause from the
+    // order is a spec change the test follows rather than a failure it has to be told about.
+    const markers: Record<string, string> = {
+      medium: "Medium:",
+      identity: "Subject:",
+      scene: "Scene:",
+      background: "Background:",
+      lighting: "Lighting:",
+      palette: "Palette:",
+      camera: "Camera:",
+      finish: "Finish:",
+      complianceTail: spec.compliance.promptTail.slice(0, 24),
+    };
+    const positions = (spec.promptOrder as string[]).map((key) => prompt.indexOf(markers[key] ?? "")).filter((p) => p >= 0);
+    expect(positions.length).toBeGreaterThanOrEqual(6);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
   });
 

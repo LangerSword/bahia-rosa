@@ -43,7 +43,9 @@ function lightingClause(spec, key) {
 
 function paletteClause(spec, key) {
   const palette = pick(spec.palette, key, "palette");
-  return `Palette: ${palette.description} Anchor colours: ${palette.anchors.join(", ")}.`;
+  // Anchors are for humans and for the app's UI swatches; a 4B model reads words, not hex codes.
+  const anchors = spec.render?.includePaletteAnchors ? ` Anchor colours: ${palette.anchors.join(", ")}.` : "";
+  return `Palette: ${palette.description}${anchors}`;
 }
 
 /**
@@ -67,7 +69,8 @@ export function compile(spec, options = {}) {
   const brief = options.brief ?? surface?.brief ?? "";
 
   const clauses = {
-    medium: `Render a single image. Medium: ${register.medium}`,
+    punch: spec.punch ?? "",
+    medium: `Medium: ${register.medium}`,
     identity: identityClause(spec),
     scene: brief ? `Scene: ${brief}` : "",
     background: register.background ? `Background: ${register.background}` : "",

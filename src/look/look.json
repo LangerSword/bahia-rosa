@@ -1,6 +1,6 @@
 {
   "spec": "fifteen-minutes/look",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "role": "The single source of truth for how every image in this project looks. The print desk compiles a prompt from it (src/look/compile.mjs) and feeds that prompt + the reference photo to FLUX.2 [klein] 4B. Nothing visual ships that was not drawn from this file.",
   "city": {
     "name": "Bahía Rosa",
@@ -8,9 +8,11 @@
     "note": "Invented coastal city. Never name, depict, or imply a real game location, studio, or franchise."
   },
 
+  "punch": "Keep the person in the reference photo exactly as they are — same face, hair, glasses, age — and restyle everything around them as the lead of a current-generation open-world crime game: head and shoulders, 85mm.",
+
   "compliance": {
     "note": "The challenge requires original visuals only: no third-party assets, no leaked material, no trademarks. These rules are enforced in code, not just intent — see assertSafe() in src/look/compile.mjs.",
-    "promptTail": "Original fan-made artwork, invented city and characters, no third-party characters, no franchise marks, no logos, no interface overlays, no text of any kind, no watermark, no signature. Not affiliated with any game studio or publisher.",
+    "promptTail": "Original fan-made artwork, invented city, no franchise marks, no text, no watermark.",
     "prohibited": [
       "vice city",
       "leonida",
@@ -33,21 +35,13 @@
   },
 
   "identity": {
-    "note": "The person must survive the restyle. A plate that loses the face is a failed plate, no matter how pretty.",
+    "note": "The person must survive the restyle. A plate that loses the face is a failed plate, no matter how pretty. Rules are kept to three short clauses on purpose: a 4B distilled model reads the first ~200 characters carefully and everything after that loosely, so the identity sentence leads and the rest decorates.",
     "rules": [
-      "Keep the subject's face clearly recognisable: same face shape, same jawline, same brow, same nose and mouth proportions.",
-      "Keep hair length, hairline, and hair texture as photographed, including how it falls.",
-      "Keep glasses if worn, including frame shape and lens thickness.",
-      "Keep skin tone and any visible marks — moles, freckles, stubble, scars.",
-      "Keep the natural expression and the angle of the head; do not straighten the pose.",
-      "One person only; no extra figures, no hands, no duplicated features."
+      "Same face: identical face shape, jawline, brow, nose and mouth proportions.",
+      "Same hair, glasses, skin tone, marks and expression."
     ],
-    "forbidden": [
-      "beautify the subject into a different person",
-      "smooth away distinctive features",
-      "change apparent age, ethnicity, or gender presentation",
-      "add jewellery, tattoos, or makeup that is not in the photo"
-    ]
+    "forbidden": ["beautify or smooth away features", "change apparent age or gender presentation", "add jewellery, tattoos or makeup not in the photo"],
+    "longFormNote": "Fuller intent that used to be compiled into the prompt: keep hair length, hairline and how it falls; keep frame shape and lens thickness of glasses; keep moles, freckles, stubble, scars; do not straighten the pose; no extra figures, hands, or duplicated features."
   },
 
   "registers": {
@@ -55,9 +49,10 @@
     "character-shot": {
       "label": "Character shot",
       "use": "The default conversion: your photo restyled as a current-generation open-world character portrait standing in the city.",
-      "medium": "Photoreal character portrait rendered in a current-generation open-world engine: physically based materials, ray-traced global illumination with colour bouncing into shadow, believable skin lit with subsurface scattering at the ears, nose and cheekbones, hair resolved strand by strand with light passing through the tips, visible pores and fine stubble.",
-      "background": "The invented coastal city behind the subject, softly out of focus but legible: palm fronds catching the light, pastel Art Deco facades, plate glass and chrome down a receding boulevard, a hazy skyline running past the edge of the frame.",
-      "finish": "Shot on an 85mm lens at f/1.8: the subject sharp, the city dissolved into creamy bokeh, clean highlight rolloff, subtle in-camera grain, no interface overlays, no on-screen readouts.",
+      "medium": "Photoreal in-engine character portrait from a current-generation open-world crime game: ray-traced global illumination, subsurface-scattered skin, strand-level hair, pores and stubble visible.",
+      "background": "The invented coastal city at golden hour: palm fronds catching the sun, pastel Art Deco facades, chrome trim, a receding boulevard falling out of focus.",
+      "finish": "Cinematic grade: warm highlights against teal-and-magenta shadow, soft bloom on specular edges, wet-surface reflections, fine film grain.",
+      "backgroundNote": "Design intent, not compiled: heat haze on a distant skyline, plate glass, palms reading as dark shapes past the frame edge.",
       "defaultLighting": "dual-rim",
       "defaultPalette": "neon-wet",
       "render": { "width": 1024, "height": 1024, "steps": 4 }
@@ -65,8 +60,8 @@
     "key-art": {
       "label": "Key art",
       "use": "Loading screen. The illustrated portrait the city opens with.",
-      "medium": "Hand-painted cel-shaded character key art for a high-fidelity open-world crime drama: confident bold ink linework, flat blocked colour areas with a single hard shadow tone, simplified modelling of form, warm graphic skin, minimal rendering, poster-grade composition.",
-      "background": "Completely flat solid deep-maroon field with a few thin white line-art landmarks drawn behind the subject at low opacity; the field is clean, untextured, and evenly lit.",
+      "medium": "Hand-painted cel-shaded character key art for a high-fidelity open-world crime drama: confident bold ink linework, flat blocked colour, single hard shadow tone, warm graphic skin, poster-grade composition.",
+      "background": "Completely flat solid deep-maroon field with a few thin white line-art landmarks drawn behind the subject at low opacity; clean, untextured, evenly lit.",
       "finish": "Crisp vector-like edges, no photographic grain, no bloom, no lens artefacts.",
       "defaultLighting": "studio-flat",
       "defaultPalette": "deco-pastel",
@@ -75,9 +70,9 @@
     "press-photo": {
       "label": "Press photo",
       "use": "Front page. The photoreal editorial shot the tabloid runs.",
-      "medium": "Photoreal in-engine-style photograph from a current-generation open-world title: physically based materials, ray-traced global illumination with colour bleeding into shadow, wet-surface reflections, believable skin with subsurface scattering at ears, nose, and cheekbones.",
+      "medium": "Photoreal in-engine photograph from a current-generation open-world title: physically based materials, ray-traced reflections, wet surfaces, believable skin with subsurface scattering.",
       "background": "The invented coastal city at street level: sun-bleached stucco, faded signage, palm shadow, tropical humidity in the air.",
-      "finish": "Shot on a 50mm lens at f/2.0, shallow depth of field focused on the eyes, clean highlight rolloff, subtle in-camera film grain, no interface overlays, no on-screen readouts.",
+      "finish": "50mm at f/2.0, shallow depth of field on the eyes, clean highlight rolloff, subtle grain, no interface overlays, no on-screen readouts.",
       "defaultLighting": "golden-hour-coastal",
       "defaultPalette": "bleached-day",
       "render": { "width": 1024, "height": 768, "steps": 4 }
@@ -85,9 +80,9 @@
     "neon-night": {
       "label": "Neon night",
       "use": "Poster and club surfaces.",
-      "medium": "Photoreal night photograph of the invented city: saturated LED signage, streetlight bloom with visible light cones, a soft dome of city glow on the horizon, standing water on tarmac doubling every light source.",
-      "background": "Wet asphalt, brushed steel, plate glass, chrome trim, palm silhouettes reading as dark cut-outs.",
-      "finish": "Shot on a 35mm lens at f/1.8, wet-night reflections, deep blacks that keep detail, controlled magenta-and-cyan highlights, fine grain.",
+      "medium": "Photoreal night photograph of the invented city: saturated LED signage, streetlight bloom with visible light cones, city glow on the horizon, standing water on tarmac doubling every light source.",
+      "background": "Wet asphalt, brushed steel, plate glass, chrome trim, palm silhouettes as dark cut-outs.",
+      "finish": "35mm at f/1.8, wet-night reflections, deep blacks that keep detail, controlled magenta-and-cyan highlights, fine grain.",
       "defaultLighting": "dusk-neon",
       "defaultPalette": "neon-wet",
       "render": { "width": 1024, "height": 768, "steps": 4 }
@@ -95,9 +90,9 @@
   },
 
   "lighting": {
-    "dual-rim": "Two rim lights frame the subject whatever the hour: a warm amber light from one side, a strong magenta light from the other, both catching the hair and the edge of the cheek and jaw, while the face itself stays softly lit and fully legible. This two-tone rim light is the signature of the city's character portraits.",
+    "dual-rim": "warm amber rim light from one side, magenta rim light from the other, both raking hair, ear, jaw and shoulder; the face front softly lit and fully readable.",
     "studio-flat": "Even, soft, directionless studio light on the subject; no visible light source; no cast shadow on the field.",
-    "golden-hour-coastal": "Late-afternoon subtropical sun at a low angle: warm amber key light, long soft shadows, humidity haze in the air, gentle bounce from pale walls.",
+    "golden-hour-coastal": "Late-afternoon subtropical sun at a low angle: warm amber key, long soft shadows, humidity haze, gentle bounce from pale walls.",
     "midday-haze": "High sun through humidity: slightly blown highlights on white surfaces, washed-out colour, heat shimmer on distant edges, hard short shadows.",
     "overcast-blue-grey": "Flat blue-grey overcast daylight: no direct sun, soft shadows, muted saturation, a cool cast that reads as real weather rather than a filter.",
     "dusk-neon": "Dusk into night: magenta and cyan signage as the dominant sources, warm interior spill from doorways, cool ambient sky overhead, strong specular highlights on wet ground.",
@@ -114,7 +109,7 @@
       "anchors": ["#EDE6DA", "#7FC3C0", "#D9C08A", "#2F6F6B", "#B75B3B"]
     },
     "neon-wet": {
-      "description": "The city's signature grade: pink-and-teal sunset running into hot magenta signage, electric cyan, amber sodium accents, deep blue-black shadow, chrome highlights.",
+      "description": "pink-and-teal sunset running into hot magenta signage, electric cyan, amber sodium accents, deep blue-black shadow.",
       "anchors": ["#FF3E8E", "#25D8E8", "#FFB347", "#0B1030", "#2A0E4A"]
     },
     "warm-dusk": {
@@ -124,11 +119,11 @@
   },
 
   "camera": {
-    "framing": "Head and shoulders, subject centred, eyes on the upper third, a little headroom, shoulders filling the lower edge.",
-    "lens": "85mm equivalent for character portraits, 50mm for editorial shots, 35mm for street scenes; never a wide-angle distortion of the face.",
-    "focus": "Eyes tack sharp; the background falls away softly but stays readable.",
-    "rimLight": "Keep both rim lights legible where they touch the subject — hair edge, jawline, shoulder — without blowing them out.",
-    "post": "Restrained: no vignette, no tilt-shift, no HDR halos, no aggressive sharpening."
+    "framing": "Head and shoulders, subject centred, a little headroom.",
+    "lens": "85mm.",
+    "focus": "Eyes tack sharp, background soft but readable.",
+    "rimLight": "Both rims legible on hair, jaw and shoulder — bright, not blown.",
+    "post": "No vignette, no tilt-shift, no HDR halos."
   },
 
   "world": {
@@ -156,13 +151,16 @@
     "guidance": 1.0,
     "guidanceNote": "klein is a distilled 4-step model: it runs at guidance 1.0 (no classifier-free guidance). Raising this does not add detail — it burns the image and wrecks the lighting. Cloudflare's own copy of this model and ComfyUI's official template both run cfg 1.",
     "steps": 4,
+    "includePaletteAnchors": false,
+    "promptBudget": 1500,
+    "promptNote": "A 4B distilled model follows the first ~200 characters closely and the rest loosely, so the prompt leads with the punch line + identity, and everything after that is decoration. Keep compiled prompts under the promptBudget; tests enforce it.",
     "resolutionNote": "klein 4B is happiest at 1K; keep input reference images under 512px per side as the model requires."
   },
 
-  "promptOrder": ["medium", "identity", "scene", "background", "lighting", "palette", "camera", "finish", "complianceTail"],
+  "promptOrder": ["punch", "medium", "identity", "scene", "background", "lighting", "palette", "finish", "complianceTail"],
 
   "surfaces": {
-    "debut": { "register": "character-shot", "brief": "the character shot the city opens with: the subject standing in the city, lit by its signature two-tone rim light" },
+    "debut": { "register": "character-shot", "brief": "the subject standing in the city at golden hour" },
     "loading": { "register": "key-art", "brief": "clean grade, subject centred, name plate clear" },
     "frontpage": { "register": "press-photo", "brief": "face above the fold, masthead clear, tabloid drama" },
     "poster": { "register": "neon-night", "brief": "sell the room; the subject as the night's draw" }
