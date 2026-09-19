@@ -90,6 +90,8 @@ async function main() {
 
   if (args.gguf) {
     graph["1"] = { class_type: "UnetLoaderGGUF", inputs: { unet_name: "flux-2-klein-4b-Q4_K_M.gguf" } };
+  } else if (args.unet) {
+    graph["1"].inputs.unet_name = args.unet;
   }
 
   if (args.check) {
@@ -130,6 +132,9 @@ async function main() {
   graph["14"].inputs.noise_seed = compiled.seed;
   graph["15"].inputs.cfg = compiled.render.guidance;
   graph["18"].inputs.filename_prefix = `fifteen-minutes/${compiled.register}`;
+  if (args["ref-megapixels"]) graph["5"].inputs.megapixels = Number(args["ref-megapixels"]);
+  if (args.steps) graph["12"].inputs.steps = Number(args.steps);
+  if (args.guidance) graph["15"].inputs.cfg = Number(args.guidance);
 
   const queued = await jsonFetch(`${server}/prompt`, {
     method: "POST",
