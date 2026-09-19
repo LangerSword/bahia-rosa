@@ -1,11 +1,12 @@
 import { useCallback, useState } from "react";
 import { EditorSurface, type ToolGating } from "./components/EditorSurface";
-import { UploadGate } from "./components/UploadGate";
+import { PlateGate } from "./components/PlateGate";
+import type { PlateSource } from "./lib/plates/plates";
 
 /**
  * Surface 1 — LOADING SCREEN (brief: clean grade, subject centred, name plate clear).
  * Gating is deliberate level design: this surface only exposes crop, resize, frame and text.
- * See docs/editor-contract.md §"Tool gating" and docs/portrait.md for the generation path.
+ * See docs/editor-contract.md and docs/print-desk.md.
  */
 const LOADING_GATING: ToolGating = {
   crop: true,
@@ -19,11 +20,12 @@ const LOADING_GATING: ToolGating = {
 };
 
 export function App() {
-  const [portrait, setPortrait] = useState<string | null>(null);
-  const [source, setSource] = useState<"photo" | "demo">("photo");
+  const [plate, setPlate] = useState<PlateSource | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
 
   const onSaved = useCallback((dataUrl: string) => setSaved(dataUrl), []);
+
+  const image = plate ? (plate.kind === "photo" ? plate.objectUrl : plate.src) : null;
 
   return (
     <main className="mx-auto max-w-[1440px] px-8 py-10">
@@ -31,18 +33,13 @@ export function App() {
         <p className="text-xs tracking-[0.35em] text-paper/60 uppercase">Bahía Rosa · La Gaviota</p>
         <h1 className="font-display text-6xl leading-none tracking-tight">FIFTEEN MINUTES</h1>
         <p className="mt-2 max-w-prose text-sm text-paper/70">
-          Your face, on everything the city prints. Bring a photo, take the loading screen, then the
-          front page.
+          Your face, on everything the city prints. Take the loading screen, then the front page —
+          with the editor's own tool set as the rules of each job.
         </p>
       </header>
 
-      {!portrait ? (
-        <UploadGate
-          onPortrait={(dataUrl, from) => {
-            setPortrait(dataUrl);
-            setSource(from);
-          }}
-        />
+      {!image ? (
+        <PlateGate onPlate={setPlate} />
       ) : (
         <section className="editor-shell">
           <div className="mb-4 flex items-center justify-between border-b border-paper/15 pb-3">
@@ -51,7 +48,7 @@ export function App() {
               type="button"
               data-testid="start-over"
               onClick={() => {
-                setPortrait(null);
+                setPlate(null);
                 setSaved(null);
               }}
               className="border border-paper/30 px-3 py-1 text-xs tracking-wide uppercase hover:bg-paper/10"
@@ -62,14 +59,9 @@ export function App() {
           <p className="mb-4 max-w-prose text-sm text-paper/70">
             Brief: clean grade, face centred, name plate clear. You get crop, resize, frame and text —
             nothing else. This is the shot the city opens with.
-            {source === "demo" ? <span className="text-paper/50"> (Using a press plate.)</span> : null}
+            {plate?.kind === "plate" ? <span className="text-paper/50"> (Using a proof plate.)</span> : null}
           </p>
-          <EditorSurface
-            surfaceId="loading"
-            image={portrait}
-            gating={LOADING_GATING}
-            onSaved={onSaved}
-          />
+          <EditorSurface surfaceId="loading" image={image} gating={LOADING_GATING} onSaved={onSaved} />
         </section>
       )}
 

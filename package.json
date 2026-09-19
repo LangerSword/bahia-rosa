@@ -10,13 +10,9 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:e2e": "playwright test",
-    "deploy": "wrangler deploy",
-    "deploy:dry": "wrangler deploy --dry-run --outdir=.worker-dist",
-    "dev:worker": "wrangler dev"
+    "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@mediapipe/tasks-vision": "^1.0.1",
     "@unlayer/react-image-editor": "^1.0.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
@@ -31,7 +27,6 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
-    "vitest": "^5.0.1",
-    "wrangler": "^4.135.0"
+    "vitest": "^5.0.1"
   }
 }

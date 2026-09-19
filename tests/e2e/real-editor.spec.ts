@@ -39,8 +39,8 @@ test("editor mounts with loading-screen gating", async ({ page }) => {
 
   await page.goto("/");
 
-  // Intake first: take a baked press plate so this suite never calls the model.
-  await page.getByTestId("demo-placeholder").click();
+  // Intake first: take a baked proof plate so this suite never touches the network for a plate.
+  await page.getByTestId("plate-placeholder").click();
   await expect(page.getByTestId("editor-surface-loading")).toBeAttached();
 
   // The editor script + canvas need to come up from the CDN before tools exist.

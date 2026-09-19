@@ -61,10 +61,11 @@ mid-session option patching.
 runtime but absent from the shipped `@unlayer/types` declarations, so they need a cast (or omission)
 when passed through React options.
 
-## Cost and quota facts relevant to this project
+## Cost and quota facts relevant to this project (historical)
 
-- All manual tools are free.
-- Gemini image models (`gemini-3.1-flash-lite-image` $0.0336 / 1K, batch $0.02) are the cheap hosted
-  option; the account key currently returns `429 RESOURCE_EXHAUSTED — prepayment credits depleted`.
-- Therefore the portrait pipeline is **in-browser** (MediaPipe selfie segmentation + canvas toon
-  pass), and any hosted renderer stays an optional, capped, cached flag.
+- All manual tools are free. The AI Assistant is paid, requires `projectId`, and is **not used**.
+- Hosted image models were evaluated and rejected: Gemini `gemini-3.1-flash-lite-image` ($0.0336 /
+  1K) is blocked on depleted prepay credits, and Cloudflare Workers AI's cheap image models are
+  text-to-image only (no reference image → no likeness); its reference-image model
+  (`@cf/black-forest-labs/flux-2-klein-4b`) is exactly the model this project now runs **locally**
+  instead. See `docs/print-desk.md`.
