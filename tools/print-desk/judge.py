@@ -19,9 +19,15 @@ import sys
 
 import torch
 from PIL import Image
-from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
+from transformers import AutoProcessor, BitsAndBytesConfig, Qwen2_5_VLForConditionalGeneration
 
 MODEL_DIR = "/home/lakshaya/models/qwen2.5-vl-3b"
+
+# An 8 GB card cannot hold a 3B VLM in fp16 *and* the vision tokens a full 1024px image produces —
+# measured: 7.12 GB allocated, then OOM on the first forward. 4-bit weights plus a capped pixel
+# budget is what makes the judge fit, and it costs nothing that matters for a rubric score.
+MAX_PIXELS = 640 * 640
+MIN_PIXELS = 256 * 256
 
 RUBRIC = """You are judging one image for a game-styled character portrait pipeline.
 {reference_note}
@@ -30,6 +36,7 @@ Score each axis from 0 to 10 and reply with JSON only, no prose outside the JSON
 {{
   "identity": <how clearly this is the same person as in the reference; 0 if no clear single face>,
   "lighting": <is the light on the face clean and believable: shape, direction, rim, no blown or muddy patches>,
+  "colour": <is the colour natural — does the skin look like skin, or is it tinted (magenta, green, blue)? 10 = natural skin and a believable grade>,
   "background": <is the background a deliberate, uncluttered, out-of-focus city or studio setting rather than noise or mush>,
   "composition": <head-and-shoulders framing, subject well placed, nothing oddly cropped>,
   "artifacts": <10 = clean; lower for warped features, extra limbs, melted hands, smears, text-like gibberish>,
@@ -63,6 +70,7 @@ def main():
     parser.add_argument("--expect-portrait", action="store_true")
     parser.add_argument("--model", default=MODEL_DIR)
     parser.add_argument("--max-new-tokens", type=int, default=220)
+    parser.add_argument("--full-precision", action="store_true", help="load fp16 instead of 4-bit (needs the VRAM free)")
     args = parser.parse_args()
 
     images = []
@@ -70,9 +78,18 @@ def main():
         images.append(Image.open(args.reference).convert("RGB"))
     images.append(Image.open(args.plate).convert("RGB"))
 
-    processor = AutoProcessor.from_pretrained(args.model)
+    processor = AutoProcessor.from_pretrained(args.model, min_pixels=MIN_PIXELS, max_pixels=MAX_PIXELS)
+    quantized = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=True,
+    )
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-        args.model, torch_dtype=torch.float16, device_map="cuda"
+        args.model,
+        quantization_config=quantized if not args.full_precision else None,
+        torch_dtype=torch.float16,
+        device_map="cuda",
     )
     model.eval()
 
@@ -87,7 +104,7 @@ def main():
     reply = processor.batch_decode(output[:, inputs["input_ids"].shape[1] :], skip_special_tokens=True)[0]
 
     verdict = parse(reply)
-    axes = ["identity", "lighting", "background", "composition", "artifacts"]
+    axes = ["identity", "lighting", "colour", "background", "composition", "artifacts"]
     scored = [verdict.get(axis) for axis in axes if isinstance(verdict.get(axis), (int, float))]
     verdict["mean"] = round(sum(scored) / len(scored), 2) if scored else 0.0
     verdict["file"] = args.plate

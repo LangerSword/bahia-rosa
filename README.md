@@ -47,9 +47,25 @@ photo → frame.py ──► print.mjs ──► plate ──► editor
   photo (`facefix.py`) → write with provenance (register, seed, spec version in the filename).
   `--hq` switches to the base model at 26 steps and guidance 1.0 for quality over speed.
 - **`tools/print-desk/harness.mjs`** — quality harness: print a batch, gate it numerically
-  (`critique.py`), judge it with vision (`judge.py`), keep the best, reprint with a corrective brief
-  if nothing clears the bar, and write a contact sheet plus a manifest.
-- **`tools/desk/desk.sh`** — start/stop/status for the whole stack.
+  (`critique.py`), judge it with a local vision model (`judge.py` — Qwen2.5-VL in 4-bit, scoring
+  identity, lighting, colour, background, composition and artifacts against your reference photo),
+  keep the best, reprint with a corrective brief if nothing clears the bar, and write a contact sheet
+  plus a manifest. Locations rotate across candidates so a batch shows the city, not one street.
+- **`tools/desk/desk.sh`** — start/stop/status/warm for the whole stack.
+
+Generated plates, framed references and comparison sheets land in `print-desk-out/` (gitignored):
+`plates/` for finished work, `harness/` for batches, `compare/` for side-by-sides, `refs/` for crops.
+
+## What you choose in the app
+
+| Choice | Options | What it does |
+|---|---|---|
+| Style | Character shot · Loading screen · Poster · Press photo | Picks the register — a photoreal character portrait, a painted loading-screen panel with a clear band for your name, a night poster, or a tabloid photo |
+| Location | Rotate (7 places) · Palm boulevard · Marina pier · Downtown canyon · Rooftop · Night market · Seafront road · Hillside overlook | Where the subject stands; "rotate" lets the desk choose per print so you never get the same street twice |
+| Quality print | off / on | Base model at 26 steps instead of the fast 4-step distilled one — slower, sharper, better light |
+
+Every option is read from `src/look/look.json`, so the UI and the desk can never disagree about what
+a "location" or a "style" is.
 
 ## How the editor is used
 
