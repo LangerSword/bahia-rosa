@@ -74,6 +74,7 @@ export function compile(spec, options = {}) {
     identity: identityClause(spec),
     scene: brief ? `Scene: ${brief}` : "",
     background: register.background ? `Background: ${register.background}` : "",
+    scenery: spec.scenery ? `Scenery: ${spec.scenery}` : "",
     lighting: lightingClause(spec, lightingKey),
     palette: paletteClause(spec, paletteKey),
     camera: cameraClause(spec),

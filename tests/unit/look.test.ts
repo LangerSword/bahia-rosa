@@ -58,6 +58,7 @@ describe("compile", () => {
       medium: "Medium:",
       identity: "Subject:",
       scene: "Scene:",
+      scenery: "Scenery:",
       background: "Background:",
       lighting: "Lighting:",
       palette: "Palette:",
@@ -65,7 +66,10 @@ describe("compile", () => {
       finish: "Finish:",
       complianceTail: spec.compliance.promptTail.slice(0, 24),
     };
-    const positions = (spec.promptOrder as string[]).map((key) => prompt.indexOf(markers[key] ?? "")).filter((p) => p >= 0);
+    const positions = (spec.promptOrder as string[])
+      .filter((key) => markers[key])
+      .map((key) => prompt.indexOf(markers[key]))
+      .filter((p) => p >= 0);
     expect(positions.length).toBeGreaterThanOrEqual(6);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
   });

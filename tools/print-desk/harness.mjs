@@ -147,8 +147,8 @@ async function main() {
   const photo = resolve(args.photo);
   const outdir = resolve(PROJECT, args.outdir ?? "print-desk-out/harness");
   await mkdir(outdir, { recursive: true });
-  const judging = existsSync(JUDGE_MODEL);
-  console.log(judging ? `judge: qwen2.5-vl-3b` : `judge: not installed (${JUDGE_MODEL}) — ranking on the numeric gate only`);
+  const judging = await judgeReady();
+  console.log(judging ? `judge: qwen2.5-vl-3b` : `judge: not installed yet (${JUDGE_MODEL}) — ranking on the numeric gate only`);
 
   const history = [];
   for (let round = 0; round < 2; round++) {

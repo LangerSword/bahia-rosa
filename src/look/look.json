@@ -1,6 +1,6 @@
 {
   "spec": "fifteen-minutes/look",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "role": "The single source of truth for how every image in this project looks. The print desk compiles a prompt from it (src/look/compile.mjs) and feeds that prompt + the reference photo to FLUX.2 [klein] 4B. Nothing visual ships that was not drawn from this file.",
   "city": {
     "name": "Bahía Rosa",
@@ -8,7 +8,7 @@
     "note": "Invented coastal city. Never name, depict, or imply a real game location, studio, or franchise."
   },
 
-  "punch": "Keep the person in the reference photo exactly as they are — same face, hair, glasses, age — and restyle everything around them as the lead of a current-generation open-world crime game: head and shoulders, 85mm.",
+  "punch": "Keep the person in the reference photo exactly as they are — same face, hair, glasses, age — and restyle everything around them as the lead of a current-generation open-world crime game: waist-up, the city filling the frame around them.",
 
   "compliance": {
     "note": "The challenge requires original visuals only: no third-party assets, no leaked material, no trademarks. These rules are enforced in code, not just intent — see assertSafe() in src/look/compile.mjs.",
@@ -118,8 +118,9 @@
     }
   },
 
+  "scenery": "palm-lined boulevard, pastel Art Deco facades with chrome trim, neon shopfront signs, plate glass, a marina of masts behind, a ferris wheel on the pier, sunset sky streaked with warm cloud, haze between buildings, soft bokeh of passing traffic.",
   "camera": {
-    "framing": "Head and shoulders, subject centred, a little headroom.",
+    "framing": "Waist-up, subject on the left third, the city filling the rest of the frame.",
     "lens": "85mm.",
     "focus": "Eyes tack sharp, background soft but readable.",
     "rimLight": "Both rims legible on hair, jaw and shoulder — bright, not blown.",
@@ -152,12 +153,12 @@
     "guidanceNote": "klein is a distilled 4-step model: it runs at guidance 1.0 (no classifier-free guidance). Raising this does not add detail — it burns the image and wrecks the lighting. Cloudflare's own copy of this model and ComfyUI's official template both run cfg 1.",
     "steps": 4,
     "includePaletteAnchors": false,
-    "promptBudget": 1500,
+    "promptBudget": 1700,
     "promptNote": "A 4B distilled model follows the first ~200 characters closely and the rest loosely, so the prompt leads with the punch line + identity, and everything after that is decoration. Keep compiled prompts under the promptBudget; tests enforce it.",
     "resolutionNote": "klein 4B is happiest at 1K; keep input reference images under 512px per side as the model requires."
   },
 
-  "promptOrder": ["punch", "medium", "identity", "scene", "background", "lighting", "palette", "finish", "complianceTail"],
+  "promptOrder": ["punch", "medium", "identity", "scene", "scenery", "lighting", "palette", "finish", "complianceTail"],
 
   "surfaces": {
     "debut": { "register": "character-shot", "brief": "the subject standing in the city at golden hour" },

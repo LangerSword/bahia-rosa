@@ -66,8 +66,10 @@ start_desk() {
   listening "$DESK_PORT" && reclaim_port "$DESK_PORT" "the print desk" "main.py"
 
   log "starting ComfyUI from $COMFY_DIR (log: $STATE/desk.log)"
+  # --fast: fp16 accumulate on the matmuls. --preview-method none: no preview frames, less overhead.
   ( cd "$COMFY_DIR" && setsid nohup "$PYTHON" main.py \
       --listen 127.0.0.1 --port "$DESK_PORT" --disable-auto-launch \
+      --fast --preview-method none \
       >>"$STATE/desk.log" 2>&1 & echo $! >"$STATE/desk.pid" )
   # First boot loads CUDA and the node registry; on a cold cache this is the slow part.
   wait_for "print desk" "desk_up" 240 || die "the desk did not come up — see $STATE/desk.log"
@@ -127,6 +129,16 @@ status() {
 desk_pid() { alive "$STATE/desk.pid" && cat "$STATE/desk.pid" || echo "external"; }
 app_pid()  { alive "$STATE/app.pid"  && cat "$STATE/app.pid"  || echo "external"; }
 
+warm() { # load the weights before the first real print; on 8 GB that cold load is the long wait
+  if ! desk_up; then warn "print desk is not up — warming skipped"; return 0; fi
+  log "warming the desk (one tiny pass, so the first real print is not the slow one)"
+  if node "$PROJECT/tools/print-desk/print.mjs" --warmup --server "http://127.0.0.1:$DESK_PORT" 2>&1 | tail -2; then
+    ok "desk warm"
+  else
+    warn "warm-up failed — the desk still works, the first print will just be slower"
+  fi
+}
+
 setup() { # one-time machine prep: the venv ComfyUI runs in, plus the print desk's own tools
   local venv; venv="$(dirname "$(dirname "$PYTHON")")"
   command -v uv >/dev/null || die "uv is required to manage the venv (curl -LsSf https://astral.sh/uv/install.sh | sh)"
@@ -148,11 +160,12 @@ EOF
 }
 
 case "${1:-start}" in
-  start)  start_desk; start_app; status ;;
+  start)  start_desk; start_app; warm ;;
   stop)   stop_one app "$STATE/app.pid" "$APP_PORT" "node"; stop_one desk "$STATE/desk.pid" "$DESK_PORT" "main.py"; status ;;
-  restart) stop_one app "$STATE/app.pid" "$APP_PORT" "node"; stop_one desk "$STATE/desk.pid" "$DESK_PORT" "main.py"; start_desk; start_app; status ;;
+  restart) stop_one app "$STATE/app.pid" "$APP_PORT" "node"; stop_one desk "$STATE/desk.pid" "$DESK_PORT" "main.py"; start_desk; start_app; warm ;;
+  warm)   warm ;;
   status) status ;;
   logs)   tail -n "${2:-40}" -f "$STATE/${3:-desk}.log" ;;
   setup)  setup ;;
-  *)      die "usage: desk.sh {start|stop|restart|status|logs [lines] [desk|app]|setup}" ;;
+  *)      die "usage: desk.sh {start|stop|restart|warm|status|logs [lines] [desk|app]|setup}" ;;
 esac

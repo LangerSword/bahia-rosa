@@ -22,7 +22,7 @@
  *   --check               validate the graph against the server's node schemas, then exit
  */
 
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { copyFile, readFile, writeFile, mkdir } from "node:fs/promises";
 import { basename, dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
@@ -37,7 +37,9 @@ const PYTHON = process.env.PRINT_DESK_PYTHON ?? "/home/lakshaya/.venv/bin/python
  * framed to head-and-shoulders it prints as a portrait. Returns the path to use plus the report.
  */
 async function frameReference(photoPath) {
-  const out = join("/tmp", `framed-${basename(photoPath).replace(/\W+/g, "-")}-${Date.now()}.png`);
+  const dir = resolve(HERE, "../../print-desk-out/framed");
+  await mkdir(dir, { recursive: true });
+  const out = join(dir, `${basename(photoPath).replace(/\W+/g, "-")}-framed.png`);
   try {
     const { stdout } = await runAsync(PYTHON, [resolve(HERE, "frame.py"), photoPath, "--out", out], { maxBuffer: 4 * 1024 * 1024 });
     return { path: out, report: JSON.parse(stdout) };
@@ -58,8 +60,10 @@ function parseArgs(argv) {
     if (!token.startsWith("--")) continue;
     const key = token.slice(2);
     const next = argv[i + 1];
-    if (key === "gguf" || key === "check") args[key] = true;
-    else if (next && !next.startsWith("--")) args[key] = next;
+    // A flag with no value — or one followed by another flag — is a boolean. This is what made
+    // --no-frame and --no-facefix silently do nothing when they were listed as booleans here.
+    if (!next || next.startsWith("--")) args[key] = true;
+    else args[key] = next;
   }
   return args;
 }
@@ -120,9 +124,17 @@ async function main() {
     process.exit(problems.length ? 1 : 0);
   }
 
-  if (!args.photo) {
+  if (!args.photo && !args.warmup) {
     console.error("--photo is required (see the header of this file)");
     process.exit(2);
+  }
+  if (args.warmup) {
+    // Warm the desk: one tiny pass so the weights, text encoder and VAE are resident before the
+    // first real print — on an 8 GB card that cold load is most of the wait.
+    args.photo = args.photo ?? resolve(HERE, "../../public/art/demo/placeholder.png");
+    args.out = args.out ?? "/tmp/print-desk-warmup.png";
+    args["no-frame"] = true;
+    args["no-facefix"] = true;
   }
 
   const compiled = args.prompt
@@ -168,9 +180,13 @@ async function main() {
   graph["14"].inputs.noise_seed = compiled.seed;
   graph["15"].inputs.cfg = compiled.render.guidance;
   graph["18"].inputs.filename_prefix = `fifteen-minutes/${compiled.register}`;
-  if (args["ref-megapixels"]) graph["5"].inputs.megapixels = Number(args["ref-megapixels"]);
+  if (!args["ref-megapixels"]) graph["5"].inputs.megapixels = Number(args["ref-megapixels"] ?? 0.26);
   if (args.steps) graph["12"].inputs.steps = Number(args.steps);
   if (args.guidance) graph["15"].inputs.cfg = Number(args.guidance);
+  if (args.warmup) {
+    graph["11"].inputs.width = graph["12"].inputs.width = 256;
+    graph["11"].inputs.height = graph["12"].inputs.height = 256;
+  }
 
   const queued = await jsonFetch(`${server}/prompt`, {
     method: "POST",
@@ -211,8 +227,37 @@ async function main() {
   await mkdir(dirname(out), { recursive: true });
   await writeFile(out, bytes);
 
+  // Face restore: the plate keeps its generated hair, body and city, but the face region is the
+  // photo's own pixels, graded into the plate's light. A 4B model at 4 steps always drifts a face a
+  // little; this is the one step that makes identity exact instead of approximate.
+  let fixed = out;
+  if (!args["no-facefix"] && reference !== out) {
+    fixed = out.replace(/\.png$/, "") + "-face.png";
+    try {
+      const { stdout } = await runAsync(
+        PYTHON,
+        [resolve(HERE, "facefix.py"), out, reference, "--out", fixed, "--mode", args["facefix-mode"] ?? "mixed"],
+        { maxBuffer: 4 * 1024 * 1024 },
+      );
+      const report = JSON.parse(stdout);
+      if (report.skipped) {
+        console.warn(`  face restore skipped: ${report.skipped}`);
+        fixed = out;
+      } else {
+        await copyFile(out, out.replace(/\.png$/, "") + "-raw.png");
+        console.log(`  face restored: colour gap ${report.colour_gap.before} → ${report.colour_gap.after} · mask ${report.mask_pixels}px`);
+      }
+    } catch (error) {
+      console.warn(`  face restore failed: ${error instanceof Error ? error.message.split("\n")[0] : error}`);
+      fixed = out;
+    }
+  }
+
+  if (fixed !== out) await copyFile(fixed, out);
+
   console.log(`wrote ${out}`);
   console.log(`  ${((Date.now() - started) / 1000).toFixed(1)}s wall clock · ${Math.round(bytes.length / 1024)} KB · spec v${compiled.specVersion} · lighting ${compiled.lighting} · palette ${compiled.palette}`);
+  if (args.warmup) console.log("warm: desk ready — weights, text encoder and VAE are resident");
 }
 
 main().catch((error) => {
