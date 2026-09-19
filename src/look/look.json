@@ -1,0 +1,156 @@
+{
+  "spec": "fifteen-minutes/look",
+  "version": "1.0.0",
+  "role": "The single source of truth for how every image in this project looks. The print desk compiles a prompt from it (src/look/compile.mjs) and feeds that prompt + the reference photo to FLUX.2 [klein] 4B. Nothing visual ships that was not drawn from this file.",
+  "city": {
+    "name": "Bahía Rosa",
+    "region": "Costa Verde",
+    "note": "Invented coastal city. Never name, depict, or imply a real game location, studio, or franchise."
+  },
+
+  "compliance": {
+    "note": "The challenge requires original visuals only: no third-party assets, no leaked material, no trademarks. These rules are enforced in code, not just intent — see assertSafe() in src/look/compile.mjs.",
+    "promptTail": "Original fan-made artwork, invented city and characters, no third-party characters, no franchise marks, no logos, no interface overlays, no text of any kind, no watermark, no signature. Not affiliated with any game studio or publisher.",
+    "prohibited": [
+      "vice city",
+      "leonida",
+      "rockstar",
+      "take-two",
+      "gta",
+      "grand theft auto",
+      "lucia",
+      "jason duval",
+      "weazel",
+      "lifeinvader",
+      "snapmatic",
+      "ifruit",
+      "screenshot from a game",
+      "game capture",
+      "trailer frame",
+      "hud"
+    ],
+    "disclaimer": "Unofficial fan-made project for the Unlayer Build with React Image Editor Challenge. Not affiliated with, endorsed by, or connected to Rockstar Games or Take-Two Interactive."
+  },
+
+  "identity": {
+    "note": "The person must survive the restyle. A plate that loses the face is a failed plate, no matter how pretty.",
+    "rules": [
+      "Keep the subject's face clearly recognisable: same face shape, same jawline, same brow, same nose and mouth proportions.",
+      "Keep hair length, hairline, and hair texture as photographed, including how it falls.",
+      "Keep glasses if worn, including frame shape and lens thickness.",
+      "Keep skin tone and any visible marks — moles, freckles, stubble, scars.",
+      "Keep the natural expression and the angle of the head; do not straighten the pose.",
+      "One person only; no extra figures, no hands, no duplicated features."
+    ],
+    "forbidden": [
+      "beautify the subject into a different person",
+      "smooth away distinctive features",
+      "change apparent age, ethnicity, or gender presentation",
+      "add jewellery, tattoos, or makeup that is not in the photo"
+    ]
+  },
+
+  "registers": {
+    "note": "A register is the medium the plate is rendered in. Surfaces pick a register; the register picks a default lighting and palette.",
+    "key-art": {
+      "label": "Key art",
+      "use": "Loading screen. The illustrated portrait the city opens with.",
+      "medium": "Hand-painted cel-shaded character key art for a high-fidelity open-world crime drama: confident bold ink linework, flat blocked colour areas with a single hard shadow tone, simplified modelling of form, warm graphic skin, minimal rendering, poster-grade composition.",
+      "background": "Completely flat solid deep-maroon field with a few thin white line-art landmarks drawn behind the subject at low opacity; the field is clean, untextured, and evenly lit.",
+      "finish": "Crisp vector-like edges, no photographic grain, no bloom, no lens artefacts.",
+      "defaultLighting": "studio-flat",
+      "defaultPalette": "deco-pastel",
+      "render": { "width": 1024, "height": 1024, "steps": 4, "guidance": 3.5 }
+    },
+    "press-photo": {
+      "label": "Press photo",
+      "use": "Front page. The photoreal editorial shot the tabloid runs.",
+      "medium": "Photoreal in-engine-style photograph from a current-generation open-world title: physically based materials, ray-traced global illumination with colour bleeding into shadow, wet-surface reflections, believable skin with subsurface scattering at ears, nose, and cheekbones.",
+      "background": "The invented coastal city at street level: sun-bleached stucco, faded signage, palm shadow, tropical humidity in the air.",
+      "finish": "Shot on a 50mm lens at f/2.0, shallow depth of field focused on the eyes, clean highlight rolloff, subtle in-camera film grain, no interface overlays, no on-screen readouts.",
+      "defaultLighting": "golden-hour-coastal",
+      "defaultPalette": "bleached-day",
+      "render": { "width": 1024, "height": 768, "steps": 4, "guidance": 3.5 }
+    },
+    "neon-night": {
+      "label": "Neon night",
+      "use": "Poster and club surfaces.",
+      "medium": "Photoreal night photograph of the invented city: saturated LED signage, streetlight bloom with visible light cones, a soft dome of city glow on the horizon, standing water on tarmac doubling every light source.",
+      "background": "Wet asphalt, brushed steel, plate glass, chrome trim, palm silhouettes reading as dark cut-outs.",
+      "finish": "Shot on a 35mm lens at f/1.8, wet-night reflections, deep blacks that keep detail, controlled magenta-and-cyan highlights, fine grain.",
+      "defaultLighting": "dusk-neon",
+      "defaultPalette": "neon-wet",
+      "render": { "width": 1024, "height": 768, "steps": 4, "guidance": 3.5 }
+    }
+  },
+
+  "lighting": {
+    "studio-flat": "Even, soft, directionless studio light on the subject; no visible light source; no cast shadow on the field.",
+    "golden-hour-coastal": "Late-afternoon subtropical sun at a low angle: warm amber key light, long soft shadows, humidity haze in the air, gentle bounce from pale walls.",
+    "midday-haze": "High sun through humidity: slightly blown highlights on white surfaces, washed-out colour, heat shimmer on distant edges, hard short shadows.",
+    "overcast-blue-grey": "Flat blue-grey overcast daylight: no direct sun, soft shadows, muted saturation, a cool cast that reads as real weather rather than a filter.",
+    "dusk-neon": "Dusk into night: magenta and cyan signage as the dominant sources, warm interior spill from doorways, cool ambient sky overhead, strong specular highlights on wet ground.",
+    "interior-neon-club": "Low-key interior: hard coloured practicals, smoke in the air, deep unlit background, faces lit by a nearby coloured source."
+  },
+
+  "palette": {
+    "deco-pastel": {
+      "description": "Tropical Art Deco pastels: soft pink, sky blue, pale lemon, lavender, off-white stucco.",
+      "anchors": ["#F2C6D4", "#A8CDE8", "#F4E3A1", "#C9B6E4", "#F5F1E6"]
+    },
+    "bleached-day": {
+      "description": "Sun-bleached coastal daylight: chalky white walls, pale turquoise water, warm sand, faded teal signage.",
+      "anchors": ["#EDE6DA", "#7FC3C0", "#D9C08A", "#2F6F6B", "#B75B3B"]
+    },
+    "neon-wet": {
+      "description": "Wet-night sign palette: hot magenta, electric cyan, amber sodium accents, deep blue-black shadow.",
+      "anchors": ["#FF3E8E", "#25D8E8", "#FFB347", "#0B1030", "#2A0E4A"]
+    },
+    "warm-dusk": {
+      "description": "Amber dusk: burnt orange sky, dusty rose clouds, violet shadow, warm rim light.",
+      "anchors": ["#E07A3F", "#C9738A", "#6A4C93", "#F0B37E", "#3A2B32"]
+    }
+  },
+
+  "camera": {
+    "framing": "Head and shoulders, subject centred, eyes on the upper third, a little headroom, shoulders filling the lower edge.",
+    "lens": "50mm equivalent for portraits, 35mm for street scenes; never a wide-angle distortion of the face.",
+    "focus": "Eyes tack sharp; background falls away softly.",
+    "post": "Restrained: no vignette, no tilt-shift, no HDR halos, no aggressive sharpening."
+  },
+
+  "world": {
+    "note": "Original vocabulary only. These are shapes and textures, never named products, brands, or franchise locations.",
+    "motifs": [
+      "suspension bridge",
+      "streetcar on a coastal line",
+      "palm trees",
+      "deco arches",
+      "ferris wheel",
+      "marina masts",
+      "seawall and mooring bollards",
+      "radio tower",
+      "rooftop water tank",
+      "awning with faded stripes"
+    ],
+    "props": ["chrome trim", "plate glass", "wet tarmac", "salt-worn paint", "brushed steel", "vinyl booth seating"],
+    "textures": ["stucco", "terrazzo", "seagrass weave", "oxidised brass", "sun-faded fabric"]
+  },
+
+  "render": {
+    "model": "@cf/black-forest-labs/flux-2-klein-4b (local GGUF/fp8 through ComfyUI)",
+    "seedPolicy": "random by default; every produced plate records its seed and spec version in the filename and manifest",
+    "identityStrength": "preserve the reference photo's subject; do not invent a new face",
+    "guidance": 3.5,
+    "steps": 4,
+    "resolutionNote": "klein 4B is happiest at 1K; keep input reference images under 512px per side as the model requires."
+  },
+
+  "promptOrder": ["medium", "identity", "scene", "background", "lighting", "palette", "camera", "finish", "complianceTail"],
+
+  "surfaces": {
+    "loading": { "register": "key-art", "brief": "clean grade, subject centred, name plate clear" },
+    "frontpage": { "register": "press-photo", "brief": "face above the fold, masthead clear, tabloid drama" },
+    "poster": { "register": "neon-night", "brief": "sell the room; the subject as the night's draw" }
+  }
+}

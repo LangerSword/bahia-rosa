@@ -1,0 +1,119 @@
+/**
+ * The look compiler — turns src/look/look.json into the exact prompt the model receives.
+ *
+ * Why a compiler instead of a string in the script: the spec is data the whole project shares
+ * (surfaces, palettes, lighting, compliance rules), and the prompt is one derived artefact. Every
+ * plate is reproducible from spec version + register + overrides + seed.
+ *
+ * Plain ESM so the browser build, the unit tests, and the Node print desk all use this one file.
+ */
+
+/** @typedef {import('./look.json')} LookSpec */
+
+export function pick(table, key, what) {
+  const value = table?.[key];
+  if (!value) {
+    const known = Object.keys(table ?? {}).join(", ");
+    throw new Error(`look spec: unknown ${what} "${key}" (known: ${known})`);
+  }
+  return value;
+}
+
+/** Hard compliance gate: the compiled prompt must never carry third-party or franchise terms. */
+export function assertSafe(prompt, prohibited) {
+  const haystack = prompt.toLowerCase();
+  const hit = prohibited.find((term) => haystack.includes(term.toLowerCase()));
+  if (hit) throw new Error(`look spec: compiled prompt contains prohibited term "${hit}"`);
+  return prompt;
+}
+
+function identityClause(spec) {
+  return `Subject: ${spec.identity.rules.join(" ")} Do not ${spec.identity.forbidden.join("; do not ")}.`;
+}
+
+function cameraClause(spec) {
+  const c = spec.camera;
+  return `Camera: ${c.framing} ${c.lens} ${c.focus} Post: ${c.post}`;
+}
+
+function lightingClause(spec, key) {
+  return `Lighting: ${pick(spec.lighting, key, "lighting preset")}`;
+}
+
+function paletteClause(spec, key) {
+  const palette = pick(spec.palette, key, "palette");
+  return `Palette: ${palette.description} Anchor colours: ${palette.anchors.join(", ")}.`;
+}
+
+/**
+ * Compile a prompt.
+ *
+ * @param {object} spec - the parsed look.json
+ * @param {object} [options]
+ * @param {string} [options.register] - key in spec.registers (default: the loading surface's register)
+ * @param {string} [options.surface] - surface id from spec.surfaces; supplies register + brief
+ * @param {string} [options.lighting] - override the register's default lighting
+ * @param {string} [options.palette] - override the register's default palette
+ * @param {string} [options.brief] - the job's brief line (the per-surface instruction)
+ * @param {number} [options.seed] - fixed seed; omit or -1 for a random one
+ */
+export function compile(spec, options = {}) {
+  const surface = options.surface ? pick(spec.surfaces, options.surface, "surface") : null;
+  const registerKey = options.register ?? surface?.register;
+  const register = pick(spec.registers, registerKey, "register");
+  const lightingKey = options.lighting ?? register.defaultLighting;
+  const paletteKey = options.palette ?? register.defaultPalette;
+  const brief = options.brief ?? surface?.brief ?? "";
+
+  const clauses = {
+    medium: `Render a single image. Medium: ${register.medium}`,
+    identity: identityClause(spec),
+    scene: brief ? `Scene: ${brief}` : "",
+    background: register.background ? `Background: ${register.background}` : "",
+    lighting: lightingClause(spec, lightingKey),
+    palette: paletteClause(spec, paletteKey),
+    camera: cameraClause(spec),
+    finish: register.finish ? `Finish: ${register.finish}` : "",
+    complianceTail: spec.compliance.promptTail,
+  };
+
+  const prompt = spec.promptOrder
+    .map((key) => {
+      const clause = clauses[key];
+      if (clause === undefined) throw new Error(`look spec: promptOrder references unknown clause "${key}"`);
+      return clause;
+    })
+    .filter(Boolean)
+    .join(" ");
+
+  assertSafe(prompt, spec.compliance.prohibited);
+
+  const renderConfig = { ...spec.render, ...register.render };
+  const seed = typeof options.seed === "number" && options.seed >= 0 ? options.seed : Math.floor(Math.random() * 2 ** 31);
+
+  return {
+    prompt,
+    register: registerKey,
+    lighting: lightingKey,
+    palette: paletteKey,
+    seed,
+    render: {
+      width: renderConfig.width,
+      height: renderConfig.height,
+      steps: renderConfig.steps,
+      guidance: options.guidance ?? renderConfig.guidance,
+    },
+    specVersion: spec.version,
+  };
+}
+
+/** Compile for a named surface ("loading", "frontpage", …) — the app-facing entry point. */
+export function compileForSurface(spec, surfaceId, options = {}) {
+  return compile(spec, { ...options, surface: surfaceId });
+}
+
+/** Filename that records provenance: every plate is traceable to spec + register + seed. */
+export function plateFilename({ register, seed, specVersion }) {
+  const stamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+  return `${stamp}-${register}-s${seed}-v${specVersion}.png`;
+}

@@ -5,6 +5,7 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
+    "allowJs": true,
     "types": ["vitest/globals", "vite/client", "node"],
     "strict": true,
     "noUnusedLocals": true,
