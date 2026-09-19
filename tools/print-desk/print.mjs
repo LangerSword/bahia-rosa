@@ -41,6 +41,11 @@ import { compile, plateFilename } from "../../src/look/compile.mjs";
 const runAsync = promisify(execFile);
 const PYTHON = process.env.PRINT_DESK_PYTHON ?? "/home/lakshaya/.venv/bin/python";
 
+/** The quality preset, in one place. Mirrors HQ_UNET/HQ_STEPS in the browser client. */
+const HQ_UNET = "flux-2-klein-base-4b-fp8.safetensors";
+const HQ_STEPS = 26;
+const HQ_GUIDANCE = 1.0;
+
 /**
  * Frame the reference before printing. A face that fills 4% of a landscape photo prints as mush;
  * framed to head-and-shoulders it prints as a portrait. Returns the path to use plus the report.
@@ -175,20 +180,18 @@ async function main() {
     seed: seedForLocation,
   });
 
-  // --hq: the quality preset. The plain 4-step distilled model is the fast path; the base model at
-  // 26 steps holds detail and light far better, and it runs at guidance 1.0 — CFG above 1 both burns
-  // the picture (saturation ~160 against the model's own ~78) and doubles the cost of every step.
-  if (args.hq) {
-    graph["1"].inputs.unet_name = "flux-2-klein-base-4b-fp8.safetensors";
-    graph["12"].inputs.steps = 26;
-    graph["15"].inputs.cfg = 1.0;
-  }
-
   const problems = await checkGraph(server, graph);
   if (problems.length) {
     console.error(`graph does not match this server:\n  ${problems.join("\n  ")}`);
     process.exit(1);
   }
+
+  // --hq: the quality preset. The plain 4-step distilled model is the fast path; the base model at
+  // 26 steps holds detail and light far better. Steps and guidance are applied down in the graph
+  // section, AFTER the spec's own values are written — an earlier version set them here and the spec
+  // then overwrote them, so "quality print" quietly ran the base model at four steps: slower than the
+  // fast path and worse than either. That was the instability.
+  if (args.hq) graph["1"].inputs.unet_name = HQ_UNET;
 
   const started = Date.now();
   let reference = resolve(args.photo);
@@ -209,9 +212,9 @@ async function main() {
   graph["11"].inputs.height = compiled.render.height;
   graph["12"].inputs.width = compiled.render.width;
   graph["12"].inputs.height = compiled.render.height;
-  graph["12"].inputs.steps = compiled.render.steps;
+  graph["12"].inputs.steps = args.hq ? HQ_STEPS : compiled.render.steps;
   graph["14"].inputs.noise_seed = compiled.seed;
-  graph["15"].inputs.cfg = compiled.render.guidance;
+  graph["15"].inputs.cfg = args.hq ? HQ_GUIDANCE : compiled.render.guidance;
   graph["18"].inputs.filename_prefix = `fifteen-minutes/${compiled.register}`;
   if (!args["ref-megapixels"]) graph["5"].inputs.megapixels = Number(args["ref-megapixels"] ?? 0.26);
   if (args.steps) graph["12"].inputs.steps = Number(args.steps);
@@ -228,7 +231,9 @@ async function main() {
   });
 
   process.stdout.write(`queued ${queued.prompt_id} · register ${compiled.register} · location ${compiled.location ?? "spec default"} · seed ${compiled.seed} · `);
-  process.stdout.write(`${compiled.render.width}x${compiled.render.height} · ${compiled.prompt.length} prompt chars\n`);
+  process.stdout.write(
+    `${compiled.render.width}x${compiled.render.height} · steps ${graph["12"].inputs.steps} · cfg ${graph["15"].inputs.cfg} · ${compiled.prompt.length} prompt chars\n`,
+  );
 
   let file = null;
   for (let attempt = 0; attempt < 600; attempt++) {
@@ -278,7 +283,7 @@ async function main() {
           "--out",
           fixed,
           "--mode",
-          args["facefix-mode"] ?? "mixed",
+          args["facefix-mode"] ?? "alpha",
         ],
         { maxBuffer: 4 * 1024 * 1024 },
       );

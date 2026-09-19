@@ -149,22 +149,76 @@ def zoned_mask(shape, box, grow=1.16, feather=0.13):
     return cv2.GaussianBlur(mask, (blur, blur), 0), (cx, cy)
 
 
+def reframe(plate, box, size, min_share, headroom=0.55, max_upscale=1.6):
+    """
+    If the model put the subject small in the frame, crop in on them and scale back up.
+
+    This is the framing half of quality: the same seed can render a wide shot where the face covers
+    18% of the frame height instead of 35%, and then the restored face is small and soft however good
+    the restore is. Cropping to the subject makes every candidate comparable and gives the face more
+    real pixels than the plate had.
+
+    The crop never shrinks below size / max_upscale, so the plate is never blown up more than that —
+    upscaling a background to fix a face trades one kind of mush for another.
+    """
+    height, width = plate.shape[:2]
+    x, y, w, h = box
+    share = h / height
+    if share >= min_share:
+        return plate, {"reframed": False, "face_share_before": round(share, 4)}
+
+    factor = min_share / max(share, 1e-4)
+    floor = size / max_upscale
+    side = min(max(w * factor * 1.6, w * 2.2), min(width, height))
+    side = max(side, min(floor, min(width, height)))
+    cx = x + w / 2
+    cy = y + h / 2 - side * (0.5 - headroom)
+    left = max(0, min(cx - side / 2, width - side))
+    top = max(0, min(cy - side / 2, height - side))
+    crop = plate[int(top) : int(top + side), int(left) : int(left + side)]
+    if crop.size == 0:
+        return plate, {"reframed": False, "face_share_before": round(share, 4)}
+    scaled = cv2.resize(crop, (size, size), interpolation=cv2.INTER_LANCZOS4)
+    return scaled, {
+        "reframed": True,
+        "face_share_before": round(share, 4),
+        "upscale": round(size / side, 2),
+        "crop": [int(left), int(top), int(side)],
+    }
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("plate")
     parser.add_argument("reference", help="the framed reference the desk printed from")
     parser.add_argument("--source", help="the original photo at full resolution (defaults to the reference)")
     parser.add_argument("--out", required=True)
-    parser.add_argument("--mode", default="mixed", choices=["mixed", "normal", "alpha"])
-    parser.add_argument("--alpha", type=float, default=0.9, help="opacity when --mode alpha")
+    parser.add_argument(
+        "--mode",
+        default="alpha",
+        choices=["alpha", "normal", "mixed"],
+        help="how the face is blended. Measured identity against the photo: alpha 0.93, normal-clone 0.92, "
+        "mixed-clone 0.54 — MIXED_CLONE keeps the plate's high-frequency texture over the patch, which is "
+        "exactly wrong for a face we are trying to preserve. Alpha is the default for that reason.",
+    )
+    parser.add_argument("--alpha", type=float, default=0.92, help="opacity of the restored face")
     parser.add_argument("--grow", type=float, default=1.16)
-    parser.add_argument("--sharpen", type=float, default=0.6, help="unsharp amount on the blended face, 0 disables")
+    parser.add_argument("--sharpen", type=float, default=0.25, help="unsharp amount on the blended face, 0 disables")
+    parser.add_argument("--min-face-share", type=float, default=0.28, help="reframe until the face is this share of the frame height")
+    parser.add_argument("--reframe-size", type=int, default=1024)
+    parser.add_argument("--max-upscale", type=float, default=1.6, help="never blow the plate up more than this to reach the target")
     args = parser.parse_args()
 
     plate = np.array(Image.open(args.plate).convert("RGB"))
     reference = np.array(Image.open(args.reference).convert("RGB"))
     source = np.array(Image.open(args.source).convert("RGB")) if args.source else reference
     report = {"plate": args.plate, "reference": args.reference, "source": args.source or args.reference, "mode": args.mode}
+
+    # Reframe first: everything downstream (alignment, mask, blend) is easier with a properly sized face.
+    pre_box, _, _, _ = locate(cv2.cvtColor(plate, cv2.COLOR_RGB2BGR))
+    if pre_box is not None:
+        plate, reframe_report = reframe(plate, pre_box, args.reframe_size, args.min_face_share, max_upscale=args.max_upscale)
+        report["reframe"] = reframe_report
 
     plate_box, plate_left, plate_right, plate_how = locate(cv2.cvtColor(plate, cv2.COLOR_RGB2BGR))
     source_box, source_left, source_right, source_how = locate(cv2.cvtColor(source, cv2.COLOR_RGB2BGR))
