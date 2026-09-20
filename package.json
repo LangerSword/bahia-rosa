@@ -1,9 +1,9 @@
 {
-  "name": "fifteen-minutes",
+  "name": "first-edition",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Your face, on everything the city prints. A GTA VI-inspired character-debut experience built for the Unlayer Build with React Image Editor Challenge.",
+  "description": "Your photo, printed by the city. A GTA VI-inspired character-debut experience built for the Unlayer Build with React Image Editor Challenge.",
   "license": "MIT",
   "scripts": {
     "dev": "vite",
@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@unlayer/react-image-editor": "^1.0.2",
+    "motion": "^13.4.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

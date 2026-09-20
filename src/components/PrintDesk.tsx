@@ -76,60 +76,60 @@ export function PrintDesk({ file, choice, onPrinted, onUseCastPlate }: PrintDesk
   const percent = Math.round(progress.percent * 100);
 
   return (
-    <section className="border border-paper/20 bg-rosa/10 p-8" data-testid="print-desk">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <section className="panel rule border p-8" data-testid="print-desk">
+      <header className="rule mb-6 flex flex-wrap items-end justify-between gap-4 border-b pb-4">
         <div>
-          <p className="text-xs tracking-[0.35em] text-paper/50 uppercase">Print desk</p>
-          <h2 className="font-display text-4xl leading-tight">
+          <p className="kicker">Step 1b · Print desk</p>
+          <h2 className="display mt-3 text-4xl">
             {error ? "The desk stopped" : result ? "Plate ready" : "Printing your plate"}
           </h2>
-          <p className="mt-1 font-mono text-[11px] text-paper/50">
+          <p className="mt-2 font-mono text-[11px] text-[color:var(--color-faint)]">
             {choice.surface}
             {choice.location ? ` · ${choice.location}` : " · rotating location"}
             {choice.quality ? " · quality print (26 steps)" : " · fast print (4 steps)"}
           </p>
         </div>
-        <p className="font-mono text-sm text-paper/60">{seconds.toFixed(1)}s</p>
+        <p className="font-mono text-sm text-[color:var(--color-gold)]">{seconds.toFixed(1)}s</p>
       </header>
 
       <div className="grid gap-8 md:grid-cols-[minmax(240px,320px)_1fr]">
-        <figure className="relative overflow-hidden border border-paper/25">
+        <figure className="rule relative overflow-hidden border">
           <img src={result ?? preview} alt="Your photo" className="block w-full" />
           {!result && !error ? (
             <div className="pointer-events-none absolute inset-0">
-              <div className="print-sweep absolute inset-x-0 h-1/3 bg-gradient-to-b from-transparent via-fuchsia-400/30 to-transparent" />
+              <div className="print-sweep absolute inset-x-0 h-1/3 bg-gradient-to-b from-transparent via-[color:var(--color-gold)]/25 to-transparent" />
             </div>
           ) : null}
-          <figcaption className="absolute bottom-0 left-0 right-0 bg-black/55 px-2 py-1 font-mono text-[11px] text-paper/80">
+          <figcaption className="absolute right-0 bottom-0 left-0 bg-black/60 px-2 py-1 font-mono text-[11px] text-[color:var(--color-body)]">
             {result ? "the plate" : "your photo"}
           </figcaption>
         </figure>
 
         <div>
-          <div className="flex items-baseline justify-between font-mono text-xs uppercase tracking-widest text-paper/60">
+          <div className="flex items-baseline justify-between font-mono text-xs tracking-widest text-[color:var(--color-muted)] uppercase">
             <span>{STAGE_LABEL[progress.stage]}</span>
             <span data-testid="print-percent">{percent}%</span>
           </div>
 
-          <div className="mt-2 h-2.5 w-full border border-paper/25 bg-black/40">
+          <div className="rule mt-2 h-2.5 w-full border bg-black/50">
             <div
               data-testid="print-bar"
-              className="h-full bg-gradient-to-r from-fuchsia-500 via-rose-400 to-cyan-300 transition-[width] duration-300 ease-out"
+              className="h-full bg-gradient-to-r from-[#ffd9a0] via-[color:var(--color-gold)] to-[#ff8ec4] transition-[width] duration-300 ease-out"
               style={{ width: `${percent}%` }}
             />
           </div>
 
-          <ol className="mt-5 space-y-1 font-mono text-xs text-paper/55" data-testid="print-log">
+          <ol className="mt-5 space-y-1 font-mono text-xs text-[color:var(--color-faint)]" data-testid="print-log">
             {log.map((line, index) => (
               <li key={`${line}-${index}`}>
-                <span className="text-paper/35">{">"}</span> {line}
+                <span className="text-[color:var(--color-gold)]/60">{">"}</span> {line}
               </li>
             ))}
           </ol>
 
           {error ? (
             <div className="mt-6" data-testid="print-error">
-              <p className="text-sm text-red-300">
+              <p className="text-sm" style={{ color: "#ef6f6f" }}>
                 {error === "offline"
                   ? "No print desk is running on this machine. Start ComfyUI (see docs/print-desk.md) and try again, or take one of the cast plates."
                   : `The desk reported: ${error}`}
@@ -138,7 +138,7 @@ export function PrintDesk({ file, choice, onPrinted, onUseCastPlate }: PrintDesk
                 <button
                   type="button"
                   onClick={() => window.location.reload()}
-                  className="border border-paper/40 px-4 py-2 text-xs uppercase tracking-wide hover:bg-paper/10"
+                  className="lift rule border px-4 py-2 text-xs tracking-[0.2em] text-[color:var(--color-paper)] uppercase hover:text-[color:var(--color-gold)]"
                 >
                   Try again
                 </button>
@@ -146,16 +146,16 @@ export function PrintDesk({ file, choice, onPrinted, onUseCastPlate }: PrintDesk
                   type="button"
                   data-testid="use-cast-plate"
                   onClick={onUseCastPlate}
-                  className="border border-paper/25 px-4 py-2 text-xs uppercase tracking-wide hover:bg-paper/10"
+                  className="lift rule border px-4 py-2 text-xs tracking-[0.2em] text-[color:var(--color-muted)] uppercase hover:text-[color:var(--color-gold)]"
                 >
                   Use a cast plate instead
                 </button>
               </div>
             </div>
           ) : (
-            <p className="mt-6 text-xs text-paper/45">
-              The desk runs on this machine — your photo is sent to the local model on port 8188 and
-              nowhere else. No account, no quota.
+            <p className="mt-6 text-xs leading-relaxed text-[color:var(--color-faint)]">
+              The desk runs on this machine — your photo goes to the local model on port 8188 and
+              nowhere else. No account, no quota, no key.
             </p>
           )}
         </div>

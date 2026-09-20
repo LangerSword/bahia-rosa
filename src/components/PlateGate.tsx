@@ -55,21 +55,22 @@ export function PlateGate({ onPhoto, onPlate }: PlateGateProps) {
   );
 
   return (
-    <section className="border border-paper/20 bg-rosa/10 p-8">
-      <h2 className="font-display text-3xl leading-tight">Step 1 — the plate</h2>
-      <p className="mt-2 max-w-prose text-sm text-paper/70">
-        Bring a photo, or take one of the desk's proof plates. Your file is read in this page and
-        never uploaded anywhere — there is no server in this build.
+    <section className="panel rule border p-8">
+      <p className="kicker">Step 1</p>
+      <h2 className="display mt-3 text-4xl">The plate</h2>
+      <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-[color:var(--color-muted)]">
+        Bring a photo, or take one of the desk's proof plates. Your file is read in this page and sent
+        only to the desk on this machine — there is no server of ours in the path.
       </p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         <label className="block">
-          <span className="text-xs tracking-[0.25em] text-paper/50 uppercase">Style</span>
+          <span className="kicker">Style</span>
           <select
             data-testid="choose-style"
             value={surface}
             onChange={(event) => setSurface(event.target.value)}
-            className="mt-2 w-full border border-paper/30 bg-transparent px-3 py-2 text-sm"
+            className="rule mt-2 w-full border bg-[color:var(--color-ink-3)] px-3 py-2 text-sm text-[color:var(--color-body)]"
           >
             {surfaces.map((option) => (
               <option key={option.id} value={option.id} className="text-black">
@@ -80,12 +81,12 @@ export function PlateGate({ onPhoto, onPlate }: PlateGateProps) {
         </label>
 
         <label className="block">
-          <span className="text-xs tracking-[0.25em] text-paper/50 uppercase">Location</span>
+          <span className="kicker">Location</span>
           <select
             data-testid="choose-location"
             value={location}
             onChange={(event) => setLocation(event.target.value)}
-            className="mt-2 w-full border border-paper/30 bg-transparent px-3 py-2 text-sm"
+            className="rule mt-2 w-full border bg-[color:var(--color-ink-3)] px-3 py-2 text-sm text-[color:var(--color-body)]"
           >
             <option value="" className="text-black">
               Rotate ({locations.length} places)
@@ -104,11 +105,11 @@ export function PlateGate({ onPhoto, onPlate }: PlateGateProps) {
             type="checkbox"
             checked={quality}
             onChange={(event) => setQuality(event.target.checked)}
-            className="h-4 w-4"
+            className="h-4 w-4 accent-[color:var(--color-gold)]"
           />
-          <span className="text-sm text-paper/80">
+          <span className="text-sm text-[color:var(--color-body)]">
             Quality print
-            <span className="block text-xs text-paper/50">base model, 26 steps — slower, sharper</span>
+            <span className="block text-xs text-[color:var(--color-faint)]">base model, 26 steps — slower, sharper</span>
           </span>
         </label>
       </div>
@@ -125,16 +126,16 @@ export function PlateGate({ onPhoto, onPlate }: PlateGateProps) {
           const file = event.dataTransfer.files?.[0];
           if (file) accept(file);
         }}
-        className={`mt-6 flex flex-col items-center justify-center gap-3 border-2 border-dashed p-10 transition ${
-          dragging ? "border-paper/70 bg-paper/5" : "border-paper/25"
+        className={`lift mt-6 flex flex-col items-center justify-center gap-3 border-2 border-dashed p-10 ${
+          dragging ? "border-[color:var(--color-gold)] bg-[color:var(--color-ink-3)]" : "rule"
         }`}
       >
-        <p className="text-sm text-paper/80">Drop a photo here, or</p>
+        <p className="text-sm text-[color:var(--color-body)]">Drop a photo here, or</p>
         <button
           type="button"
           data-testid="choose-photo"
           onClick={() => inputRef.current?.click()}
-          className="border border-paper/40 px-5 py-2 text-sm tracking-wide uppercase hover:bg-paper/10"
+          className="lift rule border px-6 py-3 text-xs tracking-[0.2em] text-[color:var(--color-paper)] uppercase hover:text-[color:var(--color-gold)]"
         >
           Choose a photo
         </button>
@@ -149,31 +150,31 @@ export function PlateGate({ onPhoto, onPlate }: PlateGateProps) {
             if (file) accept(file);
           }}
         />
-        <p className="max-w-prose text-center text-xs text-paper/50">
+        <p className="max-w-[52ch] text-center text-xs text-[color:var(--color-faint)]">
           Face the camera, plain background, shoulders up — the desk finds the face and frames it itself.
         </p>
       </div>
 
       {problem ? (
-        <p data-testid="upload-status" role="status" className="mt-4 text-sm text-red-300">
+        <p data-testid="upload-status" role="status" className="mt-4 text-sm" style={{ color: "#ef6f6f" }}>
           {problem}
         </p>
       ) : null}
 
-      <div className="mt-6">
-        <p className="text-xs tracking-[0.25em] text-paper/50 uppercase">Or take a proof plate</p>
-        <div className="mt-3 flex flex-wrap gap-3">
+      <div className="rule mt-8 border-t pt-6">
+        <p className="kicker">Or take a proof plate</p>
+        <div className="mt-4 flex flex-wrap gap-3">
           {BAKED_PLATES.map((plate) => (
             <button
               key={plate.id}
               type="button"
               data-testid={`plate-${plate.id}`}
               onClick={() => onPlate(plateFromBaked(plate))}
-              className="border border-paper/25 p-1 text-left hover:border-paper/60"
+              className="lift rule border p-1 text-left"
               title={plate.note}
             >
               <img src={plate.src} alt={plate.label} className="h-24 w-24 object-cover" />
-              <span className="mt-1 block text-xs text-paper/60">{plate.label}</span>
+              <span className="mt-1 block text-xs text-[color:var(--color-muted)]">{plate.label}</span>
             </button>
           ))}
         </div>

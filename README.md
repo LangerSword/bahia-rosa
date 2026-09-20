@@ -1,17 +1,40 @@
-# FIFTEEN MINUTES
+# FIRST EDITION
 
-**Your face, on everything the city prints.**
+**The city prints you.**
 
 A GTA VI-inspired character-debut experience built for the
 [Unlayer "Build with React Image Editor" Challenge](https://github.com/unlayer/react-image-editor).
 
-You upload a photo, the city prints you as a character standing in its own light, and then its media
+You bring one photo, the city prints you as a character standing in its own light, and then its media
 machine wants that face in its own formats: the loading screen, the tabloid front page, the VIP
 poster. **React Image Editor is the workstation for every surface**, and each surface hands you a
 deliberately different tool set — so "the editor is core" is structural, not a claim.
 
 Nothing about your photo leaves the machine: the print desk runs on your own GPU. There is no account,
 no API key, and no upload to anything of ours.
+
+![The shell](docs/ui-revamp.png)
+
+## The design language
+
+The chrome is measured from the studio's own site rather than guessed at (tokens and CSS read from
+`rockstargames.com/VI`):
+
+| Token | Value | Where it came from |
+|---|---|---|
+| canvas | `#07070a`, panels `#0d0d12` / `#14141a` | their near-black chrome (`#000`, `#111117`, `#141414`, `#222`) |
+| text | `#cecece` body, `#989898` muted, `#f2efe9` display | their text ramp (`#cecece`, `#989898`, `#ebebeb`) |
+| accent | `#fcaf17` | their single warm brand gold |
+| backdrops | 189° gradients — navy `#16203f→#0d0c1a`, plum `#2d1f36→#0f0c1a`, slate `#1f355b→#161733` | their deep-tone panel gradients |
+
+Type is an Art Deco display face over a neo-grotesque, which is their structure (a deco display over
+Helvetica Now). The open equivalents here are **Limelight** (display), **Poiret One** (kickers),
+**Inter** (text) and **Pinyon Script** (the wordmark) — all OFL, all self-hosted in `public/fonts/`,
+so nothing is fetched at runtime and no proprietary face is copied.
+
+Motion is a library, not a hack: `motion` (Framer Motion) drives reveals, the hero sheen and the
+ticker, and everything collapses under `prefers-reduced-motion`. `tests/e2e/shell.spec.ts` asserts the
+tokens render, the fonts load, no request leaves the origin, and reduced motion is respected.
 
 ## Run it
 
@@ -70,9 +93,6 @@ Generated plates, framed references and comparison sheets land in `print-desk-ou
 
 Every option is read from `src/look/look.json`, so the UI and the desk can never disagree about what
 a "location" or a "style" is.
-
-The wordmark uses a self-hosted copperplate script in the spirit of the game's logo (Pinyon Script,
-OFL — `public/fonts/`), so nothing is fetched at runtime.
 
 ## How the editor is used
 

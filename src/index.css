@@ -1,18 +1,57 @@
 @import "tailwindcss";
 
-/* FIFTEEN MINUTES — one art direction: flat rose field, white line art, newsprint grain. */
+/*
+ * FIRST EDITION — art direction taken from the studio's own site language, rebuilt with open assets.
+ *
+ * What was measured on the reference site (rockstargames.com/VI, design tokens + CSS):
+ *   chrome      near-black canvas (#000 / #111117 / #141414 / #222), text #cecece, #989898, #ebebeb
+ *   accent      a single warm gold, #fcaf17
+ *   backdrops   full-bleed panels built from 189deg gradients in deep muted tones —
+ *               navy #142242→#0d0c1a, plum #2d1f36→#0f0c1a, green #142e25→#071012, slate #1f355b→#161733
+ *   type        a bold Art Deco display face over a neo-grotesque text face
+ *   media       huge imagery, restrained motion
+ *
+ * The open equivalents used here: Limelight (deco display), Poiret One (deco kickers), Inter (text),
+ * Pinyon Script (wordmark). All OFL, all self-hosted in public/fonts — nothing is fetched at runtime.
+ */
 @theme {
-  --color-rosa: #7d1616;
-  --color-rosa-deep: #4a0d0d;
-  --color-ink: #0d0b0b;
-  --color-paper: #f4efe6;
-  --font-display: "Anton", "Archivo Black", "Haettenschweiler", system-ui, sans-serif;
+  --color-ink: #07070a;
+  --color-ink-2: #0d0d12;
+  --color-ink-3: #14141a;
+  --color-line: #26262e;
+  --color-gold: #fcaf17;
+  --color-paper: #f2efe9;
+  --color-body: #cecece;
+  --color-muted: #989898;
+  --color-faint: #6a6a72;
+  --font-display: "Limelight", "Poiret One", system-ui, sans-serif;
+  --font-kicker: "Poiret One", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Helvetica Neue", sans-serif;
   --font-script: "Pinyon Script", "Italianno", cursive;
   --font-signature: "Italianno", "Pinyon Script", cursive;
 }
 
-/* The city's own lettering: a copperplate script in the spirit of the game's logo, self-hosted so
-   nothing is fetched at runtime. Both faces are OFL — see public/fonts/OFL.txt. */
+@font-face {
+  font-family: "Limelight";
+  src: url("/fonts/Limelight-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Poiret One";
+  src: url("/fonts/PoiretOne-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter[opsz,wght].ttf") format("truetype-variations");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 @font-face {
   font-family: "Pinyon Script";
   src: url("/fonts/PinyonScript-Regular.ttf") format("truetype");
@@ -27,23 +66,6 @@
   font-display: swap;
 }
 
-/* The wordmark: script, wide tracking, warm-to-magenta gradient — the logo treatment, not the body copy. */
-.wordmark {
-  font-family: var(--font-script);
-  background: linear-gradient(96deg, #ffd9a0 0%, #ff8ec4 42%, #7fe3ff 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  letter-spacing: 0.02em;
-  line-height: 1.1;
-  text-shadow: 0 0 28px rgba(255, 142, 196, 0.18);
-}
-
-.signature {
-  font-family: var(--font-signature);
-  letter-spacing: 0.01em;
-}
-
 html,
 body,
 #root {
@@ -52,13 +74,104 @@ body,
 
 body {
   background: var(--color-ink);
-  color: var(--color-paper);
+  color: var(--color-body);
+  font-family: var(--font-body);
+  font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
 }
 
-/* The editor needs >=1024x700 of real estate (see docs/editor-contract.md). */
-.editor-shell {
-  min-width: 1024px;
+/* --- the studio's surface treatments ------------------------------------------------------------ */
+
+/* A full-bleed backdrop panel: the reference site's 189deg deep gradients, as re-usable classes. */
+.panel {
+  background: linear-gradient(189deg, #14141c 0.55%, #101018 30.38%, #0c0c13 65.19%, #08080d 100%);
+}
+
+.panel-navy {
+  background: linear-gradient(189deg, #16203f 0.55%, #151732 30.38%, #111127 65.19%, #0d0c1a 100%);
+}
+
+.panel-plum {
+  background: linear-gradient(189deg, #2d1f36 0.55%, #1e1728 30.38%, #16111f 65.19%, #0f0c1a 100%);
+}
+
+.panel-slate {
+  background: linear-gradient(189deg, #1f355b 0.55%, #1f2747 30.38%, #1a1f3c 65.19%, #161733 100%);
+}
+
+/* Hairlines and rules: 1px, low contrast, never a hard black edge. */
+.rule {
+  border-color: var(--color-line);
+}
+
+/* The kicker: deco caps, wide tracking — the small label above a heading. */
+.kicker {
+  font-family: var(--font-kicker);
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  color: var(--color-muted);
+}
+
+.display {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+  line-height: 1;
+  color: var(--color-paper);
+}
+
+/* The wordmark: script over a warm-to-magenta sheen — the logo treatment, not body copy. */
+.wordmark {
+  font-family: var(--font-script);
+  background: linear-gradient(96deg, #ffd9a0 0%, #ff8ec4 42%, #7fe3ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  text-shadow: 0 0 28px rgba(255, 142, 196, 0.16);
+}
+
+.signature {
+  font-family: var(--font-signature);
+  letter-spacing: 0.01em;
+}
+
+/* A card that lifts on hover — the reference site's restrained interactivity. */
+.lift {
+  transition:
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 260ms ease,
+    background-color 260ms ease;
+}
+
+.lift:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--color-gold) 60%, transparent);
+}
+
+/* A slow sheen travelling across the hero, so the surface is alive without being busy. */
+@keyframes sheen {
+  0% {
+    transform: translateX(-60%) skewX(-12deg);
+    opacity: 0;
+  }
+  35% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateX(160%) skewX(-12deg);
+    opacity: 0;
+  }
+}
+
+.sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(252, 175, 23, 0.16), rgba(255, 255, 255, 0.08), transparent);
+  animation: sheen 7.5s ease-in-out infinite;
+  pointer-events: none;
 }
 
 /* The printing sweep — a light bar travelling down the photo while the desk works. */
@@ -73,6 +186,33 @@ body {
 
 .print-sweep {
   animation: print-sweep 2.2s linear infinite;
+}
+
+/* A thin ticker of place names, the way a city scrolls past. */
+@keyframes ticker {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.ticker {
+  animation: ticker 38s linear infinite;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+/* The editor needs >=1024x700 of real estate (see docs/editor-contract.md). */
+.editor-shell {
+  min-width: 1024px;
+}
+
+/* Focus ring: gold, visible, never removed. */
+:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
