@@ -31,6 +31,8 @@ export interface PrintResult {
   register: string;
   location: string | null;
   seconds: number;
+  /** ArcFace identity of the finished plate against the photograph, when the desk measured it. */
+  identity: { similarity: number; verdict: string } | null;
 }
 
 export interface PrintOptions {
@@ -61,6 +63,9 @@ export function printChoices() {
 /** The quality preset, in one place so the graph and the progress bar can never disagree. */
 export const HQ_UNET = "flux-2-klein-base-4b-fp8.safetensors";
 export const HQ_STEPS = 26;
+// The quality canvas. The restored face is composited at whatever size the plate gives it, so a
+// bigger plate means more of the photograph's own pixels survive into the final image.
+export const HQ_SIZE = 1280;
 
 export class PrintDeskOffline extends Error {
   constructor() {
@@ -162,6 +167,35 @@ async function uploadPhoto(baseUrl: string, file: File): Promise<string> {
   return body.subfolder ? `${body.subfolder}/${body.name}` : body.name;
 }
 
+/** The finishing service — framing before the desk, face restore after it. Proxied, same origin. */
+const FINISH_BASE = "/restore-desk";
+
+async function finish<T>(route: string, payload: unknown): Promise<T | null> {
+  try {
+    const response = await fetch(`${FINISH_BASE}${route}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(300_000),
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as T;
+  } catch {
+    // The service is optional: without it the app still prints, just without the face restore.
+    return null;
+  }
+}
+
+/** A data URL back into a File, so the framed photo can go through the same upload path. */
+export function dataUrlToFile(dataUrl: string, name = "subject.png"): File {
+  const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+  if (!match) throw new Error("not a base64 data URL");
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return new File([bytes], name, { type: match[1] });
+}
+
 export async function printPlate(options: PrintOptions): Promise<PrintResult> {
   const baseUrl = options.baseUrl ?? DEFAULT_BASE;
   const started = Date.now();
@@ -213,8 +247,13 @@ export async function printPlate(options: PrintOptions): Promise<PrintResult> {
     socket.onclose = () => resolve();
   });
 
-  report({ stage: "uploading", percent: 0.06, message: "handing your photo to the desk" });
-  const uploaded = await uploadPhoto(baseUrl, options.file);
+  report({ stage: "uploading", percent: 0.06, message: "framing your face" });
+  // Frame first: the model restyles what it can see, and a face that fills 4% of a landscape photo
+  // prints as mush. Without the service this is a no-op and the original goes straight through.
+  const originalDataUrl = await blobToDataUrl(options.file);
+  const prepared = await finish<{ framed: string; report: { skipped?: string } }>("/prepare", { photo: originalDataUrl });
+  const framedDataUrl = prepared?.framed ?? originalDataUrl;
+  const uploaded = await uploadPhoto(baseUrl, prepared ? dataUrlToFile(framedDataUrl) : options.file);
 
   const graph = structuredClone(workflow) as Record<string, { class_type: string; inputs: Record<string, unknown> }>;
   graph["4"].inputs.image = uploaded;
@@ -227,12 +266,16 @@ export async function printPlate(options: PrintOptions): Promise<PrintResult> {
   graph["14"].inputs.noise_seed = compiled.seed;
   graph["15"].inputs.cfg = compiled.render.guidance;
 
-  // The quality preset mirrors `print.mjs --hq`: base 4B at 26 steps, guidance 1.0. CFG above 1 on
-  // this family both burns the colours and doubles the cost of every step, so it is not used.
+  // The quality preset mirrors `print.mjs --hq`: base 4B at 26 steps, guidance 1.0, and a 1280
+  // canvas. CFG above 1 on this family both burns the colours and doubles the cost of every step,
+  // so it is not used. The canvas is not cosmetic — the face is composited back at the size the
+  // plate gives it, so 1280 keeps more of the photograph's real pixels in the face than 1024 can.
   if (options.quality) {
     graph["1"].inputs.unet_name = HQ_UNET;
     graph["12"].inputs.steps = HQ_STEPS;
     graph["15"].inputs.cfg = 1.0;
+    graph["11"].inputs.width = graph["12"].inputs.width = HQ_SIZE;
+    graph["11"].inputs.height = graph["12"].inputs.height = HQ_SIZE;
   }
 
   const queued = (await jsonFetch(`${baseUrl}/prompt`, {
@@ -267,10 +310,20 @@ export async function printPlate(options: PrintOptions): Promise<PrintResult> {
   }
   if (!image) throw new Error("the desk took too long — try again");
 
-  report({ stage: "developing", percent: 0.9, message: "developing the plate" });
+  report({ stage: "developing", percent: 0.9, message: "putting your face back" });
   const view = `${baseUrl}/view?filename=${encodeURIComponent(image.filename)}&subfolder=${encodeURIComponent(image.subfolder ?? "")}&type=${image.type ?? "output"}`;
   const blob = await (await fetch(view)).blob();
-  const dataUrl = await blobToDataUrl(blob);
+  const rawDataUrl = await blobToDataUrl(blob);
+
+  // The face restore: the plate keeps the city, the hair and the light, but the face region becomes
+  // the photograph's own pixels, aligned by landmarks and graded into the plate. This is the step
+  // that turns "a character who looks a bit like you" into you.
+  const restored = await finish<{ plate: string; identity: { similarity: number; verdict: string } | null }>("/restore", {
+    plate: rawDataUrl,
+    reference: framedDataUrl,
+    source: originalDataUrl,
+  });
+  const dataUrl = restored?.plate ?? rawDataUrl;
 
   socket?.close();
   await finished.catch(() => undefined);
@@ -282,5 +335,6 @@ export async function printPlate(options: PrintOptions): Promise<PrintResult> {
     register: compiled.register,
     location: compiled.location ?? null,
     seconds: (Date.now() - started) / 1000,
+    identity: restored?.identity ?? null,
   };
 }

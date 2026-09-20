@@ -18,6 +18,7 @@ COMFY_DIR="${COMFY_DIR:-$HOME/comfy/ComfyUI}"
 PYTHON="${PRINT_DESK_PYTHON:-$HOME/.venv/bin/python}"
 DESK_PORT="${DESK_PORT:-8188}"
 APP_PORT="${APP_PORT:-5178}"
+RESTORE_PORT="${RESTORE_PORT:-8788}"
 
 mkdir -p "$STATE"
 
@@ -30,6 +31,7 @@ listening() { ss -tln 2>/dev/null | grep -q ":$1 "; }
 desk_up()   { curl -fsS --max-time 2 "http://127.0.0.1:$DESK_PORT/system_stats" >/dev/null 2>&1; }
 # Vite binds the IPv6 loopback ([::1]) — checking only 127.0.0.1 reports a healthy app as down.
 app_up()    { curl -fsS --max-time 2 "http://localhost:$APP_PORT/" >/dev/null 2>&1 || curl -fsS --max-time 2 "http://127.0.0.1:$APP_PORT/" >/dev/null 2>&1; }
+restore_up() { curl -fsS --max-time 2 "http://127.0.0.1:$RESTORE_PORT/health" >/dev/null 2>&1; }
 alive()     { [[ -f "$1" ]] && kill -0 "$(cat "$1")" 2>/dev/null; }
 
 wait_for() { # wait_for <label> <check-cmd> <seconds>
@@ -84,6 +86,14 @@ start_app() {
   wait_for "app" "app_up" 90 || die "the app did not come up — see $STATE/app.log"
 }
 
+# The finishing service: framing + face restore, the two steps the browser cannot run itself.
+start_restore() {
+  if restore_up; then ok "restore service already answering on :$RESTORE_PORT"; return 0; fi
+  log "starting the restore service (log: $STATE/restore.log)"
+  ( cd "$PROJECT" && setsid nohup node tools/desk/restore.mjs >>"$STATE/restore.log" 2>&1 & echo $! >"$STATE/restore.pid" )
+  wait_for "restore service" "restore_up" 30 || warn "the restore service did not come up — prints will skip face framing and restore"
+}
+
 stop_one() { # stop_one <name> <pidfile> <port> <expected-substring>
   local name="$1" pidfile="$2" port="$3" pattern="$4"
   if alive "$pidfile"; then
@@ -119,6 +129,9 @@ status() {
   elif listening "$APP_PORT"; then warn "app          port $APP_PORT listening but not answering"
   else warn "app          not running"; fi
 
+  if restore_up; then ok "restore      http://127.0.0.1:$RESTORE_PORT  pid $(restore_pid)"
+  else warn "restore      not running (prints will skip framing and face restore)"; fi
+
   local models; models="$(ls "$COMFY_DIR/models/diffusion_models" 2>/dev/null | grep -c safetensors || true)"
   log "models       $models diffusion checkpoint(s) in $COMFY_DIR/models"
   command -v nvidia-smi >/dev/null && nvidia-smi --query-gpu=name,memory.used,memory.total,utilization.gpu \
@@ -128,6 +141,7 @@ status() {
 
 desk_pid() { alive "$STATE/desk.pid" && cat "$STATE/desk.pid" || echo "external"; }
 app_pid()  { alive "$STATE/app.pid"  && cat "$STATE/app.pid"  || echo "external"; }
+restore_pid() { alive "$STATE/restore.pid" && cat "$STATE/restore.pid" || echo "external"; }
 
 warm() { # load the weights before the first real print; on 8 GB that cold load is the long wait
   if ! desk_up; then warn "print desk is not up — warming skipped"; return 0; fi
@@ -160,12 +174,12 @@ EOF
 }
 
 case "${1:-start}" in
-  start)  start_desk; start_app; warm ;;
-  stop)   stop_one app "$STATE/app.pid" "$APP_PORT" "node"; stop_one desk "$STATE/desk.pid" "$DESK_PORT" "main.py"; status ;;
-  restart) stop_one app "$STATE/app.pid" "$APP_PORT" "node"; stop_one desk "$STATE/desk.pid" "$DESK_PORT" "main.py"; start_desk; start_app; warm ;;
+  start)  start_desk; start_restore; start_app; warm ;;
+  stop)   stop_one app "$STATE/app.pid" "$APP_PORT" "node"; stop_one restore "$STATE/restore.pid" "$RESTORE_PORT" "restore.mjs"; stop_one desk "$STATE/desk.pid" "$DESK_PORT" "main.py"; status ;;
+  restart) stop_one app "$STATE/app.pid" "$APP_PORT" "node"; stop_one restore "$STATE/restore.pid" "$RESTORE_PORT" "restore.mjs"; stop_one desk "$STATE/desk.pid" "$DESK_PORT" "main.py"; start_desk; start_restore; start_app; warm ;;
   warm)   warm ;;
   status) status ;;
   logs)   tail -n "${2:-40}" -f "$STATE/${3:-desk}.log" ;;
   setup)  setup ;;
-  *)      die "usage: desk.sh {start|stop|restart|warm|status|logs [lines] [desk|app]|setup}" ;;
+  *)      die "usage: desk.sh {start|stop|restart|warm|status|logs [lines] [desk|app|restore]|setup}" ;;
 esac

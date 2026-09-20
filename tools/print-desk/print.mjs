@@ -45,6 +45,18 @@ const PYTHON = process.env.PRINT_DESK_PYTHON ?? "/home/lakshaya/.venv/bin/python
 const HQ_UNET = "flux-2-klein-base-4b-fp8.safetensors";
 const HQ_STEPS = 26;
 const HQ_GUIDANCE = 1.0;
+const HQ_SIZE = 1280;
+const HQ_IDENTITY_FLOOR = 0.45;
+
+/** ArcFace identity of a finished plate against the photo — the gate that decides a reprint. */
+async function identityOf(plate, reference) {
+  try {
+    const { stdout } = await runAsync(PYTHON, [resolve(HERE, "identity.py"), plate, reference], { maxBuffer: 4 * 1024 * 1024, timeout: 300_000 });
+    return JSON.parse(stdout);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Frame the reference before printing. A face that fills 4% of a landscape photo prints as mush;
@@ -186,12 +198,14 @@ async function main() {
     process.exit(1);
   }
 
-  // --hq: the quality preset. The plain 4-step distilled model is the fast path; the base model at
-  // 26 steps holds detail and light far better. Steps and guidance are applied down in the graph
-  // section, AFTER the spec's own values are written — an earlier version set them here and the spec
-  // then overwrote them, so "quality print" quietly ran the base model at four steps: slower than the
-  // fast path and worse than either. That was the instability.
-  if (args.hq) graph["1"].inputs.unet_name = HQ_UNET;
+  // The quality preset: the base model, 26 steps, guidance 1.0, and a 1280 canvas. The canvas matters
+  // for the face — the restored face is composited at the size the plate gives it, so a bigger plate
+  // means more real pixels in the face, not just a bigger picture.
+  if (args.hq) {
+    graph["1"].inputs.unet_name = HQ_UNET;
+    args.width = args.width ?? HQ_SIZE;
+    args.height = args.height ?? HQ_SIZE;
+  }
 
   const started = Date.now();
   let reference = resolve(args.photo);
@@ -208,10 +222,10 @@ async function main() {
   const uploaded = await uploadImage(server, reference);
   graph["4"].inputs.image = uploaded;
   graph["6"].inputs.text = compiled.prompt;
-  graph["11"].inputs.width = compiled.render.width;
-  graph["11"].inputs.height = compiled.render.height;
-  graph["12"].inputs.width = compiled.render.width;
-  graph["12"].inputs.height = compiled.render.height;
+  graph["11"].inputs.width = Number(args.width ?? compiled.render.width);
+  graph["11"].inputs.height = Number(args.height ?? compiled.render.height);
+  graph["12"].inputs.width = Number(args.width ?? compiled.render.width);
+  graph["12"].inputs.height = Number(args.height ?? compiled.render.height);
   graph["12"].inputs.steps = args.hq ? HQ_STEPS : compiled.render.steps;
   graph["14"].inputs.noise_seed = compiled.seed;
   graph["15"].inputs.cfg = args.hq ? HQ_GUIDANCE : compiled.render.guidance;
@@ -224,90 +238,113 @@ async function main() {
     graph["11"].inputs.height = graph["12"].inputs.height = 256;
   }
 
-  const queued = await jsonFetch(`${server}/prompt`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ prompt: graph, client_id: "print-desk" }),
-  });
-
-  process.stdout.write(`queued ${queued.prompt_id} · register ${compiled.register} · location ${compiled.location ?? "spec default"} · seed ${compiled.seed} · `);
-  process.stdout.write(
-    `${compiled.render.width}x${compiled.render.height} · steps ${graph["12"].inputs.steps} · cfg ${graph["15"].inputs.cfg} · ${compiled.prompt.length} prompt chars\n`,
-  );
-
-  let file = null;
-  for (let attempt = 0; attempt < 600; attempt++) {
-    await new Promise((r) => setTimeout(r, 1000));
-    const history = await jsonFetch(`${server}/history/${queued.prompt_id}`);
-    const entry = history[queued.prompt_id];
-    if (!entry) continue;
-    if (entry.status?.status_str === "error") {
-      console.error("generation failed:", JSON.stringify(entry.status).slice(0, 800));
-      process.exit(1);
-    }
-    const images = Object.values(entry.outputs ?? {}).flatMap((output) => output.images ?? []);
-    if (images.length) {
-      file = images[0];
-      break;
-    }
-  }
-  if (!file) {
-    console.error("timed out waiting for the plate");
-    process.exit(1);
-  }
-
-  const view = `${server}/view?filename=${encodeURIComponent(file.filename)}&subfolder=${encodeURIComponent(file.subfolder ?? "")}&type=${file.type ?? "output"}`;
-  const bytes = new Uint8Array(await (await fetch(view)).arrayBuffer());
+  const attempts = Math.max(1, Number(args.attempts ?? 1));
+  const minIdentity = args["min-identity"] !== undefined ? Number(args["min-identity"]) : args.hq ? HQ_IDENTITY_FLOOR : null;
 
   const out = resolve(
     args.out ?? resolve(HERE, "../../print-desk-out/plates", plateFilename({ register: compiled.register, location: compiled.location, seed: compiled.seed, specVersion: compiled.specVersion })),
   );
   await mkdir(dirname(out), { recursive: true });
-  await writeFile(out, bytes);
 
-  // Face restore: the plate keeps its generated hair, body and city, but the face region is the
-  // photo's own pixels, graded into the plate's light. A 4B model at 4 steps always drifts a face a
-  // little; this is the one step that makes identity exact instead of approximate.
-  let fixed = out;
-  if (!args["no-facefix"] && reference !== out) {
-    fixed = out.replace(/\.png$/, "") + "-face.png";
-    try {
-      const { stdout } = await runAsync(
-        PYTHON,
-        [
-          resolve(HERE, "facefix.py"),
-          out,
-          reference,
-          // The face is cut from the original photo at full resolution, not the 1024px framed copy.
-          ...(reference !== resolve(args.photo) ? ["--source", resolve(args.photo)] : []),
-          "--out",
-          fixed,
-          "--mode",
-          args["facefix-mode"] ?? "alpha",
-        ],
-        { maxBuffer: 4 * 1024 * 1024 },
-      );
-      const report = JSON.parse(stdout);
-      if (report.skipped) {
-        console.warn(`  face restore skipped: ${report.skipped}`);
-        fixed = out;
-      } else {
-        await copyFile(out, out.replace(/\.png$/, "") + "-raw.png");
-        const alignment = report.alignment?.mode === "eyes" ? `eyes (${report.alignment.angle_deg}°, ×${report.alignment.scale})` : "box";
-        console.log(
-          `  face restored: ${alignment} · colour gap ${report.colour_gap.before} → ${report.colour_gap.after} · mask ${report.mask_pixels}px`,
-        );
+  // Print, restore, measure, and if the face is not the person in the photo, print again. "Quality
+  // mode" means a plate that passes, not a plate that took longer.
+  let best = null;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const seed = compiled.seed + attempt * 7919;
+    graph["14"].inputs.noise_seed = seed;
+
+    const queued = await jsonFetch(`${server}/prompt`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompt: graph, client_id: "print-desk" }),
+    });
+    process.stdout.write(
+      `attempt ${attempt + 1}/${attempts} · ${graph["11"].inputs.width}x${graph["11"].inputs.height} · steps ${graph["12"].inputs.steps} · cfg ${graph["15"].inputs.cfg} · seed ${seed} · `,
+    );
+    process.stdout.write(`location ${compiled.location ?? "spec default"} · ${compiled.prompt.length} prompt chars\n`);
+
+    let file = null;
+    for (let tick = 0; tick < 900; tick++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      const history = await jsonFetch(`${server}/history/${queued.prompt_id}`);
+      const entry = history[queued.prompt_id];
+      if (!entry) continue;
+      if (entry.status?.status_str === "error") {
+        console.error("generation failed:", JSON.stringify(entry.status).slice(0, 800));
+        process.exit(1);
       }
-    } catch (error) {
-      console.warn(`  face restore failed: ${error instanceof Error ? error.message.split("\n")[0] : error}`);
-      fixed = out;
+      const images = Object.values(entry.outputs ?? {}).flatMap((output) => output.images ?? []);
+      if (images.length) {
+        file = images[0];
+        break;
+      }
     }
+    if (!file) {
+      console.error("timed out waiting for the plate");
+      process.exit(1);
+    }
+
+    const view = `${server}/view?filename=${encodeURIComponent(file.filename)}&subfolder=${encodeURIComponent(file.subfolder ?? "")}&type=${file.type ?? "output"}`;
+    const bytes = new Uint8Array(await (await fetch(view)).arrayBuffer());
+
+    const platePath = attempts > 1 ? out.replace(/\.png$/, `-try${attempt + 1}.png`) : out;
+    await writeFile(platePath, bytes);
+
+    // Face restore: the plate keeps its generated hair, body and city, but the face region is the
+    // photo's own pixels, aligned by landmarks and graded into the plate's light.
+    let faceReport = null;
+    if (!args["no-facefix"]) {
+      const fixed = platePath.replace(/\.png$/, "") + "-face.png";
+      try {
+        const { stdout } = await runAsync(
+          PYTHON,
+          [
+            resolve(HERE, "facefix.py"),
+            platePath,
+            reference,
+            // The face is cut from the original photo at full resolution, not the framed copy.
+            ...(reference !== resolve(args.photo) ? ["--source", resolve(args.photo)] : []),
+            "--out",
+            fixed,
+            "--mode",
+            args["facefix-mode"] ?? "alpha",
+            "--reframe-size",
+            String(graph["11"].inputs.width),
+          ],
+          { maxBuffer: 4 * 1024 * 1024, timeout: 300_000 },
+        );
+        faceReport = JSON.parse(stdout);
+        if (faceReport.skipped) {
+          console.warn(`  face restore skipped: ${faceReport.skipped}`);
+        } else {
+          await copyFile(platePath, platePath.replace(/\.png$/, "") + "-raw.png");
+          await copyFile(fixed, platePath);
+        }
+      } catch (error) {
+        console.warn(`  face restore failed: ${error instanceof Error ? error.message.split("\n")[0] : error}`);
+      }
+    }
+
+    const identity = minIdentity !== null ? await identityOf(platePath, reference) : null;
+    const score = identity?.similarity ?? 1;
+    if (faceReport && !faceReport.skipped) {
+      const alignment = faceReport.alignment?.mode === "eyes" ? `eyes (${faceReport.alignment.angle_deg}°, ×${faceReport.alignment.scale})` : "box";
+      process.stdout.write(`  face ${alignment} · colour gap ${faceReport.colour_gap?.before} → ${faceReport.colour_gap?.after}`);
+    }
+    if (identity) process.stdout.write(` · identity ${identity.similarity} (${identity.verdict})`);
+    process.stdout.write("\n");
+
+    if (!best || score > best.score) best = { score, identity, file: platePath, bytes: bytes.length, seed, attempt };
+    if (identity === null || score >= minIdentity) break;
+    console.log(`  below the identity floor (${minIdentity}) — printing another take`);
   }
 
-  if (fixed !== out) await copyFile(fixed, out);
+  if (best.file !== out) await copyFile(best.file, out);
 
   console.log(`wrote ${out}`);
-  console.log(`  ${((Date.now() - started) / 1000).toFixed(1)}s wall clock · ${Math.round(bytes.length / 1024)} KB · spec v${compiled.specVersion} · lighting ${compiled.lighting} · palette ${compiled.palette}`);
+  console.log(
+    `  ${((Date.now() - started) / 1000).toFixed(1)}s wall clock · ${Math.round(best.bytes / 1024)} KB · spec v${compiled.specVersion} · lighting ${compiled.lighting} · palette ${compiled.palette}${best.identity ? ` · identity ${best.identity.similarity}` : ""}`,
+  );
   if (args.warmup) console.log("warm: desk ready — weights, text encoder and VAE are resident");
 }
 

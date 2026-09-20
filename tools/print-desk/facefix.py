@@ -187,6 +187,42 @@ def reframe(plate, box, size, min_share, headroom=0.55, max_upscale=1.6):
     }
 
 
+def grade_plate(plate, source_rgb, source_box, plate_box, max_shift=(14.0, 11.0, 11.0)):
+    """
+    Pull the whole plate's grade toward the photograph's skin, then let the face blend sit on top.
+
+    This is the fix for a face that reads as pasted: matching only the face patch to the plate drags the
+    photo's skin into whatever cast the model invented. Moving the plate a little toward the photo
+    instead keeps the photo's own colour and leaves a far smaller seam — the shift is clamped so the
+    plate keeps its mood.
+    """
+    def face_patch(image, box):
+        x, y, w, h = box
+        pad = int(w * 0.15)
+        x0, y0 = max(0, x - pad), max(0, y - pad)
+        x1, y1 = min(image.shape[1], x + w + pad), min(image.shape[0], y + h + pad)
+        patch = image[y0:y1, x0:x1]
+        mask = np.zeros(patch.shape[:2], np.uint8)
+        ph, pw = mask.shape
+        cv2.ellipse(mask, (pw // 2, ph // 2), (max(1, int(pw * 0.42)), max(1, int(ph * 0.42))), 0, 0, 360, 255, -1)
+        return patch, mask
+
+    # Each patch gets its own mask: the source photo and the plate are different sizes, and sharing one
+    # mask between them crashed the whole restore the first time this ran.
+    src_patch, src_mask = face_patch(source_rgb, source_box)
+    plate_patch, plate_mask = face_patch(plate, plate_box)
+    if src_patch.size == 0 or plate_patch.size == 0:
+        return plate, None
+
+    s_mean, _ = lab_stats(src_patch, src_mask)
+    t_mean, _ = lab_stats(plate_patch, plate_mask)
+
+    delta = np.clip(s_mean - t_mean, [-max_shift[0], -max_shift[1], -max_shift[2]], list(max_shift))
+    lab = cv2.cvtColor(plate, cv2.COLOR_RGB2LAB).astype(np.float32) + delta
+    graded = cv2.cvtColor(np.clip(lab, 0, 255).astype(np.uint8), cv2.COLOR_LAB2RGB)
+    return graded, {"delta_lab": [round(float(v), 2) for v in delta]}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("plate")
@@ -207,6 +243,7 @@ def main():
     parser.add_argument("--min-face-share", type=float, default=0.28, help="reframe until the face is this share of the frame height")
     parser.add_argument("--reframe-size", type=int, default=1024)
     parser.add_argument("--max-upscale", type=float, default=1.6, help="never blow the plate up more than this to reach the target")
+    parser.add_argument("--no-grade-plate", action="store_true", help="skip pulling the plate's grade toward the photo's skin")
     args = parser.parse_args()
 
     plate = np.array(Image.open(args.plate).convert("RGB"))
@@ -235,6 +272,18 @@ def main():
     height, width = plate.shape[:2]
     px, py, pw, ph = plate_box
     margin = 0.20
+
+    # Grade the whole plate toward the photo's skin before blending, so the face does not have to be
+    # dragged into the model's cast to fit in.
+    if not args.no_grade_plate:
+        plate, grade_report = grade_plate(plate, source, source_box, plate_box)
+        if grade_report:
+            report["plate_grade"] = grade_report
+        # Re-locate after grading: the plate's pixels moved, so its face box is worth refreshing.
+        again_box, again_left, again_right, again_how = locate(cv2.cvtColor(plate, cv2.COLOR_RGB2BGR))
+        if again_box is not None:
+            plate_box, plate_left, plate_right, plate_how = again_box, again_left, again_right, again_how
+            px, py, pw, ph = again_box
 
     if source_left is not None and plate_left is not None:
         s_vec, p_vec = source_right - source_left, plate_right - plate_left

@@ -67,12 +67,19 @@ photo → frame.py ──► print.mjs ──► plate ──► editor
   never written by hand, and a test enforces that every compiled prompt stays inside the budget a 4B
   distilled model actually reads.
 - **`tools/print-desk/print.mjs`** — one plate: compile → upload → sample → restore the face from the
-  photo (`facefix.py`: eye-aligned, full-resolution, colour-clamped, Poisson-blended) → write with
-  provenance (register, location, seed, spec version in the filename). `--hq` switches to the base
-  model at 26 steps and guidance 1.0 for quality over speed.
+  photo (`facefix.py`: eye-aligned, full-resolution, colour-clamped, alpha-blended over a graded plate)
+  → write with provenance (register, location, seed, spec version in the filename).
+  `--hq` is the quality preset: the base model at 26 steps, guidance 1.0, on a **1280** canvas, with an
+  **identity floor of 0.45** — a plate that does not clear it is reprinted with a new seed rather than
+  shipped. Quality mode means a plate that passes, not a plate that took longer.
 - **`tools/print-desk/identity.py`** — ArcFace identity and landmark geometry against the photo.
-  Calibrated on this pipeline: the raw model output measures 0.083 cosine (a different person), the
-  face-restored plate 0.69. This is the harness's strictest gate.
+  Calibrated on this pipeline: the raw model output measures **0.083** cosine (a different person), the
+  face-restored plate **0.93–0.95**. This is the harness's strictest gate.
+- **`tools/desk/restore.mjs`** — the finishing service (`POST /prepare`, `POST /restore`, port 8788,
+  proxied as `/restore-desk`). Framing and face restore are Python; without this the *app* printed raw
+  model output (identity 0.08) while the CLI printed 0.93. Same pipeline, two different products — the
+  service is what closed that gap. It is optional: if it is not running the app still prints, just
+  without the restore.
 - **`tools/print-desk/harness.mjs`** — quality harness: print a batch, gate it numerically
   (`critique.py`), judge it with a local vision model (`judge.py` — Qwen2.5-VL in 4-bit, scoring
   identity, lighting, colour, background, composition and artifacts against your reference photo),

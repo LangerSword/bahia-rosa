@@ -31,7 +31,15 @@ export default defineConfig({
   server: {
     port: 5178,
     strictPort: true,
-    proxy: { "/print-desk": deskProxy },
+    proxy: {
+      "/print-desk": deskProxy,
+      // The finishing service: framing before the model, face restore after it. Same-origin for the app.
+      "/restore-desk": {
+        target: process.env.RESTORE_URL ?? "http://127.0.0.1:8788",
+        changeOrigin: true,
+        rewrite: (path: string) => path.replace(/^\/restore-desk/, ""),
+      },
+    },
   },
   build: { target: "es2022", sourcemap: true },
   test: {

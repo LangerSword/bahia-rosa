@@ -31,6 +31,7 @@ export function PrintDesk({ file, choice, onPrinted, onUseCastPlate }: PrintDesk
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const [identity, setIdentity] = useState<{ similarity: number; verdict: string } | null>(null);
   const [seconds, setSeconds] = useState(0);
   const startedRef = useRef(false);
 
@@ -58,6 +59,7 @@ export function PrintDesk({ file, choice, onPrinted, onUseCastPlate }: PrintDesk
     })
       .then((printed) => {
         setResult(printed.dataUrl);
+        setIdentity(printed.identity);
         onPrinted({ kind: "photo", objectUrl: printed.dataUrl, name: "printed plate" }, {
           seed: printed.seed,
           register: printed.register,
@@ -86,10 +88,17 @@ export function PrintDesk({ file, choice, onPrinted, onUseCastPlate }: PrintDesk
           <p className="mt-2 font-mono text-[11px] text-[color:var(--color-faint)]">
             {choice.surface}
             {choice.location ? ` · ${choice.location}` : " · rotating location"}
-            {choice.quality ? " · quality print (26 steps)" : " · fast print (4 steps)"}
+            {choice.quality ? " · quality print (26 steps · 1280px)" : " · fast print (4 steps)"}
           </p>
         </div>
-        <p className="font-mono text-sm text-[color:var(--color-gold)]">{seconds.toFixed(1)}s</p>
+        <div className="text-right">
+          <p className="font-mono text-sm text-[color:var(--color-gold)]">{seconds.toFixed(1)}s</p>
+          {identity ? (
+            <p className="mt-1 font-mono text-[11px] text-[color:var(--color-muted)]" data-testid="print-identity">
+              face {identity.similarity.toFixed(2)} · {identity.verdict}
+            </p>
+          ) : null}
+        </div>
       </header>
 
       <div className="grid gap-8 md:grid-cols-[minmax(240px,320px)_1fr]">
