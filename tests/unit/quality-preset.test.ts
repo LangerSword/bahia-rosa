@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { HQ_SIZE, HQ_STEPS, HQ_UNET } from "../../src/lib/printdesk/client";
 
@@ -25,10 +26,21 @@ describe("the quality preset", () => {
     expect(value(client, "HQ_SIZE")).toBe(String(HQ_SIZE));
   });
 
-  test("quality means a bigger canvas than the fast path", () => {
-    // The face is composited back at the size the plate gives it, so this is a face-detail setting.
-    expect(HQ_SIZE).toBeGreaterThan(1024);
+  test("quality means more steps, a reprint — not a bigger canvas", () => {
+    // 1280 was tried and reverted: klein is a 1K model, and the bigger frame made the subject come out
+    // small and off-centre, which left the restore almost no face to work with. Quality is the step
+    // count, the geometry gate and the reprint. The lessons are in the comment above the constant.
+    expect(HQ_SIZE).toBe(1024);
     expect(HQ_STEPS).toBeGreaterThan(4);
+  });
+
+  test("the restore refuses a paste it cannot place, instead of pasting it anyway", () => {
+    const facefix = readFileSync("tools/print-desk/facefix.py", "utf8");
+    expect(facefix).toContain("geometry_rejected");
+    expect(facefix).toMatch(/def plausible\(/);
+    // And the refusal has to count as a failed take in both callers, or it silently ships a stranger.
+    expect(cli).toMatch(/const refused = faceReport\?\.geometry_rejected/);
+    expect(client).toMatch(/const refused = restored\?\.report\?\.geometry_rejected/);
   });
 
   test("the CLI refuses to ship a plate whose face is not the photo's face", () => {

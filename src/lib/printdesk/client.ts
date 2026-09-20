@@ -63,9 +63,10 @@ export function printChoices() {
 /** The quality preset, in one place so the graph and the progress bar can never disagree. */
 export const HQ_UNET = "flux-2-klein-base-4b-fp8.safetensors";
 export const HQ_STEPS = 26;
-// The quality canvas. The restored face is composited at whatever size the plate gives it, so a
-// bigger plate means more of the photograph's own pixels survive into the final image.
-export const HQ_SIZE = 1280;
+// The quality canvas. klein is a 1K model: pushing the canvas to 1280 made the subject come out
+// small and off-centre, and the restore then had almost no face to work with. Quality comes from
+// steps, the geometry gate and a reprint — not from a bigger frame.
+export const HQ_SIZE = 1024;
 // A finished plate below this ArcFace similarity is not the person in the photo, so it is reprinted
 // instead of shipped. Measured on this pipeline: raw model output 0.083, restored plates 0.93–0.95.
 export const HQ_IDENTITY_FLOOR = 0.45;
@@ -335,7 +336,11 @@ export async function printPlate(options: PrintOptions): Promise<PrintResult> {
     // The face restore: the plate keeps the city, the hair and the light, but the face region becomes
     // the photograph's own pixels, aligned by landmarks and graded into the plate. This is the step
     // that turns "a character who looks a bit like you" into you.
-    const restored = await finish<{ plate: string; identity: { similarity: number; verdict: string } | null }>("/restore", {
+    const restored = await finish<{
+      plate: string;
+      identity: { similarity: number; verdict: string } | null;
+      report?: { skipped?: string; geometry_rejected?: string };
+    }>("/restore", {
       plate: rawDataUrl,
       reference: framedDataUrl,
       source: originalDataUrl,
@@ -343,12 +348,16 @@ export async function printPlate(options: PrintOptions): Promise<PrintResult> {
 
     plate = restored?.plate ?? rawDataUrl;
     identity = restored?.identity ?? null;
-    if (floor === null || !identity || identity.similarity >= floor) break;
+    // A refused restore is not a pass: the plate would still carry the model's own face. Reprint.
+    const refused = restored?.report?.geometry_rejected ?? restored?.report?.skipped ?? null;
+    if (!refused && (floor === null || !identity || identity.similarity >= floor)) break;
     if (attempt + 1 < maxAttempts) {
       report({
         stage: "sampling",
         percent: 0.35,
-        message: `the face came out at ${identity.similarity.toFixed(2)} — printing another take`,
+        message: refused
+          ? `the desk would not paste that one (${refused}) — printing another take`
+          : `the face came out at ${identity?.similarity.toFixed(2)} — printing another take`,
       });
     }
   }

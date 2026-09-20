@@ -45,7 +45,7 @@ const PYTHON = process.env.PRINT_DESK_PYTHON ?? "/home/lakshaya/.venv/bin/python
 const HQ_UNET = "flux-2-klein-base-4b-fp8.safetensors";
 const HQ_STEPS = 26;
 const HQ_GUIDANCE = 1.0;
-const HQ_SIZE = 1280;
+const HQ_SIZE = 1024;
 const HQ_IDENTITY_FLOOR = 0.45;
 
 /** ArcFace identity of a finished plate against the photo — the gate that decides a reprint. */
@@ -326,7 +326,9 @@ async function main() {
     }
 
     const identity = minIdentity !== null ? await identityOf(platePath, reference) : null;
-    const score = identity?.similarity ?? 1;
+    // A refused restore is a failed take, not a pass: the plate still has the model's own face on it.
+    const refused = faceReport?.geometry_rejected ?? faceReport?.skipped ?? null;
+    const score = refused ? 0 : identity?.similarity ?? 1;
     if (faceReport && !faceReport.skipped) {
       const alignment = faceReport.alignment?.mode === "eyes" ? `eyes (${faceReport.alignment.angle_deg}°, ×${faceReport.alignment.scale})` : "box";
       process.stdout.write(`  face ${alignment} · colour gap ${faceReport.colour_gap?.before} → ${faceReport.colour_gap?.after}`);

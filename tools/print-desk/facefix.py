@@ -117,6 +117,65 @@ def locate(image_bgr):
     return box, None, None, "box-only"
 
 
+def plausible(box, shape, how="landmarks", margin=0.12, min_share=0.045):
+    """
+    Is this detection something a face can actually be, in a place a face can actually be?
+
+    The failure this exists for: a 1280 plate where the subject came out small in the bottom-left
+    corner. The cascade found a 122 px blob at (41, 595) — 8 % of the frame width from the edge — and
+    the restore cropped to it, blew it up 1.6x and pasted the photo's face into the corner, wrecking
+    the plate. ArcFace still scored that 0.81 and the identity floor passed it, because the metric
+    only ever sees the patch, never where it landed.
+    """
+    if box is None:
+        return False, "no box"
+    height, width = shape[:2]
+    x, y, w, h = box
+    centre_x, centre_y = (x + w / 2) / width, (y + h / 2) / height
+    share = h / height
+    if not (margin <= centre_x <= 1 - margin) or not (margin <= centre_y <= 1 - margin):
+        return False, f"face centre {centre_x:.2f},{centre_y:.2f} sits in the frame margin"
+    if share < min_share:
+        return False, f"face is only {share:.1%} of the frame height"
+    if not 0.55 <= w / max(h, 1) <= 1.6:
+        return False, f"box aspect {w / max(h, 1):.2f} is not face-like"
+    return True, "ok"
+
+
+def match_texture(warped, plate, mask, target_ratio=1.4, sigmas=(0.5, 0.6, 0.7, 0.8, 0.9, 1.1, 1.3)):
+    """
+    Take the photograph's micro-texture down to the plate's level.
+
+    This is the "pasted" look, measured: a real photo's face carries far more high-frequency detail
+    than a 4B render of the same head, so the patch reads as a sharper rectangle glued onto a softer
+    picture (measured 3.4-3.5x on this pipeline). Blurring the patch by the smallest sigma that brings
+    the ratio under the target costs a little facial micro-detail and buys a composite that looks like
+    one photograph. Returns the patch and what it did, so the choice is recorded rather than implicit.
+    """
+    grey = cv2.cvtColor(plate, cv2.COLOR_RGB2GRAY)
+    outside = cv2.subtract(cv2.dilate(mask, np.ones((9, 9), np.uint8)), mask)
+    inside = cv2.erode(mask, np.ones((9, 9), np.uint8))
+    plate_detail = float(cv2.Laplacian(grey, cv2.CV_32F, ksize=3)[outside > 0].var()) if (outside > 0).any() else 0.0
+    if plate_detail <= 0:
+        return warped, None
+
+    patch_grey = cv2.cvtColor(warped, cv2.COLOR_RGB2GRAY)
+    patch_detail = float(cv2.Laplacian(patch_grey, cv2.CV_32F, ksize=3)[inside > 0].var()) if (inside > 0).any() else 0.0
+    ratio = patch_detail / plate_detail
+    if ratio <= target_ratio:
+        return warped, {"ratio_before": round(ratio, 2), "sigma": 0, "ratio_after": round(ratio, 2)}
+
+    best = warped
+    for sigma in sigmas:
+        softened = cv2.GaussianBlur(warped, (0, 0), sigma)
+        softened_grey = cv2.cvtColor(softened, cv2.COLOR_RGB2GRAY)
+        softened_detail = float(cv2.Laplacian(softened_grey, cv2.CV_32F, ksize=3)[inside > 0].var()) if (inside > 0).any() else 0.0
+        best = softened
+        if softened_detail / plate_detail <= target_ratio:
+            return softened, {"ratio_before": round(ratio, 2), "sigma": sigma, "ratio_after": round(softened_detail / plate_detail, 2)}
+    return best, {"ratio_before": round(ratio, 2), "sigma": sigmas[-1], "ratio_after": None}
+
+
 def lab_stats(rgb_patch, mask):
     lab = cv2.cvtColor(rgb_patch, cv2.COLOR_RGB2LAB).astype(np.float32)
     flat = lab.reshape(-1, 3)
@@ -139,7 +198,7 @@ def match_colour(source_rgb, target_rgb, mask, max_ab_shift=14.0):
     return cv2.cvtColor(out, cv2.COLOR_LAB2RGB)
 
 
-def zoned_mask(shape, box, grow=1.16, feather=0.13):
+def zoned_mask(shape, box, grow=1.16, feather=0.22):
     height, width = shape[:2]
     x, y, w, h = box
     cx, cy = int(x + w / 2), int(y + h / 2)
@@ -187,7 +246,7 @@ def reframe(plate, box, size, min_share, headroom=0.55, max_upscale=1.6):
     }
 
 
-def grade_plate(plate, source_rgb, source_box, plate_box, max_shift=(14.0, 11.0, 11.0)):
+def grade_plate(plate, source_rgb, source_box, plate_box, max_shift=(8.0, 7.0, 7.0)):
     """
     Pull the whole plate's grade toward the photograph's skin, then let the face blend sit on top.
 
@@ -239,7 +298,7 @@ def main():
     )
     parser.add_argument("--alpha", type=float, default=0.92, help="opacity of the restored face")
     parser.add_argument("--grow", type=float, default=1.16)
-    parser.add_argument("--sharpen", type=float, default=0.25, help="unsharp amount on the blended face, 0 disables")
+    parser.add_argument("--sharpen", type=float, default=0.0, help="unsharp amount on the blended face; 0 (default) leaves the texture match alone")
     parser.add_argument("--min-face-share", type=float, default=0.28, help="reframe until the face is this share of the frame height")
     parser.add_argument("--reframe-size", type=int, default=1024)
     parser.add_argument("--max-upscale", type=float, default=1.6, help="never blow the plate up more than this to reach the target")
@@ -252,10 +311,20 @@ def main():
     report = {"plate": args.plate, "reference": args.reference, "source": args.source or args.reference, "mode": args.mode}
 
     # Reframe first: everything downstream (alignment, mask, blend) is easier with a properly sized face.
-    pre_box, _, _, _ = locate(cv2.cvtColor(plate, cv2.COLOR_RGB2BGR))
+    # Only when the detection is one we would trust: reframing on a corner blob is how a plate gets
+    # zoomed into its own margin and ruined.
+    pre_box, _, _, pre_how = locate(cv2.cvtColor(plate, cv2.COLOR_RGB2BGR))
     if pre_box is not None:
-        plate, reframe_report = reframe(plate, pre_box, args.reframe_size, args.min_face_share, max_upscale=args.max_upscale)
-        report["reframe"] = reframe_report
+        trusted, why = plausible(pre_box, plate.shape, pre_how)
+        if trusted:
+            # A weak detection (no landmarks, no eyes) still gets to reframe — a small subject is the
+            # more common failure — but it is not allowed to zoom as hard.
+            cap = 1.25 if pre_how == "box-only" else args.max_upscale
+            plate, reframe_report = reframe(plate, pre_box, args.reframe_size, args.min_face_share, max_upscale=cap)
+            reframe_report["detection"] = pre_how
+            report["reframe"] = reframe_report
+        else:
+            report["reframe"] = {"reframed": False, "reason": f"not reframing: {why}"}
 
     plate_box, plate_left, plate_right, plate_how = locate(cv2.cvtColor(plate, cv2.COLOR_RGB2BGR))
     source_box, source_left, source_right, source_how = locate(cv2.cvtColor(source, cv2.COLOR_RGB2BGR))
@@ -269,9 +338,31 @@ def main():
         print(report["skipped"], file=sys.stderr)
         sys.exit(0 if plate_box is None else 3)
 
+    # Refuse rather than paste a face somewhere a face cannot be. The caller retries (quality) or
+    # ships the untouched plate (fast) — either way nobody gets a face glued into a corner.
+    trusted, why = plausible(plate_box, plate.shape, plate_how)
+    source_trusted, source_why = plausible(source_box, source.shape, source_how)
+    if not trusted or not source_trusted:
+        report["geometry_rejected"] = why if not trusted else f"source: {source_why}"
+        report["out"] = args.plate
+        json.dump(report, sys.stdout, indent=2)
+        print()
+        print(f"restore refused — {report['geometry_rejected']}", file=sys.stderr)
+        sys.exit(0)
+
     height, width = plate.shape[:2]
     px, py, pw, ph = plate_box
     margin = 0.20
+
+    # And the second half of the same gate: after any reframing, a face that covers a couple of percent
+    # of the plate is not a portrait, however well it blends. Refuse and let the caller print another.
+    if ph / height < 0.06:
+        report["geometry_rejected"] = f"face is only {ph / height:.1%} of the plate after framing"
+        report["out"] = args.plate
+        json.dump(report, sys.stdout, indent=2)
+        print()
+        print(f"restore refused — {report['geometry_rejected']}", file=sys.stderr)
+        sys.exit(0)
 
     # Grade the whole plate toward the photo's skin before blending, so the face does not have to be
     # dragged into the model's cast to fit in.
@@ -310,6 +401,9 @@ def main():
 
     mask, centre = zoned_mask(plate.shape, (px, py, pw, ph), grow=args.grow)
     graded = match_colour(warped, plate, mask)
+    graded, texture_report = match_texture(graded, plate, mask)
+    if texture_report:
+        report["texture"] = texture_report
     before = float(np.abs(lab_stats(warped, mask)[0] - lab_stats(plate, mask)[0]).mean())
     after = float(np.abs(lab_stats(graded, mask)[0] - lab_stats(plate, mask)[0]).mean())
     report["colour_gap"] = {"before": round(before, 2), "after": round(after, 2)}
@@ -323,6 +417,8 @@ def main():
         flag = cv2.MIXED_CLONE if args.mode == "mixed" else cv2.NORMAL_CLONE
         blended = cv2.seamlessClone(graded, plate, mask, centre, flag)
 
+    # No post-blend unsharp by default any more: it re-sharpened exactly the region the texture match
+    # had just softened, which is the "pasted" look coming back in through the door it left by.
     if args.sharpen > 0:
         soft = cv2.GaussianBlur(blended, (0, 0), 1.2)
         sharp = cv2.addWeighted(blended, 1 + args.sharpen, soft, -args.sharpen, 0)
