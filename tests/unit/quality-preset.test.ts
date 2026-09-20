@@ -36,4 +36,10 @@ describe("the quality preset", () => {
     expect(cli).toMatch(/score >= minIdentity/);
     expect(cli).toMatch(/printing another take/);
   });
+
+  test("the app refuses the same way, instead of showing a stranger", () => {
+    expect(client).toContain("HQ_IDENTITY_FLOOR");
+    expect(client).toMatch(/identity\.similarity >= floor/);
+    expect(value(client, "HQ_ATTEMPTS")).toBe("2");
+  });
 });

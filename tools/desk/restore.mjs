@@ -134,6 +134,10 @@ async function restore({ plate, reference, source }) {
 
 const server = createServer(async (request, response) => {
   const url = new URL(request.url ?? "/", "http://localhost");
+  const started = Date.now();
+  response.on("finish", () => {
+    if (url.pathname !== "/health") console.log(`${request.method} ${url.pathname} → ${response.statusCode} (${Date.now() - started}ms)`);
+  });
   try {
     if (request.method === "GET" && url.pathname === "/health") return send(response, 200, { ok: true });
 

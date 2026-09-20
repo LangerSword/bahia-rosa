@@ -66,6 +66,10 @@ export const HQ_STEPS = 26;
 // The quality canvas. The restored face is composited at whatever size the plate gives it, so a
 // bigger plate means more of the photograph's own pixels survive into the final image.
 export const HQ_SIZE = 1280;
+// A finished plate below this ArcFace similarity is not the person in the photo, so it is reprinted
+// instead of shipped. Measured on this pipeline: raw model output 0.083, restored plates 0.93–0.95.
+export const HQ_IDENTITY_FLOOR = 0.45;
+export const HQ_ATTEMPTS = 2;
 
 export class PrintDeskOffline extends Error {
   constructor() {
@@ -278,63 +282,87 @@ export async function printPlate(options: PrintOptions): Promise<PrintResult> {
     graph["11"].inputs.height = graph["12"].inputs.height = HQ_SIZE;
   }
 
-  const queued = (await jsonFetch(`${baseUrl}/prompt`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ prompt: graph, client_id: clientId }),
-  })) as { prompt_id: string };
+  // Quality mode means a plate that passes, not a plate that took longer. The desk measures the
+  // finished face; if it is not the person in the photograph, print another take rather than hand
+  // back something the user will squint at. Fast prints take one roll, as before.
+  const floor = options.quality ? HQ_IDENTITY_FLOOR : null;
+  const maxAttempts = options.quality ? HQ_ATTEMPTS : 1;
+  let plate = "";
+  let identity: { similarity: number; verdict: string } | null = null;
+  let printedSeed = compiled.seed;
 
-  report({ stage: "queued", percent: 0.1, message: "queued at the desk" });
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    printedSeed = compiled.seed + attempt * 7919;
+    graph["14"].inputs.noise_seed = printedSeed;
 
-  // Poll /history as the source of truth; the socket only makes the bar smooth.
-  let image: { filename: string; subfolder?: string; type?: string } | null = null;
-  const deadline = Date.now() + 5 * 60 * 1000;
-  let ticks = 0;
-  while (!image && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    ticks += 1;
-    const history = (await jsonFetch(`${baseUrl}/history/${queued.prompt_id}`)) as Record<
-      string,
-      { outputs?: Record<string, { images?: { filename: string; subfolder?: string; type?: string }[] }>; status?: { status_str?: string } }
-    >;
-    const entry = history[queued.prompt_id];
-    if (!entry) continue;
-    if (entry.status?.status_str === "error") throw new Error("the desk jammed — check the ComfyUI console");
-    const images = Object.values(entry.outputs ?? {}).flatMap((output) => output.images ?? []);
-    if (images.length) image = images[0];
-    else if (!socket) {
-      // No socket: keep the bar honest by advancing the sampling share slowly.
-      const share = Math.min(0.65, ticks * 0.05);
-      report({ stage: "sampling", percent: 0.2 + share, message: "printing" });
+    const queued = (await jsonFetch(`${baseUrl}/prompt`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompt: graph, client_id: clientId }),
+    })) as { prompt_id: string };
+
+    report({ stage: "queued", percent: 0.1, message: attempt === 0 ? "queued at the desk" : `take ${attempt + 1} queued` });
+
+    // Poll /history as the source of truth; the socket only makes the bar smooth.
+    let image: { filename: string; subfolder?: string; type?: string } | null = null;
+    const deadline = Date.now() + 5 * 60 * 1000;
+    let ticks = 0;
+    while (!image && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      ticks += 1;
+      const history = (await jsonFetch(`${baseUrl}/history/${queued.prompt_id}`)) as Record<
+        string,
+        { outputs?: Record<string, { images?: { filename: string; subfolder?: string; type?: string }[] }>; status?: { status_str?: string } }
+      >;
+      const entry = history[queued.prompt_id];
+      if (!entry) continue;
+      if (entry.status?.status_str === "error") throw new Error("the desk jammed — check the ComfyUI console");
+      const images = Object.values(entry.outputs ?? {}).flatMap((output) => output.images ?? []);
+      if (images.length) image = images[0];
+      else if (!socket) {
+        // No socket: keep the bar honest by advancing the sampling share slowly.
+        const share = Math.min(0.65, ticks * 0.05);
+        report({ stage: "sampling", percent: 0.2 + share, message: "printing" });
+      }
+    }
+    if (!image) throw new Error("the desk took too long — try again");
+
+    report({ stage: "developing", percent: 0.9, message: "putting your face back" });
+    const view = `${baseUrl}/view?filename=${encodeURIComponent(image.filename)}&subfolder=${encodeURIComponent(image.subfolder ?? "")}&type=${image.type ?? "output"}`;
+    const blob = await (await fetch(view)).blob();
+    const rawDataUrl = await blobToDataUrl(blob);
+
+    // The face restore: the plate keeps the city, the hair and the light, but the face region becomes
+    // the photograph's own pixels, aligned by landmarks and graded into the plate. This is the step
+    // that turns "a character who looks a bit like you" into you.
+    const restored = await finish<{ plate: string; identity: { similarity: number; verdict: string } | null }>("/restore", {
+      plate: rawDataUrl,
+      reference: framedDataUrl,
+      source: originalDataUrl,
+    });
+
+    plate = restored?.plate ?? rawDataUrl;
+    identity = restored?.identity ?? null;
+    if (floor === null || !identity || identity.similarity >= floor) break;
+    if (attempt + 1 < maxAttempts) {
+      report({
+        stage: "sampling",
+        percent: 0.35,
+        message: `the face came out at ${identity.similarity.toFixed(2)} — printing another take`,
+      });
     }
   }
-  if (!image) throw new Error("the desk took too long — try again");
-
-  report({ stage: "developing", percent: 0.9, message: "putting your face back" });
-  const view = `${baseUrl}/view?filename=${encodeURIComponent(image.filename)}&subfolder=${encodeURIComponent(image.subfolder ?? "")}&type=${image.type ?? "output"}`;
-  const blob = await (await fetch(view)).blob();
-  const rawDataUrl = await blobToDataUrl(blob);
-
-  // The face restore: the plate keeps the city, the hair and the light, but the face region becomes
-  // the photograph's own pixels, aligned by landmarks and graded into the plate. This is the step
-  // that turns "a character who looks a bit like you" into you.
-  const restored = await finish<{ plate: string; identity: { similarity: number; verdict: string } | null }>("/restore", {
-    plate: rawDataUrl,
-    reference: framedDataUrl,
-    source: originalDataUrl,
-  });
-  const dataUrl = restored?.plate ?? rawDataUrl;
 
   socket?.close();
   await finished.catch(() => undefined);
   report({ stage: "done", percent: 1, message: "plate ready" });
 
   return {
-    dataUrl,
-    seed: compiled.seed,
+    dataUrl: plate,
+    seed: printedSeed,
     register: compiled.register,
     location: compiled.location ?? null,
     seconds: (Date.now() - started) / 1000,
-    identity: restored?.identity ?? null,
+    identity,
   };
 }
