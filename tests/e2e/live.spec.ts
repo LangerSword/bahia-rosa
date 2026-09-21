@@ -12,7 +12,12 @@ test("the deployed build serves the launch stage", async ({ page }) => {
   test.setTimeout(90_000);
   const problems: string[] = [];
   page.on("console", (message) => {
-    if (message.type() === "error") problems.push(message.text());
+    if (message.type() !== "error") return;
+    // The desk probe is designed to fail on a host without a desk; the URL lives in the location,
+    // not in the text, so the filter has to read it there.
+    const url = message.location()?.url ?? "";
+    if (url.includes("/print-desk/system_stats")) return;
+    problems.push(`${message.text()} (${url})`);
   });
   page.on("pageerror", (error) => problems.push(String(error)));
 
@@ -65,8 +70,5 @@ test("the deployed build serves the launch stage", async ({ page }) => {
   expect(hero.size).toBe("1344x768");
   expect(hero.painted).toBe(true);
 
-  // The desk probe is designed to fail on a host without a desk, and Chromium logs the 404 as a
-  // console error. Filter exactly that resource; anything else is a real problem.
-  const real = problems.filter((text) => !/print-desk\/system_stats/.test(text));
-  expect(real, `console errors: ${real.join(" | ")}`).toEqual([]);
+  expect(problems, `console errors: ${problems.join(" | ")}`).toEqual([]);
 });
