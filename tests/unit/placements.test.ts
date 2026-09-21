@@ -59,7 +59,8 @@ describe("placements", () => {
       for (const layer of placement.layers) {
         if (!/\{(handle|title|line|city)\}/.test(layer.text)) continue;
         expect(layer.maxWidth, `${placement.id}: "${layer.text}" is unbounded`).toBeGreaterThan(0);
-        const span = layer.align === "right" ? layer.x - layer.maxWidth : layer.x + layer.maxWidth;
+        const maxWidth = layer.maxWidth ?? 0;
+        const span = layer.align === "right" ? layer.x - maxWidth : layer.x + maxWidth;
         expect(span, `${placement.id}: "${layer.text}" exceeds the canvas`).toBeLessThanOrEqual(placement.width + 2);
         expect(span, `${placement.id}: "${layer.text}" goes negative`).toBeGreaterThanOrEqual(-2);
       }
