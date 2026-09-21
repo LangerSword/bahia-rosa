@@ -52,3 +52,43 @@ can die mid-judging. Both are worse than the honest split:
   part the challenge actually judges.
 
 The README states this plainly, including that the desk is reproducible by anyone with an 8 GB GPU.
+
+## Swapping the engine
+
+**ComfyUI is an implementation detail, not a dependency of the product.** The app only ever talks to
+`/print-desk/*` (Vite proxies it to whatever serves the desk), and `tools/desk/desk.sh` is the only
+file that knows ComfyUI exists. Any backend that speaks the same contract is a drop-in:
+
+| the contract | |
+| --- | --- |
+| `POST /print-desk/upload/image` | multipart image in → `{name}` (the desk's staging area) |
+| `POST /print-desk/prompt` | the compiled graph + the reference → `{prompt_id}` |
+| `GET /print-desk/progress` | SSE progress (stage, percent, message) |
+| `GET /print-desk/history/{id}` | finished plate + the seed and timing the desk reports |
+| `GET /print-desk/system_stats` | liveness + VRAM, so the app can say "no desk" honestly |
+
+`frame.py`, `facefix.py`, `identity.py`, `judge.py` and `composite_qa.py` are plain Python and stay
+exactly as they are under any engine — they are the quality work; the engine only samples.
+
+**The engines, honestly:**
+
+1. **ComfyUI — what runs today.** Measured here: identity 0.9588 on the author's photo, fp8 4B fits
+   8 GB with its offload plumbing, and the graph does multi-reference editing plus the refiner pass.
+   Costs a node graph and a server to keep alive (that is what `desk.sh` is for).
+2. **`diffusers` — the real alternative.** FLUX.2 [klein] is officially supported (`Flux2KleinPipeline`,
+   `pip install -U diffusers`), i.e. the *same model family*, so the look spec and every measurement
+   carry over. What it buys: no graph, no server, one process, and the sampler's knobs
+   (`HQ_STEPS`/`HQ_GUIDANCE`) become plain numbers instead of graph nodes. What it costs: the ComfyUI
+   fp8 safetensors are not diffusers-format, so the weights come down again (~9 GB), and fitting 8 GB
+   needs `enable_model_cpu_offload()` plus an int8/fp8 quantized build (a community int8 conversion of
+   the 4B exists). A re-validation of identity is owed after the swap.
+3. **`stable-diffusion.cpp`** — one binary, GGUF, no Python, fastest start-up; but FLUX.2 support
+   trails upstream and the multi-reference edit path we depend on is the part most likely to be
+   missing.
+4. **A hosted API** (fal / Replicate / Gemini) — deliberately rejected: a key that can expire
+   mid-judging, a quota someone else controls, and the project's whole claim ("nothing leaves this
+   machine") dies with it.
+
+Verdict: **swap it after the submission, not before.** The measurement work is engine-independent,
+and the swap is contained to one file because the contract is the seam. Tonight the desk stays
+ComfyUI: it is the configuration whose numbers we actually have.

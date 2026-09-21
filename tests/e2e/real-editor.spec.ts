@@ -37,16 +37,17 @@ test("editor mounts with loading-screen gating", async ({ page }) => {
     if (msg.type() === "error") consoleErrors.push(msg.text());
   });
 
-  await page.goto("/");
+  await page.goto("/?demo=editor");
 
-  // The cast must actually load: a broken path here would ship a picker full of empty tiles.
-  const plates = page.locator('[data-testid^="plate-"] img');
-  await expect.poll(async () => plates.count(), { timeout: 15_000 }).toBeGreaterThanOrEqual(4);
-  const loaded = await plates.evaluateAll((imgs) => imgs.map((img) => (img as HTMLImageElement).naturalWidth));
-  expect(loaded.every((width) => width > 0)).toBe(true);
+  // The stand-in artwork has to actually load: a broken path would ship an empty editor.
+  // Fetched from the runner, not from the page — the editor mounts and re-navigates the frame, so an
+  // in-page evaluate here races it.
+  const plate = await page.request.get("/art/city/downtown.jpg");
+  expect(plate.status()).toBe(200);
+  expect(plate.headers()["content-type"]).toContain("image/jpeg");
+  expect((await plate.body()).byteLength).toBeGreaterThan(100_000);
 
-  // Intake first: take a baked proof plate so this suite never touches the network for a plate.
-  await page.getByTestId("plate-placeholder").click();
+  // Straight into the editor: this suite never touches the network for a plate.
   await expect(page.getByTestId("editor-surface-loading")).toBeAttached();
 
   // The editor script + canvas need to come up from the CDN before tools exist.

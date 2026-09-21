@@ -110,6 +110,47 @@ body {
   background: var(--color-ink-3);
 }
 
+/* The city layer (DESIGN.md §7): a scenery plate under a scrim, for the hero and section grounds. */
+.city-art {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center 42%;
+  opacity: 0.5;
+}
+
+.city-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    189deg,
+    rgba(7, 7, 10, 0.32) 0%,
+    rgba(7, 7, 10, 0.74) 52%,
+    rgba(7, 7, 10, 0.96) 100%
+  );
+}
+
+/* Fixed decoration over the whole page: grain stops banding, the vignette gives the page a light
+   direction. Both are pointer-events: none, aria-hidden, and never animated. */
+.grain::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+}
+
+.vignette::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 24;
+  pointer-events: none;
+  background: radial-gradient(125% 85% at 50% -10%, transparent 42%, rgba(0, 0, 0, 0.55) 100%);
+}
+
 /* The kicker: deco caps, wide tracking — the small label above a heading. */
 .kicker {
   font-family: var(--font-kicker);

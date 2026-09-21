@@ -38,6 +38,8 @@ test("reduced motion turns the reveals off", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("h1.display")).toBeVisible();
   // With reduced motion the hero has no transform applied by the reveal.
-  const transform = await page.locator("section.panel-slate").evaluate((node) => getComputedStyle(node).transform);
+  const transform = await page.getByTestId("hero").evaluate((node) => getComputedStyle(node).transform);
   expect(["none", "matrix(1, 0, 0, 1, 0, 0)"]).toContain(transform);
+  // The city layer is decoration: it must be hidden from the accessibility tree.
+  await expect(page.locator(".city-art")).toHaveAttribute("aria-hidden", "true");
 });

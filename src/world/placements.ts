@@ -63,7 +63,18 @@ export interface Placement {
   blurb: string;
   width: number;
   height: number;
-  ground: { stops: readonly [string, string]; angle: number };
+  /**
+   * What the surface sits in front of. `image` is one of the city plates this repo generates for
+   * itself (`tools/print-desk/scenery.mjs`) — scenery only, never a person — with a scrim gradient
+   * over it so type stays legible.
+   */
+  ground: {
+    kind: "gradient" | "image";
+    stops?: readonly [string, string];
+    src?: string;
+    scrim?: readonly [string, string];
+    angle: number;
+  };
   artwork: { x: number; y: number; w: number; h: number; fit: "cover" | "contain" };
   /** A plinth/bezel behind the artwork: the object the artwork is printed on. */
   bezel?: { x: number; y: number; w: number; h: number; color: string };
@@ -72,6 +83,9 @@ export interface Placement {
   /** The text equivalent of the composite, for the DOM and for screen readers. */
   caption: string;
 }
+
+/** The city plates, resolved against the app's base path so a sub-path deploy still finds them. */
+const city = (name: string): string => `${import.meta.env.BASE_URL}art/city/${name}.jpg`;
 
 export interface PlacementCopy {
   city: string;
@@ -89,7 +103,7 @@ const billboard: Placement = {
   blurb: "Eight metres of you, over the boulevard at dusk.",
   width: 1600,
   height: 600,
-  ground: { stops: BACKDROPS.dusk, angle: 189 },
+  ground: { kind: "image", src: city("boulevard"), scrim: ["rgba(7,7,10,0.35)", "rgba(7,7,10,0.9)"], angle: 189 },
   bezel: { x: 0, y: 0, w: 1600, h: 470, color: MONO.ink },
   artwork: { x: 90, y: 40, w: 1420, h: 390, fit: "cover" },
   rules: [
@@ -111,7 +125,7 @@ const venue: Placement = {
   blurb: "The foyer screen, running your poster as tonight's bill.",
   width: 900,
   height: 1200,
-  ground: { stops: BACKDROPS.venue, angle: 189 },
+  ground: { kind: "image", src: city("downtown"), scrim: ["rgba(10,8,14,0.45)", "rgba(7,7,10,0.92)"], angle: 189 },
   bezel: { x: 40, y: 40, w: 820, h: 1020, color: MONO.ink },
   artwork: { x: 90, y: 90, w: 720, h: 900, fit: "cover" },
   rules: [
@@ -134,7 +148,7 @@ const feed: Placement = {
   blurb: "Posted to the coast's feed, avatar and all.",
   width: 1080,
   height: 1350,
-  ground: { stops: BACKDROPS.night, angle: 189 },
+  ground: { kind: "image", src: city("marina"), scrim: ["rgba(7,7,10,0.25)", "rgba(7,7,10,0.88)"], angle: 189 },
   artwork: { x: 0, y: 210, w: 1080, h: 900, fit: "cover" },
   rules: [
     { x: 0, y: 190, w: 1080, h: 1, color: MONO.rule },
@@ -157,7 +171,7 @@ const postcard: Placement = {
   blurb: "A printed postcard from the coast, stamped and captioned.",
   width: 1500,
   height: 1000,
-  ground: { stops: [MONO.paper, "#dcd6c8"], angle: 189 },
+  ground: { kind: "gradient", stops: [MONO.paper, "#dcd6c8"], angle: 189 },
   bezel: { x: 70, y: 70, w: 1360, h: 620, color: MONO.ink },
   artwork: { x: 90, y: 90, w: 1320, h: 580, fit: "cover" },
   rules: [{ x: 70, y: 740, w: 1360, h: 1, color: "rgba(13,13,18,0.25)" }],

@@ -1,15 +1,10 @@
 import { useCallback, useRef, useState } from "react";
-import {
-  BAKED_PLATES,
-  describeUploadProblem,
-  plateFromBaked,
-  type PlateSource,
-} from "../lib/plates/plates";
+import { describeUploadProblem } from "../lib/plates/plates";
 import { printChoices } from "../lib/printdesk/client";
 
 /**
  * Intake — one image in, one image into the editor. Everything is local: an uploaded photo is
- * read straight from the file object in the page, and the baked plates ship with the build.
+ * read straight from the file object in the page and framed by the desk on this machine.
  *
  * The choices here (surface, location, quality) are the ones the desk actually understands, and
  * they come from the look spec rather than a hand-written list, so the UI cannot drift from it.
@@ -27,13 +22,11 @@ export interface PrintChoice {
 interface PlateGateProps {
   /** A photo from the player — handed to the print desk, never uploaded to a server of ours. */
   onPhoto: (file: File, choice: PrintChoice) => void;
-  /** A baked cast plate — skips printing entirely. */
-  onPlate: (plate: PlateSource) => void;
 }
 
 const { surfaces, locations } = printChoices();
 
-export function PlateGate({ onPhoto, onPlate }: PlateGateProps) {
+export function PlateGate({ onPhoto }: PlateGateProps) {
   const [problem, setProblem] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [surface, setSurface] = useState("debut");
@@ -161,23 +154,17 @@ export function PlateGate({ onPhoto, onPlate }: PlateGateProps) {
         </p>
       ) : null}
 
-      <div className="rule mt-8 border-t pt-6">
-        <p className="kicker">Or take a proof plate</p>
-        <div className="mt-4 flex flex-wrap gap-3">
-          {BAKED_PLATES.map((plate) => (
-            <button
-              key={plate.id}
-              type="button"
-              data-testid={`plate-${plate.id}`}
-              onClick={() => onPlate(plateFromBaked(plate))}
-              className="lift rule border p-1 text-left"
-              title={plate.note}
-            >
-              <img src={plate.src} alt={plate.label} className="h-24 w-24 object-cover" />
-              <span className="mt-1 block text-xs text-[color:var(--color-muted)]">{plate.label}</span>
-            </button>
-          ))}
-        </div>
+      <div className="rule mt-8 flex flex-wrap items-center justify-between gap-4 border-t pt-6">
+        <p className="max-w-[46ch] text-xs leading-relaxed text-[color:var(--color-faint)]">
+          Your photo is framed on this machine, printed on this machine, and never uploaded anywhere.
+          Nothing here needs an account or a key.
+        </p>
+        <a
+          href="?demo=launch"
+          className="lift rule border px-4 py-2 text-xs tracking-[0.2em] text-[color:var(--color-body)] uppercase hover:text-[color:var(--color-gold)]"
+        >
+          See the payoff first
+        </a>
       </div>
     </section>
   );

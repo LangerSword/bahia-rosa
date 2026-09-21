@@ -69,13 +69,19 @@ photo → frame.py ──► print.mjs ──► plate ──► editor ──�
 ```
 
 The launch stage is data, not markup: `src/world/placements.ts` holds each surface as numbers
-(canvas size, artwork rect, ground gradient, text layers with their fonts and limits), and
+(canvas size, artwork rect, ground, text layers with their fonts and limits), and
 `src/world/compose.ts` draws them. The preview and the download call the same `drawPlacement()`, so
 the thing on screen *is* the file — a preview built from CSS would be a second implementation of the
 same spec, and the two would drift the first time a number moved. `tests/unit/placements.test.ts`
 checks the specs before anything is drawn (no layer leaves the canvas, every layer carrying user copy
-is width-limited), and `tests/e2e/launch.spec.ts` asserts a downloaded postcard is a real 1500×1000
-PNG at three viewports with no horizontal overflow and no console errors.
+is width-limited, the night surfaces keep a scrim that closes dark), and `tests/e2e/launch.spec.ts`
+asserts a downloaded postcard is a real 1500×1000 PNG at three viewports with no horizontal overflow
+and no console errors.
+
+The night surfaces sit on **the city's own plates** — `public/art/city/`, three 1344×768 scenery
+frames printed by `npm run scenery` (`tools/print-desk/scenery.mjs`) from the look spec's scenery,
+lighting and palette clauses, with the person deliberately left out. A face detector is run over the
+result before it ships: scenery only, no cast, nothing borrowed.
 
 - **`tools/print-desk/frame.py`** — finds the face (frontal → alt → profile) and crops to a
   head-and-shoulders frame before the model sees anything. A face filling 4% of a landscape photo

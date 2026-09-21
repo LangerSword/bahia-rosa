@@ -13,7 +13,6 @@ interface PrintDeskProps {
   file: File;
   choice: PrintChoice;
   onPrinted: (plate: PlateSource, meta: { seed: number; register: string; location: string | null; seconds: number }) => void;
-  onUseCastPlate: () => void;
 }
 
 const STAGE_LABEL: Record<PrintProgress["stage"], string> = {
@@ -26,7 +25,7 @@ const STAGE_LABEL: Record<PrintProgress["stage"], string> = {
   failed: "the desk jammed",
 };
 
-export function PrintDesk({ file, choice, onPrinted, onUseCastPlate }: PrintDeskProps) {
+export function PrintDesk({ file, choice, onPrinted }: PrintDeskProps) {
   const [progress, setProgress] = useState<PrintProgress>({ stage: "preparing", percent: 0, message: "warming the desk" });
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +139,7 @@ export function PrintDesk({ file, choice, onPrinted, onUseCastPlate }: PrintDesk
             <div className="mt-6" data-testid="print-error">
               <p className="text-sm" style={{ color: "#ef6f6f" }}>
                 {error === "offline"
-                  ? "No print desk is running on this machine. Start ComfyUI (see docs/print-desk.md) and try again, or take one of the cast plates."
+                  ? "No print desk is running on this machine — the desk is ComfyUI with a local model behind it (docs/print-desk.md). You can still see the whole payoff stage with the city's own artwork."
                   : `The desk reported: ${error}`}
               </p>
               <div className="mt-4 flex gap-3">
@@ -151,14 +150,13 @@ export function PrintDesk({ file, choice, onPrinted, onUseCastPlate }: PrintDesk
                 >
                   Try again
                 </button>
-                <button
-                  type="button"
-                  data-testid="use-cast-plate"
-                  onClick={onUseCastPlate}
+                <a
+                  href="?demo=launch"
+                  data-testid="demo-launch"
                   className="lift rule border px-4 py-2 text-xs tracking-[0.2em] text-[color:var(--color-muted)] uppercase hover:text-[color:var(--color-gold)]"
                 >
-                  Use a cast plate instead
-                </button>
+                  See the payoff stage instead
+                </a>
               </div>
             </div>
           ) : (

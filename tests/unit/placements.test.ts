@@ -80,8 +80,18 @@ describe("placements", () => {
     expect(FONT_STACKS.display).not.toBe(FONT_STACKS.text);
   });
 
-  test("the postcard is the only light-ground surface — the rest are night", () => {
-    const light = PLACEMENTS.filter((placement) => placement.ground.stops[0] === "#f2efe9");
+  test("three night surfaces sit on a city plate behind a scrim; the postcard stays paper", () => {
+    const light = PLACEMENTS.filter((placement) => (placement.ground.stops?.[0] ?? "").toLowerCase() === "#f2efe9");
     expect(light.map((placement) => placement.id)).toEqual(["postcard"]);
+
+    const imaged = PLACEMENTS.filter((placement) => placement.ground.kind === "image");
+    expect(imaged.map((placement) => placement.id).sort()).toEqual(["billboard", "feed", "venue"]);
+    for (const placement of imaged) {
+      expect(placement.ground.src, `${placement.id} has no ground plate`).toMatch(/art\/city\/.+\.jpg$/);
+      const scrim = placement.ground.scrim;
+      expect(scrim?.length, `${placement.id} has no scrim`).toBe(2);
+      // The scrim has to end dark: light type over a photograph with no floor is unreadable.
+      expect(scrim![1], `${placement.id}'s scrim does not close dark`).toMatch(/0\.8[5-9]|0\.9/);
+    }
   });
 });

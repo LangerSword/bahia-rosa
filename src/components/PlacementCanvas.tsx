@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { drawPlacement, loadImage, readyFonts } from "../world/compose";
+import { drawPlacement, loadGround, loadImage, readyFonts } from "../world/compose";
 import type { Placement, PlacementCopy } from "../world/placements";
 
 /**
@@ -41,7 +41,7 @@ export function PlacementCanvas({ placement, artworkUrl, copy, className }: Plac
       const dpr = Math.min(2, window.devicePixelRatio || 1);
 
       await readyFonts();
-      const artwork = await loadImage(artworkUrl);
+      const [artwork, ground] = await Promise.all([loadImage(artworkUrl), loadGround(placement)]);
       if (cancelled) return;
 
       canvas.width = Math.round(cssWidth * dpr);
@@ -54,7 +54,7 @@ export function PlacementCanvas({ placement, artworkUrl, copy, className }: Plac
       if (!ctx) return;
       const scale = (cssWidth / placement.width) * dpr;
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
-      drawPlacement(ctx, placement, artwork, { city, handle, title, line });
+      drawPlacement(ctx, placement, artwork, { city, handle, title, line }, ground);
     };
 
     void paint().catch(() => undefined);

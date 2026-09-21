@@ -61,14 +61,45 @@ function drawContain(
   ctx.drawImage(image, rect.x + (rect.w - w) / 2, rect.y + (rect.h - h) / 2, w, h);
 }
 
-function gradient(ctx: CanvasRenderingContext2D, placement: Placement, w: number, h: number): void {
-  // The 189° panel gradient from DESIGN.md, drawn as a linear ramp across the canvas diagonal.
+const groundCache = new Map<string, Promise<HTMLImageElement | null>>();
+
+/** Load a placement's city ground once per src; a missing plate falls back to the gradient. */
+export function loadGround(placement: Placement): Promise<HTMLImageElement | null> {
+  if (placement.ground.kind !== "image" || !placement.ground.src) return Promise.resolve(null);
+  const src = placement.ground.src;
+  const cached = groundCache.get(src);
+  if (cached) return cached;
+  const pending = loadImage(src).catch(() => null);
+  groundCache.set(src, pending);
+  return pending;
+}
+
+function gradient(
+  ctx: CanvasRenderingContext2D,
+  placement: Placement,
+  w: number,
+  h: number,
+  ground: HTMLImageElement | null,
+): void {
   const angle = (placement.ground.angle * Math.PI) / 180;
   const dx = Math.cos(angle) * w;
   const dy = Math.sin(angle) * h;
+
+  if (ground) {
+    drawCover(ctx, ground, { x: 0, y: 0, w, h });
+    const scrim = ctx.createLinearGradient(0, 0, 0, h);
+    const [top, bottom] = placement.ground.scrim ?? ["rgba(7,7,10,0.3)", "rgba(7,7,10,0.9)"];
+    scrim.addColorStop(0, top);
+    scrim.addColorStop(1, bottom);
+    ctx.fillStyle = scrim;
+    ctx.fillRect(0, 0, w, h);
+    return;
+  }
+
   const fill = ctx.createLinearGradient(0, 0, dx, dy);
-  fill.addColorStop(0, placement.ground.stops[0]);
-  fill.addColorStop(1, placement.ground.stops[1]);
+  const [from, to] = placement.ground.stops ?? ["#16203f", "#0d0c1a"];
+  fill.addColorStop(0, from);
+  fill.addColorStop(1, to);
   ctx.fillStyle = fill;
   ctx.fillRect(0, 0, w, h);
 }
@@ -110,9 +141,10 @@ export function drawPlacement(
   placement: Placement,
   artwork: HTMLImageElement,
   copy: PlacementCopy,
+  ground: HTMLImageElement | null = null,
 ): void {
   const { width, height } = placement;
-  gradient(ctx, placement, width, height);
+  gradient(ctx, placement, width, height, ground);
 
   if (placement.bezel) {
     ctx.fillStyle = placement.bezel.color;
@@ -156,14 +188,14 @@ export interface ComposeOptions {
 
 export async function composePlacement({ placement, artworkUrl, copy, pixelRatio = 1 }: ComposeOptions): Promise<Blob> {
   await readyFonts();
-  const artwork = await loadImage(artworkUrl);
+  const [artwork, ground] = await Promise.all([loadImage(artworkUrl), loadGround(placement)]);
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(placement.width * pixelRatio);
   canvas.height = Math.round(placement.height * pixelRatio);
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("this browser has no 2d canvas context");
   if (pixelRatio !== 1) ctx.scale(pixelRatio, pixelRatio);
-  drawPlacement(ctx, placement, artwork, copy);
+  drawPlacement(ctx, placement, artwork, copy, ground);
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!blob) throw new Error("the export failed");
   return blob;
