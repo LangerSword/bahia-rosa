@@ -20,7 +20,7 @@ test("the shell renders the city's design language and stays clean", async ({ pa
   await page.goto("/");
 
   // Wordmark, kicker and display type all come from the self-hosted faces.
-  await expect(page.locator(".wordmark").first()).toHaveText(/first edition/i);
+  await expect(page.locator(".wordmark").first()).toHaveText(/late edition/i);
   await expect(page.locator("h1.display")).toBeVisible();
   await expect(page.locator(".ticker")).toContainText("Marina pier");
 

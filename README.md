@@ -1,19 +1,27 @@
-# FIRST EDITION
+# LATE EDITION
 
-**The city prints you.**
+**The city prints you. Then your poster takes the city.**
 
-A GTA VI-inspired character-debut experience built for the
+A GTA VI-inspired experience built for the
 [Unlayer "Build with React Image Editor" Challenge](https://github.com/unlayer/react-image-editor).
 
-You bring one photo, the city prints you as a character standing in its own light, and then its media
-machine wants that face in its own formats: the loading screen, the tabloid front page, the VIP
-poster. **React Image Editor is the workstation for every surface**, and each surface hands you a
-deliberately different tool set — so "the editor is core" is structural, not a claim.
+You bring one photo. The city prints you as a character standing in its own light. The editor turns
+that plate into tonight's poster — and then the payoff: **the city runs it**. Your artwork goes up on
+the roadside billboard, onto the venue's foyer display, into the coast's feed, and home as a printed
+postcard. Every placement downloads at full resolution.
+
+**React Image Editor is the workstation for every surface**, and each surface hands you a deliberately
+different tool set — so "the editor is core" is structural, not a claim. The placements are the reason
+to use it.
 
 Nothing about your photo leaves the machine: the print desk runs on your own GPU. There is no account,
 no API key, and no upload to anything of ours.
 
-![The shell](docs/ui-revamp.png)
+![The launch stage](docs/shots/launch-1440.png)
+
+**No GPU? Take the tour:** `?demo=launch` opens the launch stage with a cast plate — the same
+components and the same exporter the live path uses. `docs/DESIGN.md` is the design contract every
+component answers to.
 
 ## The design language
 
@@ -53,10 +61,21 @@ proxies to it through `/print-desk`, so the browser never talks cross-origin.
 ## The pipeline
 
 ```
-photo → frame.py ──► print.mjs ──► plate ──► editor
-        face detect    look spec      |         React Image Editor
-        + crop         + klein        └─ harness.mjs: best-of-N, gated and judged
+photo → frame.py ──► print.mjs ──► plate ──► editor ──► launch
+        face detect    look spec      |         React       billboard · venue
+        + crop         + klein        |         Image       feed · postcard
+                                      |         Editor      (canvas export)
+                                      └─ harness.mjs: best-of-N, gated and judged
 ```
+
+The launch stage is data, not markup: `src/world/placements.ts` holds each surface as numbers
+(canvas size, artwork rect, ground gradient, text layers with their fonts and limits), and
+`src/world/compose.ts` draws them. The preview and the download call the same `drawPlacement()`, so
+the thing on screen *is* the file — a preview built from CSS would be a second implementation of the
+same spec, and the two would drift the first time a number moved. `tests/unit/placements.test.ts`
+checks the specs before anything is drawn (no layer leaves the canvas, every layer carrying user copy
+is width-limited), and `tests/e2e/launch.spec.ts` asserts a downloaded postcard is a real 1500×1000
+PNG at three viewports with no horizontal overflow and no console errors.
 
 - **`tools/print-desk/frame.py`** — finds the face (frontal → alt → profile) and crops to a
   head-and-shoulders frame before the model sees anything. A face filling 4% of a landscape photo

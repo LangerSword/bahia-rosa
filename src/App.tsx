@@ -1,6 +1,7 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { EditorSurface, type ToolGating } from "./components/EditorSurface";
+import { Launch } from "./components/Launch";
 import { PlateGate, type PrintChoice } from "./components/PlateGate";
 import { PrintDesk } from "./components/PrintDesk";
 import { plateFromBaked, type PlateSource } from "./lib/plates/plates";
@@ -35,7 +36,7 @@ const FALLBACK_PLATE = {
   src: `${import.meta.env.BASE_URL}art/demo/s1-marisol-keyart.jpg`,
 };
 
-type Stage = "gate" | "printing" | "editing";
+type Stage = "gate" | "printing" | "editing" | "launch";
 
 const { locations } = printChoices();
 
@@ -51,7 +52,10 @@ export function App() {
   const [saved, setSaved] = useState<string | null>(null);
   const reduce = useReducedMotion();
 
-  const onSaved = useCallback((dataUrl: string) => setSaved(dataUrl), []);
+  const onSaved = useCallback((dataUrl: string) => {
+    setSaved(dataUrl);
+    setStage("launch");
+  }, []);
   const image = plate ? (plate.kind === "photo" ? plate.objectUrl : plate.src) : null;
   const plan = PLANS[choice.surface] ?? PLANS.debut;
 
@@ -78,12 +82,23 @@ export function App() {
     setStage("gate");
   }, []);
 
+  // ?demo=launch — the tour without the model. The deployed build has no GPU, so a visitor (or a
+  // judge) who cannot run the desk still gets to see the payoff: a cast plate, launched into the city.
+  // Same components, same exporter; only the artwork's provenance changes, and the caption says so.
+  useEffect(() => {
+    const demo = new URLSearchParams(window.location.search).get("demo");
+    if (demo !== "launch") return;
+    setPlate(plateFromBaked(FALLBACK_PLATE));
+    setSaved(FALLBACK_PLATE.src);
+    setStage("launch");
+  }, []);
+
   return (
     <div className="min-h-screen">
       <header className="rule sticky top-0 z-20 border-b bg-[color:var(--color-ink)]/85 backdrop-blur">
         <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-6 px-8 py-4">
           <div className="flex items-baseline gap-4">
-            <span className="wordmark text-3xl leading-none">First Edition</span>
+            <span className="wordmark text-3xl leading-none">Late Edition</span>
             <span className="kicker hidden sm:inline">Bahía Rosa · La Gaviota</span>
           </div>
           <div className="flex items-center gap-6">
@@ -104,15 +119,18 @@ export function App() {
           className="panel-slate sheen rule relative mt-8 overflow-hidden border px-10 py-16"
         >
           <p className="kicker">The city prints you</p>
-          <h1 className="display mt-5 text-6xl sm:text-7xl">First Edition</h1>
+          <h1 className="display mt-5 text-6xl sm:text-7xl">Late Edition</h1>
           <p className="mt-6 max-w-[52ch] text-base leading-relaxed text-[color:var(--color-body)]">
             Bring one photo. The desk — a model running on this machine, no account and no key —
-            restyles you in the city's own light, at a place you choose. Then the media machine wants
-            that face in its own formats, and{" "}
-            <span className="text-[color:var(--color-paper)]">the editor is the only thing you produce with</span>.
+            restyles you in the city&rsquo;s own light, at a place you choose. Then the editor turns
+            that plate into tonight&rsquo;s poster, and the city runs it:{" "}
+            <span className="text-[color:var(--color-paper)]">
+              the billboard, the venue display, the feed, the postcard home
+            </span>
+            .
           </p>
           <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-3">
-            {["character shot", "loading screen", "front page", "poster"].map((item) => (
+            {["character shot", "loading screen", "front page", "poster", "billboard", "venue display", "postcard"].map((item) => (
               <span key={item} className="kicker" style={{ color: "var(--color-paper)" }}>
                 {item}
               </span>
@@ -190,26 +208,30 @@ export function App() {
           </motion.section>
         ) : null}
 
-        {saved ? (
-          <motion.section
+        {stage === "launch" && saved ? (
+          <motion.div
             initial={reduce ? undefined : { opacity: 0, y: 14 }}
             animate={reduce ? undefined : { opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: EASE }}
-            className="panel-navy rule mt-8 border p-8"
+            className="mt-10"
           >
-            <p className="kicker">Filed</p>
-            <h2 className="display mt-3 text-2xl">Saved — grading lands next</h2>
-            <img src={saved} alt="Saved edit" className="rule mt-5 w-[320px] border" />
-          </motion.section>
+            <Launch
+              artworkUrl={saved}
+              location={meta?.location ?? null}
+              onBackToEditor={() => setStage("editing")}
+            />
+          </motion.div>
         ) : null}
       </main>
 
       <footer className="rule mx-auto mt-16 max-w-[1280px] border-t px-8 py-8">
-        <p className="kicker">First Edition · Bahía Rosa</p>
+        <p className="kicker">Late Edition · Bahía Rosa</p>
         <p className="mt-3 max-w-[70ch] text-xs leading-relaxed text-[color:var(--color-faint)]">
           Unofficial fan-made project for the Unlayer Build with React Image Editor Challenge. Not
           affiliated with, endorsed by, or connected to Rockstar Games or Take-Two Interactive. All
-          visuals are original work; the city (Bahía Rosa) and its newspaper (LA GAVIOTA) are invented.
+          visuals are original work; the city (Bahía Rosa), its newspaper (LA GAVIOTA) and every
+          placement it publishes into are invented. The print desk runs on your own machine: no
+          account, no API key, and nothing you upload leaves it.
         </p>
       </footer>
     </div>

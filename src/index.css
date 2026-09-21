@@ -104,6 +104,12 @@ body {
   border-color: var(--color-line);
 }
 
+/* The plinth: placement canvases sit on 2px of ink-3 so they read as objects, not holes (DESIGN.md §7). */
+.plinth {
+  padding: 2px;
+  background: var(--color-ink-3);
+}
+
 /* The kicker: deco caps, wide tracking — the small label above a heading. */
 .kicker {
   font-family: var(--font-kicker);

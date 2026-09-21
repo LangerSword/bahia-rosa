@@ -1,9 +1,9 @@
 {
-  "name": "first-edition",
+  "name": "late-edition",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Your photo, printed by the city. A GTA VI-inspired character-debut experience built for the Unlayer Build with React Image Editor Challenge.",
+  "description": "Your photo, printed by the city — then your poster takes the city. A GTA VI-inspired experience built for the Unlayer Build with React Image Editor Challenge.",
   "license": "MIT",
   "scripts": {
     "dev": "vite",
