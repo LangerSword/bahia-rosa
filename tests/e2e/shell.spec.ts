@@ -33,6 +33,20 @@ test("the shell renders the city's design language and stays clean", async ({ pa
   expect(errors).toEqual([]);
 });
 
+test("the intake says when no desk is on this host, and offers the way in", async ({ page }) => {
+  // The deployed build has no GPU and no desk. A visitor must learn that from the intake rather than
+  // from a failure after choosing a photo — and be handed the local route and the two demos.
+  await page.route("**/print-desk/system_stats", (route) => route.fulfill({ status: 404, body: "" }));
+  await page.goto("/");
+
+  const notice = page.getByTestId("desk-absent");
+  await expect(notice).toBeVisible();
+  await expect(notice).toContainText("npm run desk");
+  await expect(page.getByTestId("demo-launch-from-gate")).toHaveAttribute("href", "?demo=launch");
+  // The dropzone stays: the app does print, just not here.
+  await expect(page.getByTestId("photo-input")).toBeAttached();
+});
+
 test("reduced motion turns the reveals off", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");

@@ -40,10 +40,13 @@ test("the deployed build serves the launch stage", async ({ page }) => {
   expect(download.suggestedFilename()).toContain("postcard");
 
   // The desk is not on this host: the intake must still render, with the file input wired up behind
-  // the dropzone (it is deliberately hidden, so assert attachment, not visibility).
+  // the dropzone (it is deliberately hidden, so assert attachment, not visibility) — and the page
+  // must say so, with the local route and the demos, instead of failing later.
   await page.goto(LIVE);
   await expect(page.getByTestId("photo-input")).toBeAttached();
   await expect(page.getByTestId("choose-style")).toBeVisible();
+  await expect(page.getByTestId("desk-absent")).toBeVisible();
+  await expect(page.getByTestId("desk-absent")).toContainText("npm run desk");
 
   // The city layer has to be on the deployed page too — a missing plate here is the difference
   // between a designed page and type on a flat field.
@@ -62,5 +65,8 @@ test("the deployed build serves the launch stage", async ({ page }) => {
   expect(hero.size).toBe("1344x768");
   expect(hero.painted).toBe(true);
 
-  expect(problems, `console errors: ${problems.join(" | ")}`).toEqual([]);
+  // The desk probe is designed to fail on a host without a desk, and Chromium logs the 404 as a
+  // console error. Filter exactly that resource; anything else is a real problem.
+  const real = problems.filter((text) => !/print-desk\/system_stats/.test(text));
+  expect(real, `console errors: ${real.join(" | ")}`).toEqual([]);
 });

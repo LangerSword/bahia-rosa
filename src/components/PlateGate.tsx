@@ -1,6 +1,6 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { describeUploadProblem } from "../lib/plates/plates";
-import { printChoices } from "../lib/printdesk/client";
+import { deskAvailable, printChoices } from "../lib/printdesk/client";
 
 /**
  * Intake — one image in, one image into the editor. Everything is local: an uploaded photo is
@@ -33,6 +33,19 @@ export function PlateGate({ onPhoto }: PlateGateProps) {
   const [location, setLocation] = useState("");
   const [quality, setQuality] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // The desk is a GPU process on the machine running the app. On a static host there is none, and the
+  // visitor should learn that from the intake, not from a failure after they have chosen a photo.
+  const [desk, setDesk] = useState<"checking" | "up" | "down">("checking");
+
+  useEffect(() => {
+    let live = true;
+    void deskAvailable().then((reachable) => {
+      if (live) setDesk(reachable ? "up" : "down");
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const accept = useCallback(
     (file: File) => {
@@ -52,9 +65,43 @@ export function PlateGate({ onPhoto }: PlateGateProps) {
       <p className="kicker">Step 1</p>
       <h2 className="display mt-3 text-4xl">The plate</h2>
       <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-[color:var(--color-muted)]">
-        Bring a photo, or take one of the desk's proof plates. Your file is read in this page and sent
-        only to the desk on this machine — there is no server of ours in the path.
+        Bring a photo. Your file is read in this page and sent only to the desk on this machine —
+        there is no server of ours in the path.
       </p>
+
+      {desk === "down" ? (
+        <div
+          data-testid="desk-absent"
+          className="rule mt-6 border p-5"
+          style={{ background: "var(--color-ink-3)" }}
+        >
+          <p className="kicker" style={{ color: "var(--color-gold)" }}>
+            No desk on this host
+          </p>
+          <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-[color:var(--color-body)]">
+            Printing needs a GPU, and a page on a static host has none — so this deployed build is the
+            editor and the launch, not the press. Run the desk where the GPU is:
+          </p>
+          <pre className="rule mt-3 overflow-x-auto border bg-[color:var(--color-ink)] px-4 py-3 text-xs text-[color:var(--color-body)]">
+            <code>npm run desk   # then open http://localhost:5178</code>
+          </pre>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <a
+              href="?demo=launch"
+              data-testid="demo-launch-from-gate"
+              className="lift rule border px-4 py-2 text-xs tracking-[0.2em] text-[color:var(--color-muted)] uppercase hover:text-[color:var(--color-gold)]"
+            >
+              See the payoff stage
+            </a>
+            <a
+              href="?demo=editor"
+              className="lift rule border px-4 py-2 text-xs tracking-[0.2em] text-[color:var(--color-muted)] uppercase hover:text-[color:var(--color-gold)]"
+            >
+              Open the editor
+            </a>
+          </div>
+        </div>
+      ) : null}
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         <label className="block">
