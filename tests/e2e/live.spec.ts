@@ -44,5 +44,23 @@ test("the deployed build serves the launch stage", async ({ page }) => {
   await page.goto(LIVE);
   await expect(page.getByTestId("photo-input")).toBeAttached();
   await expect(page.getByTestId("choose-style")).toBeVisible();
+
+  // The city layer has to be on the deployed page too — a missing plate here is the difference
+  // between a designed page and type on a flat field.
+  const hero = await page.evaluate(async () => {
+    const layer = document.querySelector(".city-art") as HTMLElement | null;
+    if (!layer) return { present: false } as const;
+    const url = getComputedStyle(layer).backgroundImage.replace(/^url\(["']?/, "").replace(/["']?\)$/, "");
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const box = layer.getBoundingClientRect();
+    return { present: true, url, size: `${img.naturalWidth}x${img.naturalHeight}`, painted: box.width > 200 && box.height > 100 } as const;
+  });
+  expect(hero.present, "no city layer on the deployed hero").toBe(true);
+  expect(hero.url).toContain("art/city/boulevard.jpg");
+  expect(hero.size).toBe("1344x768");
+  expect(hero.painted).toBe(true);
+
   expect(problems, `console errors: ${problems.join(" | ")}`).toEqual([]);
 });
