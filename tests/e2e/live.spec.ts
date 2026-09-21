@@ -39,8 +39,10 @@ test("the deployed build serves the launch stage", async ({ page }) => {
   ]);
   expect(download.suggestedFilename()).toContain("postcard");
 
-  // The desk is not on this host: the app must say so rather than pretend to print.
+  // The desk is not on this host: the intake must still render, with the file input wired up behind
+  // the dropzone (it is deliberately hidden, so assert attachment, not visibility).
   await page.goto(LIVE);
-  await expect(page.getByTestId("photo-input")).toBeVisible();
+  await expect(page.getByTestId("photo-input")).toBeAttached();
+  await expect(page.getByTestId("choose-style")).toBeVisible();
   expect(problems, `console errors: ${problems.join(" | ")}`).toEqual([]);
 });
