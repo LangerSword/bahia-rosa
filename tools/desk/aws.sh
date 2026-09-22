@@ -65,7 +65,7 @@ cd /opt/late-edition
 # The same setup the laptop runs: ComfyUI's venv + the desk's tools, the HF CLI, then the weights.
 bash tools/desk/desk.sh setup
 uv pip install --python "\$HOME/.venv/bin/python" "huggingface_hub[cli]"
-bash tools/print-desk/fetch-models.sh
+bash tools/print-desk/fetch-models.sh --hq
 
 # The desk and its front door — no app on a headless box.
 bash tools/desk/desk.sh server

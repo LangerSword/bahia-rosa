@@ -38,6 +38,12 @@ say "vae — flux2-vae (0.3 GB)"
   --local-dir /tmp/klein-vae --quiet
 mv -f /tmp/klein-vae/split_files/vae/flux2-vae.safetensors "$COMFY/models/vae/"
 
+if [ "${1:-}" = "--hq" ] || [ "${2:-}" = "--hq" ]; then
+  say "quality model — FLUX.2 [klein] base 4B fp8 (4.1 GB, 26 steps) — the app's quality mode"
+  "$HF" download black-forest-labs/FLUX.2-klein-base-4b-fp8 flux-2-klein-base-4b-fp8.safetensors \
+    --local-dir "$COMFY/models/diffusion_models" --quiet
+fi
+
 if [ "${1:-}" = "--gguf" ]; then
   say "GGUF build — Q4_K_M (2.6 GB) for tight VRAM"
   "$HF" download unsloth/FLUX.2-klein-4B-GGUF flux-2-klein-4b-Q4_K_M.gguf \
