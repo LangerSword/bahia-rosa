@@ -145,14 +145,25 @@ async function jsonFetch(url: string, init?: RequestInit): Promise<unknown> {
   return response.json();
 }
 
-/** Is a desk reachable at all? Cheap probe, used before showing the printing UI. */
+/**
+ * Is a desk reachable at all? Used before showing the printing UI, and before every print.
+ *
+ * The window is generous on purpose: a desk behind a tunnel answers its first request slowly (cold
+ * TLS through an edge, a GPU box busy with another job), and a 2.5 s probe declared a perfectly good
+ * desk absent — the page then said "no desk on this host" while the desk was up. One retry, and only
+ * a 5xx or a transport error counts as "not there": a 404 is a real answer from something else.
+ */
 export async function deskAvailable(baseUrl: string = deskBaseUrl()): Promise<boolean> {
-  try {
-    const response = await fetch(`${baseUrl}/system_stats`, { signal: AbortSignal.timeout(2500) });
-    return response.ok;
-  } catch {
-    return false;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch(`${baseUrl}/system_stats`, { signal: AbortSignal.timeout(8000) });
+      if (response.ok) return true;
+      if (response.status < 500) return false;
+    } catch {
+      // Transport error or timeout: try once more before giving up on it.
+    }
   }
+  return false;
 }
 
 async function uploadPhoto(baseUrl: string, file: File): Promise<string> {
