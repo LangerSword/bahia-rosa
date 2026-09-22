@@ -79,11 +79,6 @@ export class PrintDeskOffline extends Error {
   }
 }
 
-const DEFAULT_BASE = (() => {
-  const env = (import.meta as unknown as { env?: Record<string, string> }).env;
-  return env?.VITE_PRINT_DESK_URL ?? "/print-desk";
-})();
-
 /** Message shapes we care about from ComfyUI's /ws stream. */
 export interface ComfyEvent {
   type: string;
@@ -151,7 +146,7 @@ async function jsonFetch(url: string, init?: RequestInit): Promise<unknown> {
 }
 
 /** Is a desk reachable at all? Cheap probe, used before showing the printing UI. */
-export async function deskAvailable(baseUrl: string = DEFAULT_BASE): Promise<boolean> {
+export async function deskAvailable(baseUrl: string = deskBaseUrl()): Promise<boolean> {
   try {
     const response = await fetch(`${baseUrl}/system_stats`, { signal: AbortSignal.timeout(2500) });
     return response.ok;
@@ -172,12 +167,71 @@ async function uploadPhoto(baseUrl: string, file: File): Promise<string> {
   return body.subfolder ? `${body.subfolder}/${body.name}` : body.name;
 }
 
-/** The finishing service — framing before the desk, face restore after it. Proxied, same origin. */
-const FINISH_BASE = "/restore-desk";
+/**
+ * Where the desk is.
+ *
+ * The desk does not run on the host that serves the app: on a static deploy it is somewhere else
+ * entirely (a tunnel, a rented GPU), and a tunnel URL changes every time it restarts. So the root is
+ * resolved at runtime, in this order:
+ *
+ *   1. `?desk=https://…` in the address — persisted, so it survives a reload and can be shared
+ *   2. whatever that left in localStorage
+ *   3. `VITE_PRINT_DESK_URL`, baked in at build time
+ *   4. this origin (the dev proxy)
+ *
+ * The value is a *root*, not a path: the desk's front door serves `/print-desk/*` and
+ * `/restore-desk/*` side by side, so the app adds the prefix itself. A value that already carries
+ * `/print-desk` is accepted and normalised, because that is what a person would paste.
+ *
+ * Nothing here is a secret: the front door is what decides who may print, and how often.
+ */
+const STORAGE_KEY = "late-edition.desk";
+const ENV_ROOT = ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_PRINT_DESK_URL ?? "")
+  .trim()
+  .replace(/\/+$/, "")
+  .replace(/\/print-desk$/, "");
+
+let cachedRoot: string | null = null;
+
+/** The desk's origin, or "" when it is this origin. */
+export function deskRoot(): string {
+  if (cachedRoot !== null) return cachedRoot;
+  try {
+    const asked = new URLSearchParams(window.location.search).get("desk");
+    if (asked !== null) {
+      const clean = asked.trim().replace(/\/+$/, "").replace(/\/print-desk$/, "");
+      if (clean) window.localStorage.setItem(STORAGE_KEY, clean);
+      else window.localStorage.removeItem(STORAGE_KEY);
+      cachedRoot = clean;
+      return cachedRoot;
+    }
+    const stored = window.localStorage.getItem(STORAGE_KEY)?.replace(/\/+$/, "").replace(/\/print-desk$/, "");
+    if (stored) {
+      cachedRoot = stored;
+      return cachedRoot;
+    }
+  } catch {
+    // No window, or storage denied: fall through to the build-time value.
+  }
+  cachedRoot = ENV_ROOT;
+  return cachedRoot;
+}
+
+/** The ComfyUI-shaped API, wherever the desk is. */
+export function deskBaseUrl(): string {
+  const root = deskRoot();
+  return root ? `${root}/print-desk` : "/print-desk";
+}
+
+/** The finishing service lives behind the same door. */
+function finishBase(): string {
+  const root = deskRoot();
+  return root ? `${root}/restore-desk` : "/restore-desk";
+}
 
 async function finish<T>(route: string, payload: unknown): Promise<T | null> {
   try {
-    const response = await fetch(`${FINISH_BASE}${route}`, {
+    const response = await fetch(`${finishBase()}${route}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
@@ -202,7 +256,7 @@ export function dataUrlToFile(dataUrl: string, name = "subject.png"): File {
 }
 
 export async function printPlate(options: PrintOptions): Promise<PrintResult> {
-  const baseUrl = options.baseUrl ?? DEFAULT_BASE;
+  const baseUrl = options.baseUrl ?? deskBaseUrl();
   const started = Date.now();
   const report = (progress: PrintProgress) => options.onProgress?.(progress);
 

@@ -92,3 +92,47 @@ exactly as they are under any engine — they are the quality work; the engine o
 Verdict: **swap it after the submission, not before.** The measurement work is engine-independent,
 and the swap is contained to one file because the contract is the seam. Tonight the desk stays
 ComfyUI: it is the configuration whose numbers we actually have.
+
+## Hosting the desk somewhere else
+
+The deployed build cannot print — a static host has no GPU — so the app takes the desk's address at
+runtime and the desk can live anywhere that answers the contract. Two ways, in order of cost:
+
+### 1. A tunnel from this machine — free
+
+```bash
+bash tools/desk/tunnel.sh start      # front door + cloudflared, prints the URL
+```
+
+`tools/desk/front.mjs` is the single origin: it serves `/print-desk/*` (ComfyUI), `/restore-desk/*`
+(the finisher) and `/health`, adds CORS for the app's origins, proxies the progress WebSocket, and
+refuses more than 12 prints an hour per address. Cloudflare reaches it outbound, so no port is opened
+and no certificate is needed. Point the deployed app at the printed URL:
+
+```
+https://langersword.github.io/late-edition/?desk=https://<something>.trycloudflare.com
+```
+
+The address is remembered in `localStorage`, and the intake says where the photo is going. Caveats,
+plainly: this machine has to stay awake, and a quick tunnel changes hostname on every restart. For a
+stable address, make it a named tunnel on the domain you already have (`cloudflared tunnel create` /
+`route dns desk.langersword.in`), then bake it in with `VITE_PRINT_DESK_URL=… npm run build`.
+
+### 2. A rented GPU — ~$1.21/hr while it runs
+
+```bash
+bash tools/desk/aws.sh up            # g5.xlarge in ap-south-1, on-demand
+bash tools/desk/aws.sh up --spot     # same box, ~$0.48/hr, AWS may reclaim it mid-print
+bash tools/desk/aws.sh url           # the desk's public address
+bash tools/desk/aws.sh down          # stop paying; the 7 GB of weights stay on the disk
+```
+
+ap-south-1 is not a preference, it is the only region where this account has GPU quota (4 vCPUs —
+exactly one `g5.xlarge`). The instance has **no inbound rules at all**: it dials out to Cloudflare for
+the desk and is reached through SSM for everything else. Two guards keep it honest — a cron that
+stops the instance after 20 idle minutes (the front door writes the heartbeat on every print), and
+`tools/desk/aws-budget.sh`, which scopes a $15/month budget to EC2 compute with alerts at 50 %, 100 %
+and forecasted 100 %.
+
+First boot is ~15 minutes (ComfyUI's requirements, then ~7 GB of weights). After that, `down` then
+`up` is ~3 minutes, because the weights are on the instance's own disk.

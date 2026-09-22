@@ -58,6 +58,20 @@ bash tools/desk/desk.sh stop      # stops both, and proves the ports are free
 The desk is ComfyUI (`COMFY_DIR`, default `~/comfy/ComfyUI`) running FLUX.2 [klein] 4B locally; the app
 proxies to it through `/print-desk`, so the browser never talks cross-origin.
 
+**The desk does not have to be on this machine.** `tools/desk/front.mjs` is one origin — `/print-desk`,
+`/restore-desk`, `/health` — with CORS, the progress socket, and a ceiling of 12 prints an hour per
+address. Put a tunnel in front of it and the deployed site prints for real:
+
+```bash
+bash tools/desk/tunnel.sh start    # free: a Cloudflare tunnel from this machine, prints the URL
+#   → https://langersword.github.io/late-edition/?desk=<that url>   (remembered in localStorage)
+bash tools/desk/aws.sh up          # or rent the GPU: g5.xlarge, ~$1.21/hr, stops itself when idle
+```
+
+`?desk=` is not a rebuild: the page resolves the desk at runtime, says in the intake where the photo is
+going, and falls back to "no desk on this host" with the way in when nothing answers. Costs, quota and
+the self-stop watchdog are written up in [`docs/print-desk.md`](docs/print-desk.md).
+
 ## The pipeline
 
 ```

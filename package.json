@@ -15,6 +15,8 @@
     "desk:stop": "bash tools/desk/desk.sh stop",
     "desk:status": "bash tools/desk/desk.sh status",
     "desk:logs": "bash tools/desk/desk.sh logs 60",
+    "tunnel": "bash tools/desk/tunnel.sh start",
+    "desk:aws": "bash tools/desk/aws.sh",
     "print": "node tools/print-desk/print.mjs",
     "scenery": "node tools/print-desk/scenery.mjs",
     "harness": "node tools/print-desk/harness.mjs",

@@ -19,6 +19,9 @@ PYTHON="${PRINT_DESK_PYTHON:-$HOME/.venv/bin/python}"
 DESK_PORT="${DESK_PORT:-8188}"
 APP_PORT="${APP_PORT:-5178}"
 RESTORE_PORT="${RESTORE_PORT:-8788}"
+FRONT_PORT="${FRONT_PORT:-8790}"
+# ComfyUI 403s a foreign Origin; the front door is the gate, so the desk itself allows any origin.
+DESK_ORIGINS="${DESK_ORIGINS:-*}"
 
 mkdir -p "$STATE"
 
@@ -32,6 +35,7 @@ desk_up()   { curl -fsS --max-time 2 "http://127.0.0.1:$DESK_PORT/system_stats" 
 # Vite binds the IPv6 loopback ([::1]) — checking only 127.0.0.1 reports a healthy app as down.
 app_up()    { curl -fsS --max-time 2 "http://localhost:$APP_PORT/" >/dev/null 2>&1 || curl -fsS --max-time 2 "http://127.0.0.1:$APP_PORT/" >/dev/null 2>&1; }
 restore_up() { curl -fsS --max-time 2 "http://127.0.0.1:$RESTORE_PORT/health" >/dev/null 2>&1; }
+front_up()  { curl -fsS --max-time 2 "http://127.0.0.1:$FRONT_PORT/health" >/dev/null 2>&1; }
 alive()     { [[ -f "$1" ]] && kill -0 "$(cat "$1")" 2>/dev/null; }
 
 wait_for() { # wait_for <label> <check-cmd> <seconds>
@@ -69,8 +73,11 @@ start_desk() {
 
   log "starting ComfyUI from $COMFY_DIR (log: $STATE/desk.log)"
   # --fast: fp16 accumulate on the matmuls. --preview-method none: no preview frames, less overhead.
+  # --enable-cors-header: ComfyUI answers a foreign Origin with 403, which is exactly what the
+  # deployed app is — the front door (front.mjs) is what gates who may print, not this header.
   ( cd "$COMFY_DIR" && setsid nohup "$PYTHON" main.py \
       --listen 127.0.0.1 --port "$DESK_PORT" --disable-auto-launch \
+      --enable-cors-header "$DESK_ORIGINS" \
       --fast --preview-method none \
       >>"$STATE/desk.log" 2>&1 & echo $! >"$STATE/desk.pid" )
   # First boot loads CUDA and the node registry; on a cold cache this is the slow part.
@@ -92,6 +99,15 @@ start_restore() {
   log "starting the restore service (log: $STATE/restore.log)"
   ( cd "$PROJECT" && setsid nohup node tools/desk/restore.mjs >>"$STATE/restore.log" 2>&1 & echo $! >"$STATE/restore.pid" )
   wait_for "restore service" "restore_up" 30 || warn "the restore service did not come up — prints will skip face framing and restore"
+}
+
+# The single origin the app talks to, local or tunnelled (front.mjs): /print-desk, /restore-desk, /health.
+start_front() {
+  if front_up; then ok "desk front already answering on :$FRONT_PORT"; return 0; fi
+  listening "$FRONT_PORT" && reclaim_port "$FRONT_PORT" "the desk front" "front.mjs"
+  log "starting the desk front (log: $STATE/front.log)"
+  ( cd "$PROJECT" && setsid nohup node tools/desk/front.mjs >>"$STATE/front.log" 2>&1 & echo $! >"$STATE/front.pid" )
+  wait_for "desk front" "front_up" 30 || warn "the desk front did not come up — see $STATE/front.log"
 }
 
 stop_one() { # stop_one <name> <pidfile> <port> <expected-substring>
@@ -132,6 +148,9 @@ status() {
   if restore_up; then ok "restore      http://127.0.0.1:$RESTORE_PORT  pid $(restore_pid)"
   else warn "restore      not running (prints will skip framing and face restore)"; fi
 
+  if front_up; then ok "front        http://127.0.0.1:$FRONT_PORT  pid $(front_pid)  ← the app talks to this"
+  else warn "front        not running (the app falls back to the /print-desk dev proxy)"; fi
+
   local models; models="$(ls "$COMFY_DIR/models/diffusion_models" 2>/dev/null | grep -c safetensors || true)"
   log "models       $models diffusion checkpoint(s) in $COMFY_DIR/models"
   command -v nvidia-smi >/dev/null && nvidia-smi --query-gpu=name,memory.used,memory.total,utilization.gpu \
@@ -142,6 +161,7 @@ status() {
 desk_pid() { alive "$STATE/desk.pid" && cat "$STATE/desk.pid" || echo "external"; }
 app_pid()  { alive "$STATE/app.pid"  && cat "$STATE/app.pid"  || echo "external"; }
 restore_pid() { alive "$STATE/restore.pid" && cat "$STATE/restore.pid" || echo "external"; }
+front_pid() { alive "$STATE/front.pid" && cat "$STATE/front.pid" || echo "external"; }
 
 warm() { # load the weights before the first real print; on 8 GB that cold load is the long wait
   if ! desk_up; then warn "print desk is not up — warming skipped"; return 0; fi
@@ -174,9 +194,9 @@ EOF
 }
 
 case "${1:-start}" in
-  start)  start_desk; start_restore; start_app; warm ;;
-  stop)   stop_one app "$STATE/app.pid" "$APP_PORT" "node"; stop_one restore "$STATE/restore.pid" "$RESTORE_PORT" "restore.mjs"; stop_one desk "$STATE/desk.pid" "$DESK_PORT" "main.py"; status ;;
-  restart) stop_one app "$STATE/app.pid" "$APP_PORT" "node"; stop_one restore "$STATE/restore.pid" "$RESTORE_PORT" "restore.mjs"; stop_one desk "$STATE/desk.pid" "$DESK_PORT" "main.py"; start_desk; start_restore; start_app; warm ;;
+  start)  start_desk; start_restore; start_front; start_app; warm ;;
+  stop)   stop_one app "$STATE/app.pid" "$APP_PORT" "node"; stop_one front "$STATE/front.pid" "$FRONT_PORT" "front.mjs"; stop_one restore "$STATE/restore.pid" "$RESTORE_PORT" "restore.mjs"; stop_one desk "$STATE/desk.pid" "$DESK_PORT" "main.py"; status ;;
+  restart) stop_one app "$STATE/app.pid" "$APP_PORT" "node"; stop_one front "$STATE/front.pid" "$FRONT_PORT" "front.mjs"; stop_one restore "$STATE/restore.pid" "$RESTORE_PORT" "restore.mjs"; stop_one desk "$STATE/desk.pid" "$DESK_PORT" "main.py"; start_desk; start_restore; start_front; start_app; warm ;;
   warm)   warm ;;
   status) status ;;
   logs)   tail -n "${2:-40}" -f "$STATE/${3:-desk}.log" ;;

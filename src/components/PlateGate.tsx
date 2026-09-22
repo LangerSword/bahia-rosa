@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { describeUploadProblem } from "../lib/plates/plates";
-import { deskAvailable, printChoices } from "../lib/printdesk/client";
+import { deskAvailable, deskRoot, printChoices } from "../lib/printdesk/client";
 
 /**
  * Intake — one image in, one image into the editor. Everything is local: an uploaded photo is
@@ -36,9 +36,20 @@ export function PlateGate({ onPhoto }: PlateGateProps) {
   // The desk is a GPU process on the machine running the app. On a static host there is none, and the
   // visitor should learn that from the intake, not from a failure after they have chosen a photo.
   const [desk, setDesk] = useState<"checking" | "up" | "down">("checking");
+  // A desk that is not on this origin is somewhere else on the network — the visitor should know
+  // their photo is leaving the machine it was read on.
+  const [remote, setRemote] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
+    const root = deskRoot();
+    if (root) {
+      try {
+        setRemote(new URL(root).host);
+      } catch {
+        setRemote(root);
+      }
+    }
     void deskAvailable().then((reachable) => {
       if (live) setDesk(reachable ? "up" : "down");
     });
@@ -65,8 +76,15 @@ export function PlateGate({ onPhoto }: PlateGateProps) {
       <p className="kicker">Step 1</p>
       <h2 className="display mt-3 text-4xl">The plate</h2>
       <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-[color:var(--color-muted)]">
-        Bring a photo. Your file is read in this page and sent only to the desk on this machine —
-        there is no server of ours in the path.
+        Bring a photo. Your file is read in this page and sent only to the desk —{" "}
+        {remote ? (
+          <>
+            which is answering at <span className="text-[color:var(--color-body)]">{remote}</span>{" "}
+            right now. Nothing is stored there.
+          </>
+        ) : (
+          <>the one on this machine. There is no server of ours in the path.</>
+        )}
       </p>
 
       {desk === "down" ? (
@@ -100,6 +118,11 @@ export function PlateGate({ onPhoto }: PlateGateProps) {
               Open the editor
             </a>
           </div>
+          <p className="mt-4 max-w-[62ch] text-xs leading-relaxed text-[color:var(--color-muted)]">
+            A desk can also live somewhere else: open this page with{" "}
+            <code className="text-[color:var(--color-body)]">?desk=https://your-desk.example</code> and
+            the whole print runs there instead. The address is remembered.
+          </p>
         </div>
       ) : null}
 
