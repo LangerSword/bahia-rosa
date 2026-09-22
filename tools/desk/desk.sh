@@ -187,8 +187,10 @@ setup() { # one-time machine prep: the venv ComfyUI runs in, plus the print desk
   fi
   log "installing ComfyUI's requirements (existing torch is left in place)"
   uv pip install --python "$PYTHON" -r "$COMFY_DIR/requirements.txt" 2>&1 | tail -3
-  log "installing the print desk's own tools — opencv for face framing"
-  uv pip install --python "$PYTHON" opencv-python-headless pillow 2>&1 | tail -2
+  log "installing the print desk's own tools — face framing, and the identity check the restore needs"
+  # insightface is the ArcFace stack behind the face restore: without it the finisher answers 500 and
+  # every quality print is refused. opencv does the framing; numpy is shared by both.
+  uv pip install --python "$PYTHON" opencv-python-headless pillow numpy insightface onnxruntime 2>&1 | tail -3
   ok "python side ready"
   cat <<EOF
 
