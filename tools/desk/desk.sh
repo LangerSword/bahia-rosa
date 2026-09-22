@@ -176,7 +176,15 @@ warm() { # load the weights before the first real print; on 8 GB that cold load 
 setup() { # one-time machine prep: the venv ComfyUI runs in, plus the print desk's own tools
   local venv; venv="$(dirname "$(dirname "$PYTHON")")"
   command -v uv >/dev/null || die "uv is required to manage the venv (curl -LsSf https://astral.sh/uv/install.sh | sh)"
-  [[ -x "$PYTHON" ]] || { log "creating a venv at $venv (python 3.12 — ComfyUI needs 3.10+, and a distro python is often older)"; uv venv --python 3.12 "$venv"; }
+  # ComfyUI needs 3.10+, and a distro python is often older (AL2023 ships 3.9), so the venv is checked
+  # rather than assumed: an existing 3.9 venv used to wedge the install with an unsatisfiable
+  # dependency error that never mentioned python.
+  if [[ -x "$PYTHON" ]] && "$PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
+    log "reusing the venv at $venv ($("$PYTHON" -c 'import platform; print(platform.python_version())'))"
+  else
+    log "creating a venv at $venv with python 3.12 (ComfyUI needs 3.10+)"
+    uv venv --python 3.12 --clear "$venv"
+  fi
   log "installing ComfyUI's requirements (existing torch is left in place)"
   uv pip install --python "$PYTHON" -r "$COMFY_DIR/requirements.txt" 2>&1 | tail -3
   log "installing the print desk's own tools — opencv for face framing"
