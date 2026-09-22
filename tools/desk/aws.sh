@@ -57,12 +57,18 @@ dnf install -y git nodejs npm curl jq
 curl -LsSf https://astral.sh/uv/install.sh | sh
 export PATH="\$HOME/.local/bin:\$PATH"
 
+# ComfyUI itself, then the desk's own repo.
+git clone --depth 1 https://github.com/comfyanonymous/ComfyUI.git "\$HOME/comfy/ComfyUI"
 git clone --depth 1 $REPO /opt/late-edition
 cd /opt/late-edition
 
-# The same setup the laptop runs: ComfyUI's venv, the desk's tools, then the weights.
+# The same setup the laptop runs: ComfyUI's venv + the desk's tools, the HF CLI, then the weights.
 bash tools/desk/desk.sh setup
+uv pip install --python "\$HOME/.venv/bin/python" "huggingface_hub[cli]"
 bash tools/print-desk/fetch-models.sh
+
+# The desk and its front door — no app on a headless box.
+bash tools/desk/desk.sh server
 
 # Publish through the front door, exactly like the local desk.
 bash tools/desk/tunnel.sh start
@@ -108,7 +114,7 @@ ensure_group() {
     --query 'SecurityGroups[].GroupId' --output text 2>/dev/null | head -1)"
   if [[ -z "$sg" ]]; then
     sg="$(aws ec2 create-security-group --region "$REGION" --group-name "$NAME" \
-      --description "late-edition desk — no inbound rules: the instance dials out" \
+      --description "late-edition desk: no inbound rules, the instance dials out" \
       --query GroupId --output text)"
     ok "security group $sg created with no inbound rules"
   fi
@@ -146,7 +152,7 @@ up() {
   local args=(
     --region "$REGION" --image-id "$ami" --instance-type "$TYPE"
     --iam-instance-profile "Name=$PROFILE" --security-group-ids "$sg"
-    --block-device-mappings 'DeviceName=/dev/xvda,Ebs={VolumeSize=120,VolumeType=gp3,DeleteOnTermination=true}'
+    --block-device-mappings 'DeviceName=/dev/xvda,Ebs={VolumeSize=80,VolumeType=gp3,DeleteOnTermination=true}'
     --user-data "file:///tmp/desk-user-data.sh"
     --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$NAME}]"
     --metadata-options 'HttpTokens=required'
@@ -159,6 +165,10 @@ up() {
   fi
 
   user_data >/tmp/desk-user-data.sh
+  # EC2 rejects non-ASCII in user-data (and says so as an XML error that names nothing useful), so the
+  # script is squeezed to printable ASCII before it is handed over.
+  tr -cd '\11\12\15\40-\176' </tmp/desk-user-data.sh >/tmp/desk-user-data.ascii
+  mv /tmp/desk-user-data.ascii /tmp/desk-user-data.sh
   local id
   id="$(aws ec2 run-instances "${args[@]}" --query 'Instances[0].InstanceId' --output text)"
   ok "$id launched"
@@ -182,7 +192,7 @@ status() {
       "$(awk -v s="$seconds" -v r="$ONDEMAND_HOURLY" 'BEGIN{printf "%.2f", s*r/3600}')"
     curl -s --max-time 5 "http://127.0.0.1:1/" >/dev/null 2>&1 || true
   else
-    cost_note "stopped: EBS only, ≈ \$0.01/hr"
+    cost_note "stopped: the disk only, ≈ \$7.30/month for 80 GB"
   fi
   echo
   log "the desk's own view (through SSM):"
@@ -224,8 +234,8 @@ down() {
     ok "terminated"
   else
     aws ec2 stop-instances --region "$REGION" --instance-ids "$id" >/dev/null
-    ok "$id stopping — $0/hr while stopped, ~\$2.90/month for its 120 GB disk"
-    log "start it again with: tools/desk/aws.sh up"
+    ok "$id stopping — \$0/hr while stopped, \$7.30/month for its 80 GB disk (gp3 in Mumbai)"
+    log "start it again with: tools/desk/aws.sh up   ·   or delete it: tools/desk/aws.sh down --terminate"
   fi
 }
 

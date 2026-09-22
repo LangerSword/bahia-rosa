@@ -195,6 +195,8 @@ EOF
 
 case "${1:-start}" in
   start)  start_desk; start_restore; start_front; start_app; warm ;;
+  # A headless box: the desk and its front door, no app (nothing to open a browser on).
+  server) start_desk; start_restore; start_front; warm ;;
   stop)   stop_one app "$STATE/app.pid" "$APP_PORT" "node"; stop_one front "$STATE/front.pid" "$FRONT_PORT" "front.mjs"; stop_one restore "$STATE/restore.pid" "$RESTORE_PORT" "restore.mjs"; stop_one desk "$STATE/desk.pid" "$DESK_PORT" "main.py"; status ;;
   restart) stop_one app "$STATE/app.pid" "$APP_PORT" "node"; stop_one front "$STATE/front.pid" "$FRONT_PORT" "front.mjs"; stop_one restore "$STATE/restore.pid" "$RESTORE_PORT" "restore.mjs"; stop_one desk "$STATE/desk.pid" "$DESK_PORT" "main.py"; start_desk; start_restore; start_front; start_app; warm ;;
   warm)   warm ;;
