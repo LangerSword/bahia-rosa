@@ -97,7 +97,9 @@ start_app() {
 start_restore() {
   if restore_up; then ok "restore service already answering on :$RESTORE_PORT"; return 0; fi
   log "starting the restore service (log: $STATE/restore.log)"
-  ( cd "$PROJECT" && setsid nohup node tools/desk/restore.mjs >>"$STATE/restore.log" 2>&1 & echo $! >"$STATE/restore.pid" )
+  # Hand the interpreter down: the service spawns the desk's python tools (framing, face restore,
+  # identity), and those must run in the same venv this script set up — not in whatever a default guesses.
+  ( cd "$PROJECT" && PRINT_DESK_PYTHON="$PYTHON" setsid nohup node tools/desk/restore.mjs >>"$STATE/restore.log" 2>&1 & echo $! >"$STATE/restore.pid" )
   wait_for "restore service" "restore_up" 30 || warn "the restore service did not come up — prints will skip face framing and restore"
 }
 

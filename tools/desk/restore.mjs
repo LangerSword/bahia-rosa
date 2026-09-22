@@ -26,7 +26,10 @@ import { promisify } from "node:util";
 const run = promisify(execFile);
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PROJECT = resolve(HERE, "../..");
-const PYTHON = process.env.PRINT_DESK_PYTHON ?? "/home/lakshaya/.venv/bin/python";
+// The interpreter that runs the desk's python tools. PRINT_DESK_PYTHON wins; the venv beside $HOME is
+// the layout desk.sh creates. Hardcoding one user's home made the face restore disappear with an
+// ENOENT on any other machine — a rented box has no /home/lakshaya, and the print still "succeeded".
+const PYTHON = process.env.PRINT_DESK_PYTHON ?? `${process.env.HOME ?? "/root"}/.venv/bin/python`;
 const PORT = Number(process.env.RESTORE_PORT ?? 8788);
 const TMP = join(PROJECT, "print-desk-out", "restore-tmp");
 const MAX_BODY = 40 * 1024 * 1024;

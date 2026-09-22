@@ -28,7 +28,7 @@ import { promisify } from "node:util";
 const run = promisify(execFile);
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PROJECT = resolve(HERE, "../..");
-const PYTHON = process.env.PRINT_DESK_PYTHON ?? "/home/lakshaya/.venv/bin/python";
+const PYTHON = process.env.PRINT_DESK_PYTHON ?? `${process.env.HOME ?? "/root"}/.venv/bin/python`;
 const JUDGE_MODEL = process.env.PRINT_DESK_JUDGE ?? "/home/lakshaya/models/qwen2.5-vl-3b";
 
 function parseArgs(argv) {

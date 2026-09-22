@@ -39,7 +39,10 @@ import { promisify } from "node:util";
 import { compile, plateFilename } from "../../src/look/compile.mjs";
 
 const runAsync = promisify(execFile);
-const PYTHON = process.env.PRINT_DESK_PYTHON ?? "/home/lakshaya/.venv/bin/python";
+// The interpreter that runs the desk's python tools. PRINT_DESK_PYTHON wins; the venv beside $HOME is
+// the layout desk.sh creates. Hardcoding one user's home made the face restore disappear with an
+// ENOENT on any other machine — a rented box has no /home/lakshaya, and the print still "succeeded".
+const PYTHON = process.env.PRINT_DESK_PYTHON ?? `${process.env.HOME ?? "/root"}/.venv/bin/python`;
 
 /** The quality preset, in one place. Mirrors HQ_UNET/HQ_STEPS in the browser client. */
 const HQ_UNET = "flux-2-klein-base-4b-fp8.safetensors";
