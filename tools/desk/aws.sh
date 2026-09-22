@@ -53,7 +53,7 @@ user_data() {
 set -euxo pipefail
 exec >/var/log/desk-setup.log 2>&1
 
-dnf install -y git nodejs npm curl jq
+dnf install -y git nodejs npm jq
 curl -LsSf https://astral.sh/uv/install.sh | sh
 export PATH="\$HOME/.local/bin:\$PATH"
 
