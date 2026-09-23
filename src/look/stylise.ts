@@ -1,48 +1,66 @@
 /**
  * The look, in the browser, with no model.
  *
- * A photo becomes a GTA-VI-flavoured key art by classical image processing — the same class of
- * operations as any "image → contours → geometry" pipeline, just pointed at paint instead of maths:
+ * A photograph becomes a painted frame by classical image processing. The first version of this file
+ * produced a grade with grain on it: quantising per pixel against the noisy original makes a mosaic,
+ * and a gaussian blur makes mud. This is the second pass, and every stage earns its place:
  *
- *   separable blur  →  Sobel edges with hysteresis  →  edge-preserving flatten  →  k-means palette
- *   →  snap to the city's palette  →  sky bloom  →  ink  →  grain, vignette, misregistration
+ *   1. bilateral filter     — kills texture, keeps edges (a gaussian cannot do both)
+ *   2. Sobel + hysteresis   — the ink, thresholded from the frame's own histogram
+ *   3. k-means, then REGIONS — pixels are labelled, then connected components are averaged, so the
+ *                              result is flat patches with clean boundaries instead of speckle
+ *   4. palette pull          — per region, toward the city's anchors, with a skin guard
+ *   5. split tone            — violet in the shadows, gold in the light: the signature of the look
+ *   6. ink, bloom, paper, grain, vignette, misregistration
  *
- * Everything here is deterministic (a fixed lattice seeds the clustering, noise is a hash of the
- * pixel position, never Math.random) and free of DOM APIs below `styliseImageData`, so the whole
- * thing is unit-testable in node and identical on every run.
- *
- * The palette is the city's own, not a generic LUT: the sun over Bahía Rosa is gold, the shadows are
- * deep violet, and the neon is pink and cyan.
+ * Deterministic (a fixed lattice seeds the clustering, noise is a hash of the pixel position, never
+ * Math.random) and free of DOM APIs below `styliseImage`, so all of it is testable in node.
  */
 
-/** The anchors every quantised colour is pulled toward. Order matters only for readability. */
+/** The anchors every painted region is pulled toward. */
 export const CITY_PALETTE: readonly [number, number, number][] = [
-  [27, 16, 48], // deep violet — shadow
-  [58, 32, 82], // dusk violet
-  [122, 46, 96], // plum haze
-  [214, 58, 96], // neon pink
-  [255, 122, 61], // sunset orange
-  [255, 196, 92], // gold
-  [79, 214, 224], // cyan
-  [24, 110, 122], // sea teal
+  [26, 14, 44], // deep violet — shadow
+  [62, 30, 86], // dusk violet
+  [128, 44, 96], // plum haze
+  [226, 58, 104], // neon pink
+  [255, 128, 58], // sunset orange
+  [255, 202, 104], // gold
+  [96, 220, 226], // cyan
+  [22, 104, 118], // sea teal
 ];
 
 export interface StyliseOptions {
-  /** How many flat colours the photograph is reduced to before the palette pull. */
+  /** How many painted regions the frame is reduced to. */
   colours?: number;
-  /** How hard the result is pulled toward CITY_PALETTE, 0..1. */
+  /** How hard each region is pulled toward CITY_PALETTE, 0..1. */
   palette?: number;
-  /** Ink weight on the edges, 0..1. */
+  /** Ink weight on the lines, 0..1. */
   ink?: number;
   /** Grain and vignette, 0..1. */
   finish?: number;
-  /** The warm sky bloom and the low sun, 0..1. Zero leaves the palette exactly as quantised. */
+  /** The warm sky bloom and the low sun, 0..1. Zero leaves the palette exactly as painted. */
   light?: number;
+  /** Violet shadows and gold highlights, 0..1. */
+  tone?: number;
+  /** Brush texture over the whole frame, 0..1. */
+  paper?: number;
+  /** Edge-preserving smoothing strength, 0..1. */
+  smooth?: number;
   /** Changes the grain and the lattice jitter, so the same photo can be printed differently. */
   seed?: number;
 }
 
-const DEFAULTS: Required<StyliseOptions> = { colours: 7, palette: 0.55, ink: 0.5, finish: 0.6, light: 0.35, seed: 1 };
+const DEFAULTS: Required<StyliseOptions> = {
+  colours: 9,
+  palette: 0.5,
+  ink: 0.55,
+  finish: 0.55,
+  light: 0.3,
+  tone: 0.45,
+  paper: 0.35,
+  smooth: 0.55,
+  seed: 1,
+};
 
 /* ---------- small numeric helpers ---------- */
 
@@ -58,6 +76,22 @@ function hashNoise(x: number, y: number, seed: number): number {
   return ((h ^ (h >>> 16)) / 4294967295) * 2 - 1;
 }
 
+/** Smooth value noise, the paper the paint sits on. */
+export function valueNoise(x: number, y: number, cell: number, seed: number): number {
+  const gx = x / cell;
+  const gy = y / cell;
+  const x0 = Math.floor(gx);
+  const y0 = Math.floor(gy);
+  const fx = gx - x0;
+  const fy = gy - y0;
+  const sx = fx * fx * (3 - 2 * fx);
+  const sy = fy * fy * (3 - 2 * fy);
+  const corner = (cx: number, cy: number): number => hashNoise(cx, cy, seed);
+  const top = corner(x0, y0) * (1 - sx) + corner(x0 + 1, y0) * sx;
+  const bottom = corner(x0, y0 + 1) * (1 - sx) + corner(x0 + 1, y0 + 1) * sx;
+  return top * (1 - sy) + bottom * sy;
+}
+
 function toGray(rgba: Uint8ClampedArray, width: number, height: number): Float32Array {
   const gray = new Float32Array(width * height);
   for (let i = 0, p = 0; i < gray.length; i += 1, p += 4) {
@@ -66,38 +100,61 @@ function toGray(rgba: Uint8ClampedArray, width: number, height: number): Float32
   return gray;
 }
 
-/** Separable gaussian, the cheap way: two 1-D passes. */
-function blur(source: Float32Array, width: number, height: number, sigma: number, channels = 1): Float32Array {
-  const radius = Math.max(1, Math.round(sigma * 2.5));
-  const kernel = new Float32Array(radius * 2 + 1);
-  let total = 0;
-  for (let i = -radius; i <= radius; i += 1) {
-    const weight = Math.exp(-(i * i) / (2 * sigma * sigma));
-    kernel[i + radius] = weight;
-    total += weight;
-  }
-  for (let i = 0; i < kernel.length; i += 1) kernel[i] /= total;
-
-  const pass = new Float32Array(source.length);
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      let sum = 0;
-      for (let k = -radius; k <= radius; k += 1) {
-        const sx = clamp(x + k, 0, width - 1);
-        sum += source[(y * width + sx) * channels] * kernel[k + radius];
-      }
-      pass[(y * width + x) * channels] = sum;
+/**
+ * Bilateral filter: a gaussian in space multiplied by a gaussian in colour distance. Flat areas are
+ * smoothed as hard as a blur would smooth them, but a real edge keeps its step — which is the whole
+ * reason the paint reads as paint instead of as a smudge.
+ */
+export function bilateral(
+  source: Uint8ClampedArray,
+  width: number,
+  height: number,
+  radius: number,
+  sigmaSpace = 2.2,
+  sigmaRange = 30,
+): Float32Array {
+  const out = new Float32Array(source.length);
+  const side = radius * 2 + 1;
+  const space = new Float32Array(side * side);
+  let index = 0;
+  for (let dy = -radius; dy <= radius; dy += 1) {
+    for (let dx = -radius; dx <= radius; dx += 1) {
+      space[index] = Math.exp(-(dx * dx + dy * dy) / (2 * sigmaSpace * sigmaSpace));
+      index += 1;
     }
   }
-  const out = new Float32Array(source.length);
+  const range = 2 * sigmaRange * sigmaRange;
+
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      let sum = 0;
-      for (let k = -radius; k <= radius; k += 1) {
-        const sy = clamp(y + k, 0, height - 1);
-        sum += pass[(sy * width + x) * channels] * kernel[k + radius];
+      const p = (y * width + x) * 4;
+      const cr = source[p];
+      const cg = source[p + 1];
+      const cb = source[p + 2];
+      let sumR = 0;
+      let sumG = 0;
+      let sumB = 0;
+      let weight = 0;
+      let k = 0;
+      for (let dy = -radius; dy <= radius; dy += 1) {
+        const sy = y + dy < 0 ? 0 : y + dy >= height ? height - 1 : y + dy;
+        for (let dx = -radius; dx <= radius; dx += 1, k += 1) {
+          const sx = x + dx < 0 ? 0 : x + dx >= width ? width - 1 : x + dx;
+          const q = (sy * width + sx) * 4;
+          const dr = source[q] - cr;
+          const dg = source[q + 1] - cg;
+          const db = source[q + 2] - cb;
+          const w = space[k] * Math.exp(-(dr * dr + dg * dg + db * db) / range);
+          sumR += source[q] * w;
+          sumG += source[q + 1] * w;
+          sumB += source[q + 2] * w;
+          weight += w;
+        }
       }
-      out[(y * width + x) * channels] = sum;
+      out[p] = sumR / weight;
+      out[p + 1] = sumG / weight;
+      out[p + 2] = sumB / weight;
+      out[p + 3] = source[p + 3];
     }
   }
   return out;
@@ -178,10 +235,16 @@ function distance(r: number, g: number, b: number, c: readonly [number, number, 
 
 /**
  * k-means over a deterministic lattice of samples. Seeding from a lattice instead of random points
- * means the same photograph always quantises to the same palette — which is what makes the whole
- * styliser reproducible (and testable).
+ * means the same photograph always quantises the same way — which is what makes the look reproducible
+ * (and testable).
  */
-export function quantise(rgba: Uint8ClampedArray, width: number, height: number, k: number, seed = 1): [number, number, number][] {
+export function quantise(
+  rgba: ArrayLike<number>,
+  width: number,
+  height: number,
+  k: number,
+  seed = 1,
+): [number, number, number][] {
   const samples: [number, number, number][] = [];
   const step = Math.max(1, Math.floor(Math.sqrt((width * height) / 4096)));
   for (let y = 0; y < height; y += step) {
@@ -198,7 +261,7 @@ export function quantise(rgba: Uint8ClampedArray, width: number, height: number,
   const centroids: [number, number, number][] = [];
   for (let i = 0; i < k; i += 1) centroids.push([...samples[Math.floor((i / k) * samples.length)]] as [number, number, number]);
 
-  for (let iteration = 0; iteration < 7; iteration += 1) {
+  for (let iteration = 0; iteration < 8; iteration += 1) {
     const sums = centroids.map(() => [0, 0, 0, 0]);
     for (const [r, g, b] of samples) {
       let best = 0;
@@ -238,98 +301,210 @@ export function nearestAnchor(r: number, g: number, b: number): { anchor: readon
 }
 
 /**
+ * Skin, in the loosest useful sense: red above green above blue, not too saturated, not too dark.
+ * A face is the one thing a styliser must not ruin — dragging a cheek toward neon pink is exactly
+ * what makes these filters look like filters.
+ */
+export function isSkin(r: number, g: number, b: number): boolean {
+  if (r <= g || g <= b) return false;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  if (max < 45) return false;
+  const chroma = (max - min) / max;
+  return chroma < 0.62 && r - b < 120;
+}
+
+/**
+ * Connected components over the per-pixel labels, each averaged into one flat colour. This is the
+ * step that turns a quantised mosaic into painted regions: neighbouring pixels that share a label
+ * stop being individual colours and become one patch.
+ */
+export function flattenRegions(labels: Uint16Array, smooth: Float32Array, width: number, height: number): Float32Array {
+  const flat = new Float32Array(width * height * 4);
+  const visited = new Uint8Array(width * height);
+  const stack = new Int32Array(width * height);
+  const members = new Int32Array(width * height);
+
+  for (let start = 0; start < labels.length; start += 1) {
+    if (visited[start]) continue;
+    const label = labels[start];
+    let top = 0;
+    stack[top] = start;
+    top += 1;
+    visited[start] = 1;
+    let count = 0;
+    let sumR = 0;
+    let sumG = 0;
+    let sumB = 0;
+
+    while (top > 0) {
+      top -= 1;
+      const i = stack[top];
+      members[count] = i;
+      count += 1;
+      const p = i * 4;
+      sumR += smooth[p];
+      sumG += smooth[p + 1];
+      sumB += smooth[p + 2];
+
+      const x = i % width;
+      const y = (i - x) / width;
+      if (x > 0 && !visited[i - 1] && labels[i - 1] === label) {
+        visited[i - 1] = 1;
+        stack[top] = i - 1;
+        top += 1;
+      }
+      if (x < width - 1 && !visited[i + 1] && labels[i + 1] === label) {
+        visited[i + 1] = 1;
+        stack[top] = i + 1;
+        top += 1;
+      }
+      if (y > 0 && !visited[i - width] && labels[i - width] === label) {
+        visited[i - width] = 1;
+        stack[top] = i - width;
+        top += 1;
+      }
+      if (y < height - 1 && !visited[i + width] && labels[i + width] === label) {
+        visited[i + width] = 1;
+        stack[top] = i + width;
+        top += 1;
+      }
+    }
+
+    const r = sumR / count;
+    const g = sumG / count;
+    const b = sumB / count;
+    for (let m = 0; m < count; m += 1) {
+      const p = members[m] * 4;
+      flat[p] = r;
+      flat[p + 1] = g;
+      flat[p + 2] = b;
+      flat[p + 3] = smooth[p + 3];
+    }
+  }
+  return flat;
+}
+
+/**
  * The whole look, over one ImageData-shaped buffer. Pure: it reads the input and writes a new buffer.
- *
- * The order matters. Flattening before quantising is what makes flat painted areas instead of a
- * mosaic; snapping to the palette before the bloom is what keeps the light from washing the palette
- * out; ink last, so outlines stay crisp over everything.
  */
 export function styliseImageData(source: Uint8ClampedArray, width: number, height: number, options: StyliseOptions = {}): Uint8ClampedArray {
-  const { colours, palette, ink, finish, light, seed } = { ...DEFAULTS, ...options };
+  const { colours, palette, ink, finish, light, tone, paper, smooth: smoothStrength, seed } = { ...DEFAULTS, ...options };
   const out = new Uint8ClampedArray(source.length);
   const gray = toGray(source, width, height);
+  const scale = Math.max(width, height);
 
-  // 1. Smooth in colour, then cluster and assign from the smoothed frame. Matching the noisy
-  // original made neighbouring pixels pick different flat colours, which reads as a mosaic with hard
-  // steps rather than as paint; the blur is what makes a region agree with itself.
-  const sigma = Math.max(1, Math.min(width, height) / 220);
-  const smooth = blur(Float32Array.from(source), width, height, sigma, 4);
-  const smoothBytes = new Uint8ClampedArray(source.length);
-  for (let i = 0; i < smooth.length; i += 1) smoothBytes[i] = smooth[i];
+  // 1. Edge-preserving smoothing. The ink comes from the original luminance: an edge found in an
+  //    already-smoothed frame is too late to be crisp.
+  const radius = Math.min(3, Math.max(1, Math.round((Math.min(width, height) / 260) * (0.5 + smoothStrength))));
+  const smoothed = bilateral(source, width, height, radius, 2.2, 26 + smoothStrength * 26);
   const edges = edgeMap(gray, width, height);
 
-  // 2. Quantise the smoothed frame, then snap each colour toward the city's palette.
-  const centroids = quantise(smoothBytes, width, height, colours, seed);
-  const snapped = centroids.map(([r, g, b]) => {
-    const { anchor, distance: away } = nearestAnchor(r, g, b);
-    // Pull harder when the colour is already close to an anchor: far-away colours (skin, sky) keep
-    // their own character instead of being forced into the neon.
-    const pull = palette * (1 - Math.min(1, away / 190));
-    return [r + (anchor[0] - r) * pull, g + (anchor[1] - g) * pull, b + (anchor[2] - b) * pull] as [number, number, number];
-  });
+  // 2. Label every pixel by its nearest centroid, then average each connected region into one colour.
+  const centroids = quantise(smoothed, width, height, colours, seed);
+  const labels = new Uint16Array(width * height);
+  for (let i = 0, p = 0; i < labels.length; i += 1, p += 4) {
+    const r = smoothed[p];
+    const g = smoothed[p + 1];
+    const b = smoothed[p + 2];
+    let best = 0;
+    let bestDistance = Infinity;
+    for (let c = 0; c < centroids.length; c += 1) {
+      const d = distance(r, g, b, centroids[c]);
+      if (d < bestDistance) {
+        bestDistance = d;
+        best = c;
+      }
+    }
+    labels[i] = best;
+  }
+  const flat = flattenRegions(labels, smoothed, width, height);
 
-  const scale = Math.max(width, height);
+  // 3. The palette pull, per region, with a skin guard: a face keeps its own warmth.
+  const painted = new Float32Array(flat.length);
+  for (let p = 0; p < flat.length; p += 4) {
+    const r = flat[p];
+    const g = flat[p + 1];
+    const b = flat[p + 2];
+    const { anchor, distance: away } = nearestAnchor(r, g, b);
+    const skin = isSkin(r, g, b);
+    const pull = (skin ? palette * 0.18 : palette) * (1 - Math.min(1, away / 200));
+    painted[p] = r + (anchor[0] - r) * pull;
+    painted[p + 1] = g + (anchor[1] - g) * pull;
+    painted[p + 2] = b + (anchor[2] - b) * pull;
+    painted[p + 3] = flat[p + 3];
+  }
+
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const i = y * width + x;
       const p = i * 4;
-      let r = source[p];
-      let g = source[p + 1];
-      let b = source[p + 2];
+      let r = painted[p];
+      let g = painted[p + 1];
+      let b = painted[p + 2];
+      const skin = isSkin(r, g, b);
 
-      // Nearest centroid, matched against the smoothed colour so a flat region agrees with itself.
-      const sr = smoothBytes[p];
-      const sg = smoothBytes[p + 1];
-      const sb = smoothBytes[p + 2];
-      let best = 0;
-      let bestDistance = Infinity;
-      for (let c = 0; c < centroids.length; c += 1) {
-        const d = distance(sr, sg, sb, centroids[c]);
-        if (d < bestDistance) {
-          bestDistance = d;
-          best = c;
-        }
-      }
-      // Paint, not a filter: away from the lines a pixel becomes the flat colour almost entirely, and
-      // even on a line most of it does. Keeping a fifth of the photograph's own noise (the first
-      // version) left a grade with grain on it rather than flat areas with ink over them.
-      const flatness = edges[i] > 0 ? 0.62 : 0.94;
-      r += (snapped[best][0] - r) * flatness;
-      g += (snapped[best][1] - g) * flatness;
-      b += (snapped[best][2] - b) * flatness;
+      // 4. Split tone: violet into the shadows, gold into the light. More than any single colour in
+      //    the palette, this is what the look actually is.
+      const luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+      const shadow = Math.max(0, 1 - luma * 2.1) * tone;
+      const highlight = Math.max(0, luma - 0.45) * 1.8 * tone;
+      const shadowWeight = skin ? shadow * 0.35 : shadow;
+      r += -14 * shadowWeight + 46 * highlight;
+      g += -4 * shadowWeight + 30 * highlight;
+      b += 34 * shadowWeight + 8 * highlight;
 
-      // 3. Sky bloom: a warm gradient from the top and a low sun off to the right.
+      // 5. An S-curve, because flat paint still needs punch.
+      const lift = (value: number): number => {
+        const t = clamp(value, 0, 255) / 255;
+        const curved = t * t * (3 - 2 * t);
+        return (t * 0.55 + curved * 0.45) * 255;
+      };
+      r = lift(r);
+      g = lift(g);
+      b = lift(b);
+
+      // 6. Sky bloom: a warm gradient from the top and a low sun off to the right.
       const down = y / height;
       const sunDistance = Math.hypot(x / width - 0.74, down - 0.14);
       const sun = Math.max(0, 1 - sunDistance * 2.2) ** 2 * light;
       const sky = Math.max(0, 1 - down * 2.6);
-      const warm = (sky * 0.3 + sun * 0.55) * light;
-      r += 92 * warm;
-      g += 54 * warm;
-      b += 12 * warm;
+      const warm = (sky * 0.26 + sun * 0.5) * light;
+      r += 88 * warm;
+      g += 52 * warm;
+      b += 14 * warm;
       if (sun > 0.02) {
-        // screen the sun in, so highlights glow instead of clipping to white
         r = 255 - ((255 - r) * (255 - 236 * sun)) / 255;
         g = 255 - ((255 - g) * (255 - 176 * sun)) / 255;
         b = 255 - ((255 - b) * (255 - 108 * sun)) / 255;
       }
 
-      // 4. Ink over the lines.
+      // 7. Ink, multiplied in rather than laid flat on top, so the lines take the colour beneath them.
       if (edges[i] > 0) {
-        const weight = ink * 0.72;
-        r += (20 - r) * weight;
-        g += (14 - g) * weight;
-        b += (32 - b) * weight;
+        const weight = ink * 0.8;
+        r *= 1 - weight * (1 - 20 / 255);
+        g *= 1 - weight * (1 - 14 / 255);
+        b *= 1 - weight * (1 - 34 / 255);
       }
 
-      // 5. Finish: vignette, then grain, then a touch of print misregistration.
+      // 8. Paper: two octaves of value noise over the whole frame, the brush the paint came off.
+      if (paper > 0) {
+        const coarse = valueNoise(x, y, 17, seed);
+        const fine = valueNoise(x, y, 4, seed + 7);
+        const texture = (coarse * 0.7 + fine * 0.3) * 12 * paper;
+        r += texture;
+        g += texture;
+        b += texture;
+      }
+
+      // 9. Finish: vignette, grain, and a touch of print misregistration.
       const centred = Math.hypot(x / width - 0.5, y / height - 0.5) * 1.42;
-      const vignette = 1 - finish * 0.42 * Math.max(0, centred - 0.45);
+      const vignette = 1 - finish * 0.4 * Math.max(0, centred - 0.45);
       r *= vignette;
       g *= vignette;
       b *= vignette;
 
-      const grain = hashNoise(x, y, seed) * 9 * finish;
+      const grain = hashNoise(x, y, seed) * 8 * finish;
       r += grain;
       g += grain;
       b += grain * 1.15;
@@ -338,7 +513,7 @@ export function styliseImageData(source: Uint8ClampedArray, width: number, heigh
         const shift = Math.max(1, Math.round(scale / 900));
         const px = Math.min(width - 1, x + shift);
         const other = (y * width + px) * 4;
-        const bleed = 0.09 * finish;
+        const bleed = 0.08 * finish;
         r = r * (1 - bleed) + source[other] * bleed;
         b = b * (1 - bleed) + source[other + 2] * bleed;
       }
@@ -381,3 +556,27 @@ export function styliseImage(
   ctx.putImageData(pressed, 0, 0);
   return canvas;
 }
+
+/** Named presets, so the intake can offer a look instead of a wall of numbers. */
+export const LOOKS: Record<string, { label: string; blurb: string; options: StyliseOptions }> = {
+  dusk: {
+    label: "Dusk",
+    blurb: "violet shadows, gold light — the city at seven",
+    options: { tone: 0.5, light: 0.32, palette: 0.5, colours: 9 },
+  },
+  neon: {
+    label: "Neon",
+    blurb: "harder lines, pink in the wet",
+    options: { tone: 0.62, light: 0.2, palette: 0.62, colours: 7, ink: 0.68 },
+  },
+  golden: {
+    label: "Golden hour",
+    blurb: "the sun is low and everything is warm",
+    options: { tone: 0.38, light: 0.55, palette: 0.42, colours: 11 },
+  },
+  night: {
+    label: "Night",
+    blurb: "deep and cool, cyan over the water",
+    options: { tone: 0.55, light: 0.12, palette: 0.55, colours: 8, finish: 0.65 },
+  },
+};

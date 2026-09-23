@@ -151,6 +151,75 @@ body {
   background: radial-gradient(125% 85% at 50% -10%, transparent 42%, rgba(0, 0, 0, 0.55) 100%);
 }
 
+/* The sky moves. Three layers, all decoration, all disabled under prefers-reduced-motion: a slow
+   aurora drift, cloud bands crossing at a different rate, and the sun's glow breathing. Nothing here
+   carries meaning — remove it and the page still reads correctly. */
+.sky {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sky-aurora {
+  position: absolute;
+  inset: -20% -10%;
+  background:
+    radial-gradient(60% 45% at 18% 22%, rgba(255, 122, 61, 0.5), transparent 70%),
+    radial-gradient(55% 40% at 78% 12%, rgba(226, 58, 104, 0.42), transparent 72%),
+    radial-gradient(70% 55% at 60% 78%, rgba(62, 30, 86, 0.55), transparent 75%);
+  filter: blur(28px);
+  animation: sky-drift 46s ease-in-out infinite alternate;
+}
+
+.sky-clouds {
+  position: absolute;
+  inset: -30% -60%;
+  background:
+    repeating-linear-gradient(
+      104deg,
+      rgba(255, 255, 255, 0.045) 0 3%,
+      transparent 3% 11%,
+      rgba(255, 214, 150, 0.035) 11% 14%,
+      transparent 14% 24%
+    );
+  animation: sky-cross 90s linear infinite;
+}
+
+.sky-sun {
+  position: absolute;
+  right: 8%;
+  top: -14%;
+  width: 46%;
+  aspect-ratio: 1;
+  background: radial-gradient(circle, rgba(255, 214, 132, 0.5), rgba(255, 138, 76, 0.22) 42%, transparent 68%);
+  filter: blur(18px);
+  animation: sky-breathe 13s ease-in-out infinite;
+}
+
+@keyframes sky-drift {
+  from { transform: translate3d(-2%, 0, 0) scale(1.02); }
+  to   { transform: translate3d(3%, 1.5%, 0) scale(1.08); }
+}
+
+@keyframes sky-cross {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-33%, 0, 0); }
+}
+
+@keyframes sky-breathe {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sky-aurora,
+  .sky-clouds,
+  .sky-sun {
+    animation: none;
+  }
+}
+
 /* The kicker: deco caps, wide tracking — the small label above a heading. */
 .kicker {
   font-family: var(--font-kicker);

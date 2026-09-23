@@ -5,7 +5,8 @@ import { Launch } from "./components/Launch";
 import { PlateGate, type PrintChoice } from "./components/PlateGate";
 import { PrintDesk } from "./components/PrintDesk";
 import { loadImage } from "./world/compose";
-import { styliseImage } from "./look/stylise";
+import { LOOKS, styliseImage } from "./look/stylise";
+import { BeforeAfter } from "./components/BeforeAfter";
 import type { PlateSource } from "./lib/plates/plates";
 import { deskRoot, printChoices } from "./lib/printdesk/client";
 
@@ -51,6 +52,10 @@ export function App() {
   const [plate, setPlate] = useState<PlateSource | null>(null);
   const [meta, setMeta] = useState<{ register: string; location: string | null; seed: number } | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  /** The visitor's own photo, kept only so the plate can be shown against it. */
+  const [source, setSource] = useState<string | null>(null);
+  /** Which of the city's looks the browser press prints with. */
+  const [look, setLook] = useState("dusk");
   const reduce = useReducedMotion();
 
   const onSaved = useCallback((dataUrl: string) => {
@@ -74,22 +79,23 @@ export function App() {
    * becomes flat paint with ink over it in a second or two on a phone, which is what makes the
    * platform work for everyone — the desk (a real diffusion model on a GPU) stays as the upgrade.
    */
-  const pressLocally = useCallback(async (file: File) => {
+  const pressLocally = useCallback(async (file: File, look: string) => {
     const url = URL.createObjectURL(file);
     try {
       const image = await loadImage(url);
-      // Seeded from the file itself, so the same photo always prints the same way — but two photos
-      // do not come back with identical grain.
-      const canvas = styliseImage(image, { seed: 1 + (file.size % 997) });
+      // The preset the visitor picked, seeded from the file itself: the same photo always prints the
+      // same way, but two photos do not come back with identical grain.
+      const preset = LOOKS[look]?.options ?? LOOKS.dusk.options;
+      const canvas = styliseImage(image, { ...preset, seed: 1 + (file.size % 997) });
       setPlate({ kind: "photo", objectUrl: canvas.toDataURL("image/jpeg", 0.92), name: file.name });
+      setSource(url); // kept for the before/after comparison; revoked on reset
       setMeta(null);
       setStage("editing");
     } catch {
+      URL.revokeObjectURL(url);
       // A file this browser cannot decode still takes the old path, which reports the problem.
       setPendingPhoto(file);
       setStage("printing");
-    } finally {
-      URL.revokeObjectURL(url);
     }
   }, []);
 
@@ -107,8 +113,9 @@ export function App() {
     setSaved(null);
     setMeta(null);
     setStage("gate");
-  }, []);
-
+    if (source) URL.revokeObjectURL(source);
+    setSource(null);
+  }, [source]);
   // ?demo=launch — the tour without the model. The deployed build has no GPU, so a visitor (or a
   // judge) who cannot run the desk still gets to see the payoff: the city's own plate, launched into
   // the city. Same components, same exporter; only the artwork's provenance changes.
@@ -154,6 +161,11 @@ export function App() {
           className="rule relative mt-8 overflow-hidden border"
         >
           <div className="city-art" style={{ backgroundImage: `url(${CITY_ART.boulevard})` }} aria-hidden="true" />
+          <div className="sky" aria-hidden="true">
+            <div className="sky-aurora" />
+            <div className="sky-clouds" />
+            <div className="sky-sun" />
+          </div>
           <div className="city-scrim" aria-hidden="true" />
           <div className="relative px-10 py-20">
             <p className="kicker">The city prints you</p>
@@ -196,6 +208,38 @@ export function App() {
             transition={{ duration: 0.6, ease: EASE }}
             className="mt-10"
           >
+            <div className="panel rule mb-6 border p-6">
+              <div className="flex flex-wrap items-baseline justify-between gap-4">
+                <div>
+                  <span className="kicker">The look</span>
+                  <p className="mt-2 text-sm text-[color:var(--color-muted)]">
+                    {LOOKS[look]?.blurb ?? ""}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2" role="group" aria-label="The look">
+                  {Object.entries(LOOKS).map(([id, preset]) => {
+                    const active = id === look;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        data-testid={`look-${id}`}
+                        aria-pressed={active}
+                        onClick={() => setLook(id)}
+                        className="lift rule border px-4 py-2 text-xs tracking-[0.2em] uppercase"
+                        style={{
+                          color: active ? "var(--color-ink)" : "var(--color-muted)",
+                          background: active ? "var(--color-gold)" : "transparent",
+                          borderColor: active ? "var(--color-gold)" : undefined,
+                        }}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
             <PlateGate
               onPhoto={(file, picked) => {
                 setChoice(picked);
@@ -205,7 +249,7 @@ export function App() {
                   setStage("printing");
                   return;
                 }
-                void pressLocally(file);
+                void pressLocally(file, (picked as { look?: string }).look ?? look);
               }}
             />
           </motion.div>
@@ -243,6 +287,7 @@ export function App() {
               {meta?.location ? <span> Printed at the {meta.location}.</span> : null}
               {plate?.kind === "plate" ? <span> (Using a cast plate.)</span> : null}
             </p>
+            {source && image ? <BeforeAfter before={source} after={image} /> : null}
             <EditorSurface surfaceId={plan.surfaceId} image={image} gating={plan.gating} onSaved={onSaved} />
           </motion.section>
         ) : null}
