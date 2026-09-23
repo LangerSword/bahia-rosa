@@ -5,7 +5,10 @@ import { Launch } from "./components/Launch";
 import { PlateGate, type PrintChoice } from "./components/PlateGate";
 import { PrintDesk } from "./components/PrintDesk";
 import { loadImage } from "./world/compose";
-import { LOOKS, styliseImage } from "./look/stylise";
+import { LOOKS } from "./look/stylise";
+import { portraitFromImage, type PortraitResult } from "./look/portrait";
+import { BACKDROPS, type BackdropId } from "./look/backdrops";
+import { CityBackdrop } from "./components/CityBackdrop";
 import { BeforeAfter } from "./components/BeforeAfter";
 import type { PlateSource } from "./lib/plates/plates";
 import { deskRoot, printChoices } from "./lib/printdesk/client";
@@ -31,7 +34,7 @@ const PLANS: Record<string, { surfaceId: string; title: string; brief: string; g
   poster: { surfaceId: "poster", title: "the VIP poster", brief: "sell the room; you are the night's draw", gating: POSTER_GATING },
 };
 
-type Stage = "gate" | "printing" | "editing" | "launch";
+type Stage = "gate" | "converting" | "printing" | "editing" | "launch";
 
 const { locations } = printChoices();
 
@@ -54,8 +57,14 @@ export function App() {
   const [saved, setSaved] = useState<string | null>(null);
   /** The visitor's own photo, kept only so the plate can be shown against it. */
   const [source, setSource] = useState<string | null>(null);
-  /** Which of the city's looks the browser press prints with. */
+  /** Which of the city's looks the press prints with. */
   const [look, setLook] = useState("dusk");
+  /** Where the frame is set: the sky, the skyline, the water. */
+  const [backdrop, setBackdrop] = useState<BackdropId>("dusk");
+  /** The stages the press has actually reached, so the progress line is never a lie. */
+  const [stages, setStages] = useState<string[]>([]);
+  /** What the cut found, reported honestly under the frame. */
+  const [cut, setCut] = useState<Pick<PortraitResult, "cutOut" | "share" | "backdrop"> | null>(null);
   const reduce = useReducedMotion();
 
   const onSaved = useCallback((dataUrl: string) => {
@@ -63,6 +72,10 @@ export function App() {
     setStage("launch");
   }, []);
   const image = plate ? (plate.kind === "photo" ? plate.objectUrl : plate.src) : null;
+  /** The download's own filename: from the photo's name where there is one, without any text burned in. */
+  const frameName = `late-edition-${
+    plate && "name" in plate && plate.name ? String(plate.name).replace(/\.[^.]+$/, "") : "frame"
+  }.png`;
   const plan = PLANS[choice.surface] ?? PLANS.debut;
 
   const printed = useCallback(
@@ -79,25 +92,34 @@ export function App() {
    * becomes flat paint with ink over it in a second or two on a phone, which is what makes the
    * platform work for everyone — the desk (a real diffusion model on a GPU) stays as the upgrade.
    */
-  const pressLocally = useCallback(async (file: File, look: string) => {
-    const url = URL.createObjectURL(file);
-    try {
-      const image = await loadImage(url);
-      // The preset the visitor picked, seeded from the file itself: the same photo always prints the
-      // same way, but two photos do not come back with identical grain.
-      const preset = LOOKS[look]?.options ?? LOOKS.dusk.options;
-      const canvas = styliseImage(image, { ...preset, seed: 1 + (file.size % 997) });
-      setPlate({ kind: "photo", objectUrl: canvas.toDataURL("image/jpeg", 0.92), name: file.name });
-      setSource(url); // kept for the before/after comparison; revoked on reset
-      setMeta(null);
-      setStage("editing");
-    } catch {
-      URL.revokeObjectURL(url);
-      // A file this browser cannot decode still takes the old path, which reports the problem.
-      setPendingPhoto(file);
-      setStage("printing");
-    }
-  }, []);
+  const press = useCallback(
+    async (file: File) => {
+      setStages([]);
+      setStage("converting");
+      const url = URL.createObjectURL(file);
+      try {
+        const image = await loadImage(url);
+        const preset = LOOKS[look]?.options ?? LOOKS.dusk.options;
+        const result = await portraitFromImage(image, {
+          ...preset,
+          backdrop,
+          seed: 1 + (file.size % 997),
+          onStage: (label) => setStages((seen) => (seen.includes(label) ? seen : [...seen, label])),
+        });
+        setCut({ cutOut: result.cutOut, share: result.share, backdrop: result.backdrop });
+        setPlate({ kind: "photo", objectUrl: result.canvas.toDataURL("image/jpeg", 0.94), name: file.name });
+        setSource(url); // kept for the before/after comparison; revoked on reset
+        setMeta(null);
+        setStage("editing");
+      } catch {
+        URL.revokeObjectURL(url);
+        // A file this browser cannot decode still takes the desk path, which reports the problem.
+        setPendingPhoto(file);
+        setStage("printing");
+      }
+    },
+    [backdrop, look],
+  );
 
   const useFallback = useCallback(() => {
     // The payoff stage needs an artwork and the deployed build has no GPU: the city's own plate is
@@ -134,7 +156,7 @@ export function App() {
     }
   }, [useFallback]);
 
-  const stepIndex = stage === "gate" ? 0 : stage === "printing" || stage === "editing" ? 1 : 2;
+  const stepIndex = stage === "gate" ? 0 : stage === "converting" ? 0 : stage === "printing" || stage === "editing" ? 1 : 2;
   const steps = [
     { label: "The plate", hint: "bring a photo" },
     { label: "The editor", hint: "make it yours" },
@@ -190,12 +212,7 @@ export function App() {
           data-testid="hero"
           className="rule relative mt-8 overflow-hidden border"
         >
-          <div className="city-art" style={{ backgroundImage: `url(${CITY_ART.boulevard})` }} aria-hidden="true" />
-          <div className="sky" aria-hidden="true">
-            <div className="sky-aurora" />
-            <div className="sky-clouds" />
-            <div className="sky-sun" />
-          </div>
+          <CityBackdrop id={backdrop} className="absolute inset-0 h-full w-full" />
           <div className="city-scrim" aria-hidden="true" />
           <div className="relative px-10 py-20">
             <p className="kicker">The city prints you</p>
@@ -296,6 +313,36 @@ export function App() {
                 </div>
               </div>
             </div>
+            <div className="panel rule mb-6 border p-6">
+              <div className="flex flex-wrap items-baseline justify-between gap-4">
+                <div>
+                  <span className="kicker">The city</span>
+                  <p className="mt-2 text-sm text-[color:var(--color-muted)]">{BACKDROPS[backdrop].blurb}</p>
+                </div>
+                <div className="flex flex-wrap gap-2" role="group" aria-label="The city">
+                  {(Object.keys(BACKDROPS) as BackdropId[]).map((id) => {
+                    const active = id === backdrop;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        data-testid={`backdrop-${id}`}
+                        aria-pressed={active}
+                        onClick={() => setBackdrop(id)}
+                        className="lift rule border px-4 py-2 text-xs tracking-[0.2em] uppercase"
+                        style={{
+                          color: active ? "var(--color-ink)" : "var(--color-muted)",
+                          background: active ? "var(--color-gold)" : "transparent",
+                          borderColor: active ? "var(--color-gold)" : undefined,
+                        }}
+                      >
+                        {BACKDROPS[id].label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
             <PlateGate
               onPhoto={(file, picked) => {
                 setChoice(picked);
@@ -305,10 +352,45 @@ export function App() {
                   setStage("printing");
                   return;
                 }
-                void pressLocally(file, (picked as { look?: string }).look ?? look);
+                void press(file);
               }}
             />
           </motion.div>
+        ) : null}
+
+        {stage === "converting" ? (
+          <motion.section
+            initial={reduce ? undefined : "hidden"}
+            animate={reduce ? undefined : "shown"}
+            variants={reveal}
+            transition={{ duration: 0.5, ease: EASE }}
+            className="panel rule mt-10 border p-8"
+            data-testid="converting"
+          >
+            <p className="kicker">Step 1 · The press</p>
+            <h2 className="display mt-3 text-4xl">Printing you into the city</h2>
+            <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-[color:var(--color-muted)]">
+              Everything below happens inside this page. Your photo is not uploaded anywhere, and there
+              is no key or account in the path.
+            </p>
+            <ol className="mt-6 space-y-2" aria-live="polite">
+              {stages.map((label) => (
+                <li key={label} className="flex items-baseline gap-3 text-sm text-[color:var(--color-body)]">
+                  <span style={{ color: "var(--color-gold)" }}>✓</span>
+                  {label}
+                </li>
+              ))}
+            </ol>
+            <div className="rule mt-6 h-[3px] w-full overflow-hidden border" aria-hidden="true">
+              <motion.div
+                className="h-full"
+                style={{ background: "var(--color-gold)" }}
+                initial={{ width: "6%" }}
+                animate={{ width: `${Math.min(94, 18 + stages.length * 19)}%` }}
+                transition={{ duration: 0.45, ease: EASE }}
+              />
+            </div>
+          </motion.section>
         ) : null}
 
         {stage === "printing" && pendingPhoto ? (
@@ -344,6 +426,27 @@ export function App() {
               {plate?.kind === "plate" ? <span> (Using a cast plate.)</span> : null}
             </p>
             {source && image ? <BeforeAfter before={source} after={image} /> : null}
+            {image ? (
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <a
+                  href={image}
+                  download={frameName}
+                  data-testid="download-frame"
+                  className="lift border px-5 py-3 text-xs tracking-[0.2em] uppercase"
+                  style={{ background: "var(--color-gold)", color: "var(--color-ink)", borderColor: "var(--color-gold)" }}
+                >
+                  Download this frame
+                </a>
+                <span className="kicker" style={{ color: "var(--color-muted)" }}>
+                  clean PNG · no text, no watermark
+                </span>
+                {cut ? (
+                  <span className="kicker" style={{ color: "var(--color-muted)" }}>
+                    {cut.cutOut ? `you were cut out (${Math.round(cut.share * 100)}% of the frame)` : "whole frame painted"}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
             <EditorSurface surfaceId={plan.surfaceId} image={image} gating={plan.gating} onSaved={onSaved} />
           </motion.section>
         ) : null}

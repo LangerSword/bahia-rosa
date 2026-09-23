@@ -33,17 +33,18 @@ test("the shell renders the city's design language and stays clean", async ({ pa
   expect(errors).toEqual([]);
 });
 
-test("the intake says when no desk is on this host, and offers the way in", async ({ page }) => {
-  // The deployed build has no GPU and no desk. A visitor must learn that from the intake rather than
-  // from a failure after choosing a photo — and be handed the local route and the two demos.
+test("the intake explains what the press does, with nothing to install", async ({ page }) => {
+  // The press runs in the page now, so a visitor with no GPU must read what happens — and must not be
+  // told to install or run anything.
   await page.route("**/print-desk/system_stats", (route) => route.fulfill({ status: 404, body: "" }));
   await page.goto("/");
 
   const notice = page.getByTestId("desk-absent");
   await expect(notice).toBeVisible();
-  await expect(notice).toContainText("npm run desk");
-  await expect(page.getByTestId("demo-launch-from-gate")).toHaveAttribute("href", "?demo=launch");
-  // The dropzone stays: the app does print, just not here.
+  await expect(notice).toContainText("stays in this page");
+  await expect(notice).toContainText("nothing to install");
+  await expect(notice).not.toContainText("npm");
+  // The dropzone stays: the app does print, it just does it here.
   await expect(page.getByTestId("photo-input")).toBeAttached();
 });
 
@@ -54,6 +55,7 @@ test("reduced motion turns the reveals off", async ({ page }) => {
   // With reduced motion the hero has no transform applied by the reveal.
   const transform = await page.getByTestId("hero").evaluate((node) => getComputedStyle(node).transform);
   expect(["none", "matrix(1, 0, 0, 1, 0, 0)"]).toContain(transform);
-  // The city layer is decoration: it must be hidden from the accessibility tree.
-  await expect(page.locator(".city-art")).toHaveAttribute("aria-hidden", "true");
+  // The city layer is decoration: it must be hidden from the accessibility tree, and the hero must
+  // carry a live backdrop canvas rather than a flat field.
+  await expect(page.locator('[data-testid="hero"] canvas')).toHaveAttribute("aria-hidden", "true");
 });

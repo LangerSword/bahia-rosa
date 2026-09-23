@@ -94,34 +94,15 @@ export function PlateGate({ onPhoto }: PlateGateProps) {
           style={{ background: "var(--color-ink-3)" }}
         >
           <p className="kicker" style={{ color: "var(--color-gold)" }}>
-            No desk on this host
+            What happens when you press
           </p>
-          <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-[color:var(--color-body)]">
-            Printing needs a GPU, and a page on a static host has none — so this deployed build is the
-            editor and the launch, not the press. Run the desk where the GPU is:
-          </p>
-          <pre className="rule mt-3 overflow-x-auto border bg-[color:var(--color-ink)] px-4 py-3 text-xs text-[color:var(--color-body)]">
-            <code>npm run desk   # then open http://localhost:5178</code>
-          </pre>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <a
-              href="?demo=launch"
-              data-testid="demo-launch-from-gate"
-              className="lift rule border px-4 py-2 text-xs tracking-[0.2em] text-[color:var(--color-muted)] uppercase hover:text-[color:var(--color-gold)]"
-            >
-              See the payoff stage
-            </a>
-            <a
-              href="?demo=editor"
-              className="lift rule border px-4 py-2 text-xs tracking-[0.2em] text-[color:var(--color-muted)] uppercase hover:text-[color:var(--color-gold)]"
-            >
-              Open the editor
-            </a>
-          </div>
-          <p className="mt-4 max-w-[62ch] text-xs leading-relaxed text-[color:var(--color-muted)]">
-            A desk can also live somewhere else: open this page with{" "}
-            <code className="text-[color:var(--color-body)]">?desk=https://your-desk.example</code> and
-            the whole print runs there instead. The address is remembered.
+          <ol className="mt-3 max-w-[62ch] space-y-2 text-sm leading-relaxed text-[color:var(--color-body)]">
+            <li>1 — your photo is read in this page, and stays in this page</li>
+            <li>2 — the person in it is found, painted in the city&rsquo;s light, and placed in front of the sky you picked</li>
+            <li>3 — you get a clean frame, editable here and downloadable with no text on it</li>
+          </ol>
+          <p className="mt-4 text-xs leading-relaxed text-[color:var(--color-muted)]">
+            No account, no key, no upload, and nothing to install.
           </p>
         </div>
       ) : null}
