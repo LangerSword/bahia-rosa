@@ -51,7 +51,7 @@ test("the deployed build serves the launch stage", async ({ page }) => {
   await expect(page.getByTestId("photo-input")).toBeAttached();
   await expect(page.getByTestId("choose-style")).toBeVisible();
   await expect(page.getByTestId("desk-absent")).toBeVisible();
-  await expect(page.getByTestId("desk-absent")).toContainText("npm run desk");
+  await expect(page.getByTestId("desk-absent")).toContainText("nothing to install");
 
   // The city layer has to be on the deployed page too — a missing plate here is the difference
   // between a designed page and type on a flat field.
