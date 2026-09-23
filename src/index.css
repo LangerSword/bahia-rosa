@@ -220,6 +220,145 @@ body {
   }
 }
 
+/* The masthead: the paper's name, and where you are in the run. */
+.masthead {
+  background:
+    linear-gradient(180deg, rgba(7, 7, 10, 0.94), rgba(7, 7, 10, 0.86)),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='m'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23m)' opacity='0.35'/></svg>");
+}
+
+.steprail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0;
+}
+
+@media (max-width: 640px) {
+  .step {
+    padding: 0.3rem 0.6rem;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+  }
+}
+
+.step {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.35rem 0.9rem;
+  font-family: var(--font-kicker);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+  border-left: 1px solid var(--color-rule);
+  white-space: nowrap;
+}
+
+.step:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.step[data-state="done"] {
+  color: var(--color-muted);
+}
+
+.step[data-state="now"] {
+  color: var(--color-gold);
+}
+
+.step[data-state="now"] .step-num {
+  background: var(--color-gold);
+  color: var(--color-ink);
+}
+
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid currentColor;
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+/* The lead paragraph under a masthead — wider measure, larger type than body. */
+.deck {
+  font-size: 1.125rem;
+  line-height: 1.65;
+  color: var(--color-body);
+  max-width: 60ch;
+}
+
+.deck strong {
+  color: var(--color-paper);
+  font-weight: 500;
+}
+
+/* A row of figures: the surfaces this product produces. */
+.stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 2.5rem;
+}
+
+.stat {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-rule);
+  min-width: 8rem;
+}
+
+.stat-value {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--color-paper);
+}
+
+.stat-label {
+  margin-top: 0.35rem;
+  font-family: var(--font-kicker);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+/* Keyboard first: a gold ring on anything focused by keyboard, never on a mouse click. */
+:where(a, button, input, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 60;
+}
+
+.skip:focus {
+  left: 1rem;
+  top: 1rem;
+  padding: 0.6rem 1rem;
+  background: var(--color-gold);
+  color: var(--color-ink);
+  font-family: var(--font-kicker);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+/* The masthead rule: a double hairline, the way a newspaper separates its nameplate. */
+.nameplate-rule {
+  border-top: 1px solid var(--color-rule);
+  border-bottom: 1px solid var(--color-rule);
+  height: 3px;
+}
+
 /* The kicker: deco caps, wide tracking — the small label above a heading. */
 .kicker {
   font-family: var(--font-kicker);

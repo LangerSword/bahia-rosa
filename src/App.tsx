@@ -134,20 +134,50 @@ export function App() {
     }
   }, [useFallback]);
 
+  const stepIndex = stage === "gate" ? 0 : stage === "printing" || stage === "editing" ? 1 : 2;
+  const steps = [
+    { label: "The plate", hint: "bring a photo" },
+    { label: "The editor", hint: "make it yours" },
+    { label: "The city", hint: "run it" },
+  ];
+
   return (
     <div className="grain vignette min-h-screen">
-      <header className="rule sticky top-0 z-20 border-b bg-[color:var(--color-ink)]/85 backdrop-blur">
-        <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-6 px-8 py-4">
-          <div className="flex items-baseline gap-4">
-            <span className="wordmark text-3xl leading-none">Late Edition</span>
-            <span className="kicker hidden sm:inline">Bahía Rosa · La Gaviota</span>
+      <a href="#intake" className="skip">
+        Skip to the press
+      </a>
+
+      <header className="masthead rule sticky top-0 z-20 border-b">
+        <div className="mx-auto max-w-[1280px] px-8">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 py-4">
+            <div className="flex items-baseline gap-4">
+              <span className="wordmark text-3xl leading-none">Late Edition</span>
+              <span className="kicker hidden sm:inline">Bahía Rosa · La Gaviota</span>
+            </div>
+            <div className="flex items-center gap-6">
+              <span className="kicker hidden md:inline">{locations.length} places</span>
+              <span className="kicker" style={{ color: "var(--color-gold)" }}>
+                {deskRoot() ? "printing at the desk" : "printing in your browser"}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-6">
-            <span className="kicker hidden md:inline">{locations.length} places</span>
-            <span className="kicker" style={{ color: "var(--color-gold)" }}>
-              local desk
-            </span>
-          </div>
+          <div className="nameplate-rule" aria-hidden="true" />
+          <nav className="steprail py-3" aria-label="The run">
+            {steps.map((step, index) => (
+              <span
+                key={step.label}
+                className="step"
+                data-state={index === stepIndex ? "now" : index < stepIndex ? "done" : "todo"}
+                aria-current={index === stepIndex ? "step" : undefined}
+              >
+                <span className="step-num">{index + 1}</span>
+                {step.label}
+                <span className="hidden lg:inline" style={{ color: "var(--color-faint)", letterSpacing: "0.12em" }}>
+                  {step.hint}
+                </span>
+              </span>
+            ))}
+          </nav>
         </div>
       </header>
 
@@ -170,20 +200,44 @@ export function App() {
           <div className="relative px-10 py-20">
             <p className="kicker">The city prints you</p>
             <h1 className="display mt-5 text-6xl sm:text-7xl">Late Edition</h1>
-            <p className="mt-6 max-w-[52ch] text-base leading-relaxed text-[color:var(--color-body)]">
-              Bring one photo. The desk — a model running on this machine, no account and no key —
-              restyles you in the city&rsquo;s own light, at a place you choose. Then the editor turns
-              that plate into tonight&rsquo;s poster, and the city runs it:{" "}
-              <span className="text-[color:var(--color-paper)]">
-                the billboard, the venue display, the feed, the postcard home
-              </span>
-              .
+            <p className="deck mt-7">
+              Bring one photo. It becomes a painted frame in the city&rsquo;s own light — flat colour,
+              ink over the lines, violet in the shadows and gold where the sun lands — then the editor
+              turns it into tonight&rsquo;s poster and{" "}
+              <strong>the city runs it: the billboard, the venue display, the feed, the postcard home</strong>.
             </p>
-            <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-3">
-              {["character shot", "loading screen", "front page", "poster", "billboard", "venue display", "postcard"].map((item) => (
-                <span key={item} className="kicker" style={{ color: "var(--color-paper)" }}>
-                  {item}
-                </span>
+
+            <div className="mt-9 flex flex-wrap items-center gap-3">
+              <a
+                href="#intake"
+                data-testid="hero-cta"
+                className="lift border px-6 py-3 text-xs tracking-[0.2em] uppercase"
+                style={{ background: "var(--color-gold)", color: "var(--color-ink)", borderColor: "var(--color-gold)" }}
+              >
+                Bring a photo
+              </a>
+              <a
+                href="?demo=launch"
+                className="lift rule border px-6 py-3 text-xs tracking-[0.2em] text-[color:var(--color-paper)] uppercase"
+              >
+                See the payoff first
+              </a>
+              <span className="kicker" style={{ color: "var(--color-muted)" }}>
+                no account · no upload · nothing leaves the page
+              </span>
+            </div>
+
+            <div className="stat-row mt-12">
+              {[
+                { value: "1.3s", label: "a plate, in the browser" },
+                { value: "4", label: "surfaces it lands on" },
+                { value: "0", label: "keys, accounts, uploads" },
+                { value: String(locations.length), label: "places in the city" },
+              ].map((stat) => (
+                <div key={stat.label} className="stat">
+                  <div className="stat-value">{stat.value}</div>
+                  <div className="stat-label">{stat.label}</div>
+                </div>
               ))}
             </div>
           </div>
@@ -206,6 +260,8 @@ export function App() {
             viewport={{ once: true, margin: "-80px" }}
             variants={reveal}
             transition={{ duration: 0.6, ease: EASE }}
+            id="intake"
+            style={{ scrollMarginTop: "7.5rem" }}
             className="mt-10"
           >
             <div className="panel rule mb-6 border p-6">
