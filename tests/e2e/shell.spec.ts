@@ -55,7 +55,8 @@ test("reduced motion turns the reveals off", async ({ page }) => {
   // With reduced motion the hero has no transform applied by the reveal.
   const transform = await page.getByTestId("hero").evaluate((node) => getComputedStyle(node).transform);
   expect(["none", "matrix(1, 0, 0, 1, 0, 0)"]).toContain(transform);
-  // The city layer is decoration: it must be hidden from the accessibility tree, and the hero must
-  // carry a live backdrop canvas rather than a flat field.
-  await expect(page.locator('[data-testid="hero"] canvas')).toHaveAttribute("aria-hidden", "true");
+  // The place is decoration in the shell: the hero must carry the chosen scene as an image, marked
+  // decorative, and the picker must offer the scenes rather than a row of buttons.
+  await expect(page.locator('[data-testid="hero"] img')).toHaveAttribute("aria-hidden", "true");
+  await expect(page.getByTestId("scene-beach")).toBeVisible();
 });

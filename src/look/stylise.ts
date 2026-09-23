@@ -46,6 +46,8 @@ export interface StyliseOptions {
   paper?: number;
   /** Edge-preserving smoothing strength, 0..1. */
   smooth?: number;
+  /** How hard to normalise exposure before painting, 0..1. 1 lifts a night photo, 0 leaves it dark. */
+  exposure?: number;
   /** Changes the grain and the lattice jitter, so the same photo can be printed differently. */
   seed?: number;
 }
@@ -59,6 +61,7 @@ const DEFAULTS: Required<StyliseOptions> = {
   tone: 0.45,
   paper: 0.35,
   smooth: 0.55,
+  exposure: 0.75,
   seed: 1,
 };
 
@@ -98,6 +101,49 @@ function toGray(rgba: Uint8ClampedArray, width: number, height: number): Float32
     gray[i] = 0.2126 * rgba[p] + 0.7152 * rgba[p + 1] + 0.0722 * rgba[p + 2];
   }
   return gray;
+}
+
+/**
+ * Exposure normalisation, then an S-curve.
+ *
+ * A photograph taken at night keeps its whole picture between 10 and 70; quantised and pulled toward
+ * a daytime palette, that becomes mud. The percentiles are used rather than min/max so that one blown
+ * highlight or one black corner cannot set the range.
+ */
+export function exposureAndCurve(
+  source: Uint8ClampedArray,
+  _width: number,
+  _height: number,
+  strength = 0.75,
+): (value: number) => number {
+  const histogram = new Uint32Array(256);
+  for (let p = 0; p < source.length; p += 4) {
+    histogram[Math.round(0.2126 * source[p] + 0.7152 * source[p + 1] + 0.0722 * source[p + 2])] += 1;
+  }
+  const pixels = source.length / 4;
+  const quantile = (fraction: number): number => {
+    const target = pixels * fraction;
+    let seen = 0;
+    for (let bin = 0; bin < 256; bin += 1) {
+      seen += histogram[bin];
+      if (seen >= target) return bin;
+    }
+    return 255;
+  };
+  const black = quantile(0.02);
+  const white = quantile(0.99);
+  const span = Math.max(24, white - black);
+  const norm = 255 / span;
+
+  return (value: number): number => {
+    // strength 0 is an identity: the normalisation is blended in, not applied and then dimmed, so a
+    // caller who asks for no exposure correction gets exactly none.
+    const lifted =
+      strength <= 0 ? value : clamp(value + ((value - black) * norm - value) * strength, 0, 255);
+    const t = lifted / 255;
+    const curved = t * t * (3 - 2 * t);
+    return (t * 0.55 + curved * 0.45) * 255;
+  };
 }
 
 /**
@@ -389,10 +435,16 @@ export function flattenRegions(labels: Uint16Array, smooth: Float32Array, width:
  * The whole look, over one ImageData-shaped buffer. Pure: it reads the input and writes a new buffer.
  */
 export function styliseImageData(source: Uint8ClampedArray, width: number, height: number, options: StyliseOptions = {}): Uint8ClampedArray {
-  const { colours, palette, ink, finish, light, tone, paper, smooth: smoothStrength, seed } = { ...DEFAULTS, ...options };
+  const { colours, palette, ink, finish, light, tone, paper, smooth: smoothStrength, exposure, seed } = {
+    ...DEFAULTS,
+    ...options,
+  };
   const out = new Uint8ClampedArray(source.length);
   const gray = toGray(source, width, height);
   const scale = Math.max(width, height);
+  // Exposure first, on the photograph, before anything else looks at it: segmentation, quantisation
+  // and the ink all behave badly on a frame that is all in the bottom fifth of the range.
+  const curve = exposureAndCurve(source, width, height, exposure);
 
   // 1. Edge-preserving smoothing. The ink comes from the original luminance: an edge found in an
   //    already-smoothed frame is too late to be crisp.
@@ -454,15 +506,11 @@ export function styliseImageData(source: Uint8ClampedArray, width: number, heigh
       g += -4 * shadowWeight + 30 * highlight;
       b += 34 * shadowWeight + 8 * highlight;
 
-      // 5. An S-curve, because flat paint still needs punch.
-      const lift = (value: number): number => {
-        const t = clamp(value, 0, 255) / 255;
-        const curved = t * t * (3 - 2 * t);
-        return (t * 0.55 + curved * 0.45) * 255;
-      };
-      r = lift(r);
-      g = lift(g);
-      b = lift(b);
+      // 5. Exposure and an S-curve, because flat paint still needs punch — and because a photograph
+      //    taken at night has to come up into the light before it can be painted at all.
+      r = curve(r);
+      g = curve(g);
+      b = curve(b);
 
       // 6. Sky bloom: a warm gradient from the top and a low sun off to the right.
       const down = y / height;

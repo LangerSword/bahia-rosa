@@ -53,22 +53,24 @@ test("the deployed build serves the launch stage", async ({ page }) => {
   await expect(page.getByTestId("desk-absent")).toBeVisible();
   await expect(page.getByTestId("desk-absent")).toContainText("nothing to install");
 
-  // The city layer has to be on the deployed page too — a missing backdrop here is the difference
-  // between a designed page and type on a flat field. It is a live canvas now, not a static plate.
-  const hero = await page.evaluate(() => {
-    const canvas = document.querySelector('[data-testid="hero"] canvas') as HTMLCanvasElement | null;
-    if (!canvas) return { present: false } as const;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return { present: true, painted: false, sized: false } as const;
-    const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const seen = new Set<number>();
-    for (let i = 0; i < data.length; i += 4 * 211) seen.add((data[i] << 16) | (data[i + 1] << 8) | data[i + 2]);
-    const box = canvas.getBoundingClientRect();
-    return { present: true, painted: seen.size > 30, sized: box.width > 200 && box.height > 100 } as const;
+  // The place has to be on the deployed page too — a missing scene plate here is the difference
+  // between a product that puts you somewhere and a recolor of a photograph.
+  const hero = await page.evaluate(async () => {
+    const img = document.querySelector('[data-testid="hero"] img') as HTMLImageElement | null;
+    if (!img) return { present: false } as const;
+    await img.decode().catch(() => undefined);
+    const box = img.getBoundingClientRect();
+    return {
+      present: true,
+      loaded: img.naturalWidth > 0,
+      size: `${img.naturalWidth}x${img.naturalHeight}`,
+      sized: box.width > 200 && box.height > 100,
+    } as const;
   });
-  expect(hero.present, "no city backdrop on the deployed hero").toBe(true);
-  expect(hero.painted, "the backdrop canvas is blank").toBe(true);
-  expect(hero.sized, "the backdrop canvas has no size").toBe(true);
+  expect(hero.present, "no scene plate on the deployed hero").toBe(true);
+  expect(hero.loaded, "the scene plate did not load").toBe(true);
+  expect(hero.size).toBe("1344x768");
+  expect(hero.sized, "the hero image has no size").toBe(true);
 
   expect(problems, `console errors: ${problems.join(" | ")}`).toEqual([]);
 });
