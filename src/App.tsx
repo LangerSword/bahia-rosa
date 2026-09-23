@@ -4,8 +4,10 @@ import { EditorSurface, type ToolGating } from "./components/EditorSurface";
 import { Launch } from "./components/Launch";
 import { PlateGate, type PrintChoice } from "./components/PlateGate";
 import { PrintDesk } from "./components/PrintDesk";
+import { loadImage } from "./world/compose";
+import { styliseImage } from "./look/stylise";
 import type { PlateSource } from "./lib/plates/plates";
-import { printChoices } from "./lib/printdesk/client";
+import { deskRoot, printChoices } from "./lib/printdesk/client";
 
 /**
  * FIRST EDITION — the city's media machine.
@@ -66,6 +68,30 @@ export function App() {
     },
     [],
   );
+
+  /**
+   * The default press: the city's look, in this browser, with no model and nothing uploaded. A photo
+   * becomes flat paint with ink over it in a second or two on a phone, which is what makes the
+   * platform work for everyone — the desk (a real diffusion model on a GPU) stays as the upgrade.
+   */
+  const pressLocally = useCallback(async (file: File) => {
+    const url = URL.createObjectURL(file);
+    try {
+      const image = await loadImage(url);
+      // Seeded from the file itself, so the same photo always prints the same way — but two photos
+      // do not come back with identical grain.
+      const canvas = styliseImage(image, { seed: 1 + (file.size % 997) });
+      setPlate({ kind: "photo", objectUrl: canvas.toDataURL("image/jpeg", 0.92), name: file.name });
+      setMeta(null);
+      setStage("editing");
+    } catch {
+      // A file this browser cannot decode still takes the old path, which reports the problem.
+      setPendingPhoto(file);
+      setStage("printing");
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }, []);
 
   const useFallback = useCallback(() => {
     // The payoff stage needs an artwork and the deployed build has no GPU: the city's own plate is
@@ -172,9 +198,14 @@ export function App() {
           >
             <PlateGate
               onPhoto={(file, picked) => {
-                setPendingPhoto(file);
                 setChoice(picked);
-                setStage("printing");
+                if (deskRoot()) {
+                  // This page was pointed at a desk on purpose (?desk=…), so print there, with the model.
+                  setPendingPhoto(file);
+                  setStage("printing");
+                  return;
+                }
+                void pressLocally(file);
               }}
             />
           </motion.div>

@@ -24,7 +24,9 @@ test.skip(!deskUp, "no print desk on this machine");
 test("intake choices reach the desk and the plate lands in the editor", async ({ page }) => {
   test.setTimeout(240_000);
 
-  await page.goto("/");
+  // The desk is opt-in now (the browser press is the default), so this suite asks for it explicitly:
+  // ?desk= this origin routes the same requests through the dev proxy to ComfyUI.
+  await page.goto("/?desk=http://localhost:5178");
   await page.getByTestId("choose-style").selectOption("loadingscreen");
   await page.getByTestId("choose-location").selectOption("marina");
 
