@@ -87,6 +87,11 @@ export interface Placement {
     scrim?: readonly [string, string];
     angle: number;
   };
+  /**
+   * `contain` by default, on purpose: a surface that hides part of someone's photograph should be
+   * their decision, not the template's. `cover` stays available per download, for anyone who wants
+   * the frame filled edge to edge.
+   */
   artwork: { x: number; y: number; w: number; h: number; fit: "cover" | "contain" };
   /** A plinth/bezel behind the artwork: the object the artwork is printed on. */
   bezel?: { x: number; y: number; w: number; h: number; color: string };
@@ -124,7 +129,7 @@ const billboard: Placement = {
   height: 600,
   ground: { kind: "image", src: city("boulevard"), scrim: ["rgba(10,10,10,0.35)", "rgba(10,10,10,0.9)"], angle: 189 },
   bezel: { x: 0, y: 0, w: 1600, h: 492, color: INK.ink },
-  artwork: { x: 30, y: 28, w: 1540, h: 436, fit: "cover" },
+  artwork: { x: 30, y: 28, w: 1540, h: 436, fit: "contain" },
   rules: [
     // The hoarding's own edge, then the amber rule that divides panel from caption.
     { x: 0, y: 492, w: 1600, h: 3, color: INK.amber },
@@ -148,7 +153,7 @@ const venue: Placement = {
   height: 1200,
   ground: { kind: "image", src: city("downtown"), scrim: ["rgba(12,10,16,0.45)", "rgba(10,10,10,0.92)"], angle: 189 },
   bezel: { x: 36, y: 36, w: 828, h: 972, color: INK.ink },
-  artwork: { x: 60, y: 60, w: 780, h: 924, fit: "cover" },
+  artwork: { x: 60, y: 60, w: 780, h: 924, fit: "contain" },
   rules: [
     { x: 36, y: 1032, w: 828, h: 1, color: INK.rule },
     { x: 36, y: 1168, w: 828, h: 1, color: INK.rule },
@@ -170,7 +175,7 @@ const feed: Placement = {
   width: 1080,
   height: 1350,
   ground: { kind: "image", src: city("marina"), scrim: ["rgba(10,10,10,0.25)", "rgba(10,10,10,0.9)"], angle: 189 },
-  artwork: { x: 0, y: 180, w: 1080, h: 900, fit: "cover" },
+  artwork: { x: 0, y: 180, w: 1080, h: 900, fit: "contain" },
   rules: [
     { x: 0, y: 180, w: 1080, h: 1, color: INK.rule },
     { x: 0, y: 1080, w: 1080, h: 1, color: INK.rule },
@@ -201,7 +206,7 @@ const postcard: Placement = {
   height: 1000,
   ground: { kind: "gradient", stops: [PALETTE.paper, "#ddd8cc"], angle: 189 },
   bezel: { x: 70, y: 70, w: 1360, h: 620, color: INK.ink },
-  artwork: { x: 88, y: 88, w: 1324, h: 584, fit: "cover" },
+  artwork: { x: 88, y: 88, w: 1324, h: 584, fit: "contain" },
   rules: [
     // The postal rule: a thick line with a hairline under it, the way a card divides its two halves.
     { x: 70, y: 730, w: 1360, h: 2, color: INK.ink },

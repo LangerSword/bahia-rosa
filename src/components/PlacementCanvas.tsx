@@ -15,10 +15,12 @@ export interface PlacementCanvasProps {
   placement: Placement;
   artworkUrl: string;
   copy: PlacementCopy;
+  /** The visitor's fit choice; falls back to the placement's own default. */
+  fit?: "cover" | "contain";
   className?: string;
 }
 
-export function PlacementCanvas({ placement, artworkUrl, copy, className }: PlacementCanvasProps) {
+export function PlacementCanvas({ placement, artworkUrl, copy, fit, className }: PlacementCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { city, handle, title, line } = copy;
 
@@ -54,7 +56,7 @@ export function PlacementCanvas({ placement, artworkUrl, copy, className }: Plac
       if (!ctx) return;
       const scale = (cssWidth / placement.width) * dpr;
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
-      drawPlacement(ctx, placement, artwork, { city, handle, title, line }, ground);
+      drawPlacement(ctx, placement, artwork, { city, handle, title, line }, ground, fit);
     };
 
     void paint().catch(() => undefined);
@@ -64,7 +66,7 @@ export function PlacementCanvas({ placement, artworkUrl, copy, className }: Plac
       cancelled = true;
       observer.disconnect();
     };
-  }, [placement, artworkUrl, city, handle, title, line]);
+  }, [placement, artworkUrl, city, handle, title, line, fit]);
 
   // Decorative: the composite is not interactive, and a canvas that swallows clicks would break the
   // button it sits inside. The aspect-ratio box is set up front so the layout never waits on the paint.

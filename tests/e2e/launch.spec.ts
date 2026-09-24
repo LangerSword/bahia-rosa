@@ -48,6 +48,13 @@ test("the launch stage draws every surface and exports the postcard at spec size
   expect(painted.width).toBeGreaterThan(300);
   expect(painted.colours, "the placement canvas is blank").toBeGreaterThan(40);
 
+  // The default is the whole photograph, not a crop — a surface that hides part of someone's picture
+  // should be their decision — and the choice is a real one.
+  await expect(page.getByTestId("fit-contain")).toHaveAttribute("aria-checked", "true");
+  await page.getByTestId("fit-cover").click();
+  await expect(page.getByTestId("fit-cover")).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("fit-contain")).toHaveAttribute("aria-checked", "false");
+
   // Switching surfaces redraws: the venue is portrait, the billboard is not.
   await page.getByTestId("place-venue").click();
   const venueBox = await page.locator('[data-testid="launch"] .plate-inset canvas').boundingBox();

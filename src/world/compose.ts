@@ -40,35 +40,47 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 /**
- * Cover crop: fill the rect, keep the aspect, and bias the overflow upward.
+ * Where the artwork goes on a surface.
  *
- * Centring the crop is what cuts a portrait photograph off at the chin when it is fitted into a wide
- * surface: the interesting part of a person is in the upper half of their frame. `BIAS_Y` keeps a
- * little more of the top than the bottom, on every surface, so all four outputs frame the subject
- * rather than the middle of the file.
+ * Pure geometry, so it is tested without a canvas — and the distinction it encodes is the one that
+ * matters to a person looking at their own photograph:
+ *
+ *   `contain`  the whole photograph fits inside the rect, nothing cropped. The leftover space is a
+ *              mount, and the caller draws it as one.
+ *   `cover`    the photograph fills the rect and overflows on one axis, biased upward (BIAS_Y) because
+ *              the interesting half of a person is the top half — the difference between a portrait
+ *              fitted into a wide surface and a portrait sliced at the chin.
  */
 const BIAS_Y = 0.4;
 
-function drawCover(
-  ctx: CanvasRenderingContext2D,
-  image: HTMLImageElement,
+export function fitRect(
+  image: { width: number; height: number },
   rect: { x: number; y: number; w: number; h: number },
-): void {
-  const scale = Math.max(rect.w / image.width, rect.h / image.height);
+  fit: "cover" | "contain",
+  biasY = BIAS_Y,
+): { x: number; y: number; w: number; h: number } {
+  const scale =
+    fit === "cover"
+      ? Math.max(rect.w / image.width, rect.h / image.height)
+      : Math.min(rect.w / image.width, rect.h / image.height);
   const w = image.width * scale;
   const h = image.height * scale;
-  ctx.drawImage(image, rect.x + (rect.w - w) / 2, rect.y + (rect.h - h) * BIAS_Y, w, h);
+  return {
+    x: rect.x + (rect.w - w) / 2,
+    y: rect.y + (rect.h - h) * (fit === "cover" ? biasY : 0.5),
+    w,
+    h,
+  };
 }
 
-function drawContain(
+function drawFitted(
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
   rect: { x: number; y: number; w: number; h: number },
+  fit: "cover" | "contain",
 ): void {
-  const scale = Math.min(rect.w / image.width, rect.h / image.height);
-  const w = image.width * scale;
-  const h = image.height * scale;
-  ctx.drawImage(image, rect.x + (rect.w - w) / 2, rect.y + (rect.h - h) / 2, w, h);
+  const placed = fitRect(image, rect, fit);
+  ctx.drawImage(image, placed.x, placed.y, placed.w, placed.h);
 }
 
 const groundCache = new Map<string, Promise<HTMLImageElement | null>>();
@@ -96,7 +108,10 @@ function gradient(
   const dy = Math.sin(angle) * h;
 
   if (ground) {
-    drawCover(ctx, ground, { x: 0, y: 0, w, h });
+    // The backdrop is scenery, so it is fitted centred — the upward bias belongs to a *subject*, and a
+    // skyline that keeps more of its top than its bottom is just a skyline that has been moved.
+    const placed = fitRect(ground, { x: 0, y: 0, w, h }, "cover", 0.5);
+    ctx.drawImage(ground, placed.x, placed.y, placed.w, placed.h);
     const scrim = ctx.createLinearGradient(0, 0, 0, h);
     const [top, bottom] = placement.ground.scrim ?? ["rgba(7,7,10,0.3)", "rgba(7,7,10,0.9)"];
     scrim.addColorStop(0, top);
@@ -152,8 +167,11 @@ export function drawPlacement(
   artwork: HTMLImageElement,
   copy: PlacementCopy,
   ground: HTMLImageElement | null = null,
+  /** Overrides the placement's own default — the visitor's choice, for this download. */
+  fitOverride?: "cover" | "contain",
 ): void {
   const { width, height } = placement;
+  const fit = fitOverride ?? placement.artwork.fit;
   gradient(ctx, placement, width, height, ground);
 
   if (placement.bezel) {
@@ -161,8 +179,23 @@ export function drawPlacement(
     ctx.fillRect(placement.bezel.x, placement.bezel.y, placement.bezel.w, placement.bezel.h);
   }
 
-  if (placement.artwork.fit === "cover") drawCover(ctx, artwork, placement.artwork);
-  else drawContain(ctx, artwork, placement.artwork);
+  if (fit === "contain") {
+    // A mount, so a photograph that does not fill the surface reads as *framed* rather than as a
+    // mistake. Without this the leftover space would show whatever is behind the artwork rect — the
+    // city plate on the feed, which has no bezel of its own.
+    ctx.fillStyle = PALETTE.ink;
+    ctx.fillRect(placement.artwork.x, placement.artwork.y, placement.artwork.w, placement.artwork.h);
+  }
+
+  drawFitted(ctx, artwork, placement.artwork, fit);
+
+  if (fit === "contain") {
+    // And the photograph's own edge, so the mount is a mount and not a shadow.
+    const placed = fitRect(artwork, placement.artwork, "contain");
+    ctx.strokeStyle = PALETTE.rule;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(placed.x, placed.y, placed.w, placed.h);
+  }
 
   for (const rule of placement.rules) {
     ctx.fillStyle = rule.color;
@@ -176,7 +209,7 @@ export function drawPlacement(
     ctx.arc(FEED_AVATAR.x + FEED_AVATAR.size / 2, FEED_AVATAR.y + FEED_AVATAR.size / 2, FEED_AVATAR.size / 2, 0, Math.PI * 2);
     ctx.closePath();
     ctx.clip();
-    drawCover(ctx, artwork, { x: FEED_AVATAR.x, y: FEED_AVATAR.y, w: FEED_AVATAR.size, h: FEED_AVATAR.size });
+    drawFitted(ctx, artwork, { x: FEED_AVATAR.x, y: FEED_AVATAR.y, w: FEED_AVATAR.size, h: FEED_AVATAR.size }, "cover");
     ctx.restore();
     ctx.strokeStyle = PALETTE.amber;
     ctx.lineWidth = 3;
@@ -192,11 +225,13 @@ export interface ComposeOptions {
   placement: Placement;
   artworkUrl: string;
   copy: PlacementCopy;
+  /** The visitor's fit choice for this download; falls back to the placement's own default. */
+  fit?: "cover" | "contain";
   /** Scale the export down (1 = spec pixels). Kept for a future "small download". */
   pixelRatio?: number;
 }
 
-export async function composePlacement({ placement, artworkUrl, copy, pixelRatio = 1 }: ComposeOptions): Promise<Blob> {
+export async function composePlacement({ placement, artworkUrl, copy, fit, pixelRatio = 1 }: ComposeOptions): Promise<Blob> {
   await readyFonts();
   const [artwork, ground] = await Promise.all([loadImage(artworkUrl), loadGround(placement)]);
   const canvas = document.createElement("canvas");
@@ -205,7 +240,7 @@ export async function composePlacement({ placement, artworkUrl, copy, pixelRatio
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("this browser has no 2d canvas context");
   if (pixelRatio !== 1) ctx.scale(pixelRatio, pixelRatio);
-  drawPlacement(ctx, placement, artwork, copy, ground);
+  drawPlacement(ctx, placement, artwork, copy, ground, fit);
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!blob) throw new Error("the export failed");
   return blob;

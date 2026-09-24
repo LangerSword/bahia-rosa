@@ -38,12 +38,16 @@ export interface LaunchProps {
  */
 const STORE = "bahia-rosa.payoff.v1";
 
+/** How the photograph sits in a surface. Chosen, not assumed. */
+type Fit = "cover" | "contain";
+
 interface StoredPayoff {
   copy?: Partial<PlacementCopy>;
   placement?: string;
+  fit?: Fit;
 }
 
-function defaults(city: string, location: string | null | undefined): { copy: PlacementCopy; placement: string } {
+function defaults(city: string, location: string | null | undefined): { copy: PlacementCopy; placement: string; fit: Fit } {
   return {
     copy: {
       city,
@@ -52,10 +56,13 @@ function defaults(city: string, location: string | null | undefined): { copy: Pl
       line: "made it myself, out tonight",
     },
     placement: PLACEMENTS[0].id,
+    // The whole photograph, by default. A surface that hides part of someone's picture should be their
+    // decision — so `cover` is offered, never assumed.
+    fit: "contain",
   };
 }
 
-function restore(city: string, location: string | null | undefined): { copy: PlacementCopy; placement: string } {
+function restore(city: string, location: string | null | undefined): { copy: PlacementCopy; placement: string; fit: Fit } {
   const fallback = defaults(city, location);
   if (typeof window === "undefined") return fallback;
   try {
@@ -66,6 +73,7 @@ function restore(city: string, location: string | null | undefined): { copy: Pla
     return {
       copy: { ...fallback.copy, ...parsed.copy },
       placement: known ? (parsed.placement as string) : fallback.placement,
+      fit: parsed.fit === "cover" || parsed.fit === "contain" ? parsed.fit : fallback.fit,
     };
   } catch {
     return fallback;
@@ -76,17 +84,21 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
   const first = useMemo(() => restore(city, location), [city, location]);
   const [selectedId, setSelectedId] = useState<string>(first.placement);
   const [copy, setCopy] = useState<PlacementCopy>(first.copy);
+  const [fit, setFit] = useState<Fit>(first.fit);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Kept as you type: the whole point is that a detour does not cost you the words.
   useEffect(() => {
     try {
-      window.localStorage.setItem(STORE, JSON.stringify({ copy, placement: selectedId } satisfies StoredPayoff));
+      window.localStorage.setItem(
+        STORE,
+        JSON.stringify({ copy, placement: selectedId, fit } satisfies StoredPayoff),
+      );
     } catch {
       // A browser with storage disabled is not a broken page: the copy simply is not remembered.
     }
-  }, [copy, selectedId]);
+  }, [copy, selectedId, fit]);
 
   const selected = useMemo<Placement>(
     () => PLACEMENTS.find((placement) => placement.id === selectedId) ?? PLACEMENTS[0],
@@ -97,7 +109,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
     setBusy(placement.id);
     setError(null);
     try {
-      const blob = await composePlacement({ placement, artworkUrl, copy });
+      const blob = await composePlacement({ placement, artworkUrl, copy, fit });
       downloadBlob(blob, placementFilename(placement, copy.city));
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "the export failed");
@@ -111,7 +123,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
     setError(null);
     try {
       for (const placement of PLACEMENTS) {
-        const blob = await composePlacement({ placement, artworkUrl, copy });
+        const blob = await composePlacement({ placement, artworkUrl, copy, fit });
         downloadBlob(blob, placementFilename(placement, copy.city));
         await new Promise((resolve) => setTimeout(resolve, 400));
       }
@@ -142,7 +154,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
       <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_minmax(260px,320px)]">
         <div>
           <div className="plate-inset">
-            <PlacementCanvas placement={selected} artworkUrl={artworkUrl} copy={copy} className="block w-full" />
+            <PlacementCanvas placement={selected} artworkUrl={artworkUrl} copy={copy} fit={fit} className="block w-full" />
           </div>
           <p className="mt-3 text-xs" style={{ color: "var(--color-faint)" }}>
             {selected.label} · {selected.width}×{selected.height} · {selected.blurb}
@@ -224,6 +236,52 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
 
           <div>
             <h3 className="text-xs" style={{ color: "var(--color-muted)" }}>
+              how it sits
+            </h3>
+            <div
+              className="mt-4 flex flex-wrap gap-3"
+              role="radiogroup"
+              aria-label="How the photograph sits in the surface"
+            >
+              {(
+                [
+                  ["contain", "the whole photo", "nothing cropped — the leftover frame becomes a mount"],
+                  ["cover", "fill the frame", "crops the edges so the surface is full"],
+                ] as const
+              ).map(([id, label, hint]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="radio"
+                  data-testid={`fit-${id}`}
+                  aria-checked={fit === id}
+                  onClick={() => setFit(id)}
+                  className="lift text-left"
+                  style={{
+                    border: `1px solid ${fit === id ? "var(--color-accent)" : "var(--color-rule)"}`,
+                    padding: "10px 14px",
+                  }}
+                >
+                  <span
+                    className="block text-xs"
+                    style={{ color: fit === id ? "var(--color-accent)" : "var(--color-paper)" }}
+                  >
+                    {label}
+                    {fit === id ? " · chosen" : ""}
+                  </span>
+                  <span className="block text-xs" style={{ color: "var(--color-faint)" }}>
+                    {hint}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-3 text-xs" style={{ color: "var(--color-faint)" }}>
+              applies to all four surfaces, and to the downloads
+            </p>
+          </div>
+
+          <div>
+            <h3 className="text-xs" style={{ color: "var(--color-muted)" }}>
               where it runs
             </h3>
             <div className="mt-4 grid grid-cols-2 gap-3" role="group" aria-label="Where it runs">
@@ -240,7 +298,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
                     padding: "6px",
                   }}
                 >
-                  <PlacementCanvas placement={placement} artworkUrl={artworkUrl} copy={copy} className="block w-full" />
+                  <PlacementCanvas placement={placement} artworkUrl={artworkUrl} copy={copy} fit={fit} className="block w-full" />
                   <span className="mt-2 block px-1 pb-1 text-xs" style={{ color: "var(--color-muted)" }}>
                     {placement.label.toLowerCase()}
                   </span>
