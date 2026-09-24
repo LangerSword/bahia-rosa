@@ -110,11 +110,175 @@ function toGray(rgba: Uint8ClampedArray, width: number, height: number): Float32
  * a daytime palette, that becomes mud. The percentiles are used rather than min/max so that one blown
  * highlight or one black corner cannot set the range.
  */
+/**
+ * What kind of light this photograph was taken in, and what colour it thinks things are.
+ *
+ * Every photograph arrives with a claim about colour that is really a claim about its light: a tungsten
+ * room makes white things orange, an overcast street makes them blue, and a phone at midnight lifts
+ * everything into a grey soup. A press that ignores this paints the lie faithfully. So the frame is read
+ * first — how dark it is, how much of it is crushed or blown, and which way the light is cast — and the
+ * passes that follow get a corrected photograph instead of an unexamined one.
+ *
+ * The correction is deliberately conservative (see `whiteBalance`): enough to bring a room's cast back to
+ * neutral, never enough to invent a sunset.
+ */
+export interface LightReading {
+  /** Median luminance, 0..1. */
+  median: number;
+  /** Fraction of the frame below 10% and above 90% luminance. */
+  shadowShare: number;
+  highlightShare: number;
+  /** How the frame should be treated: lifted, left alone, or held back. */
+  mode: "dim" | "normal" | "bright";
+  /** Grey-world multipliers that would neutralise the scene's cast. */
+  cast: [number, number, number];
+  /** How much of that correction to apply: 0.35 when the cast could be the scene, up to 0.85 when it is a lamp. */
+  balance: number;
+}
+
+export function analyseLight(source: ArrayLike<number>, width: number, height: number, step = 2): LightReading {
+  const histogram = new Uint32Array(256);
+  let count = 0;
+  let sumR = 0;
+  let sumG = 0;
+  let sumB = 0;
+  const stride = Math.max(1, Math.round(step)) * 4;
+  const end = Math.min(source.length, width * height * 4);
+  for (let p = 0; p + 3 < end; p += stride) {
+    const r = source[p];
+    const g = source[p + 1];
+    const b = source[p + 2];
+    histogram[Math.max(0, Math.min(255, Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b)))] += 1;
+    count += 1;
+    sumR += r;
+    sumG += g;
+    sumB += b;
+  }
+  if (!count) {
+    return { median: 0.5, shadowShare: 0, highlightShare: 0, mode: "normal", cast: [1, 1, 1], balance: 0.35 };
+  }
+
+  const at = (fraction: number): number => {
+    const target = count * fraction;
+    let seen = 0;
+    for (let bin = 0; bin < 256; bin += 1) {
+      seen += histogram[bin];
+      if (seen >= target) return bin;
+    }
+    return 255;
+  };
+  let dark = 0;
+  let bright = 0;
+  for (let bin = 0; bin < 26; bin += 1) dark += histogram[bin];
+  for (let bin = 230; bin < 256; bin += 1) bright += histogram[bin];
+  const shadowShare = dark / count;
+  const highlightShare = bright / count;
+  const median = at(0.5) / 255;
+
+  // The illuminant, by white patch rather than by average — and by *bright and unsaturated* rather than
+  // bright alone.
+  //
+  // Averaging the whole frame (grey-world) assumes the scene averages to grey, and a scene does not: a red
+  // shirt and a blue wall outvote the lamp. What is reliable is something white, lit by the light in
+  // question — but "the brightest pixels" is not that either, because a warmly lit face is bright and is not
+  // white. So the patch is the brightest pixels that are also not saturated, which is the classic estimate
+  // and, measured in tests/unit/lighting.test.ts, the difference between a correction that works and one
+  // that only looks like it does.
+  const brightest = at(0.98);
+  // The patch is the brightest *tenth* of the brightest band, not merely the top quarter of it: the aim is
+  // the thing the light is falling on most directly, and a face lit by the same lamp is only a little
+  // darker than a white wall. Measured — at 0.75 a warmly lit skin tone joined the sample and pulled the
+  // estimate warm, which is the opposite of the correction.
+  const floor = Math.max(8, brightest * 0.9);
+  let litR = 0;
+  let litG = 0;
+  let litB = 0;
+  let litCount = 0;
+  for (let p = 0; p + 3 < end; p += stride) {
+    const r = source[p];
+    const g = source[p + 1];
+    const b = source[p + 2];
+    if (0.2126 * r + 0.7152 * g + 0.0722 * b < floor) continue;
+    const high = Math.max(r, g, b);
+    const low = Math.min(r, g, b);
+    if (high > 0 && (high - low) / high > 0.6) continue; // a colour, not a white
+    litR += r;
+    litG += g;
+    litB += b;
+    litCount += 1;
+  }
+
+  let cast: [number, number, number] = [1, 1, 1];
+  if (litCount >= 4) {
+    const whiteR = Math.max(1, litR / litCount);
+    const whiteG = Math.max(1, litG / litCount);
+    const whiteB = Math.max(1, litB / litCount);
+    const white = (whiteR + whiteG + whiteB) / 3;
+    if (white < 40) {
+      // The brightest thing in the frame is almost black, so there is no white to read and an illuminant
+      // guessed from near-black pixels is a guess about noise. Grey-world is the fallback.
+      const meanR = Math.max(1, sumR / count);
+      const meanG = Math.max(1, sumG / count);
+      const meanB = Math.max(1, sumB / count);
+      const grey = (meanR + meanG + meanB) / 3;
+      cast = [grey / meanR, grey / meanG, grey / meanB];
+    } else {
+      cast = [white / whiteR, white / whiteG, white / whiteB];
+    }
+  }
+
+  // How much of the correction to apply. A mild cast might be the scene (a sunset, a sodium street, a warm
+  // room someone chose) and is left mostly alone; a strong one is a lamp or a shade and is a lie about
+  // colour, so it is corrected most of the way. Never all the way: the photograph is still the photograph.
+  const spread =
+    Math.max(cast[0], cast[1], cast[2]) / Math.max(1e-6, Math.min(cast[0], cast[1], cast[2]));
+  const balance = Math.min(0.85, Math.max(0.35, 0.35 + (spread - 1.15) * 1.6));
+
+  // A dim frame is one whose middle sits low or whose shadows are most of it; a bright one is blown or
+  // already high-key. The thresholds are deliberately wide: being wrong here costs a little contrast,
+  // and being twitchy would make two similar photographs come out differently.
+  const mode: LightReading["mode"] =
+    median < 0.3 || shadowShare > 0.45 ? "dim" : median > 0.72 || highlightShare > 0.14 ? "bright" : "normal";
+
+  return { median, shadowShare, highlightShare, mode, cast, balance };
+}
+
+/**
+ * Pull the scene's cast back toward neutral, by a fraction of the way.
+ *
+ * Grey-world — the assumption that the average of a scene is colourless — is a blunt instrument, so it is
+ * applied at `strength` and never at full: a photograph that really is orange (a sunset, a sodium street)
+ * keeps most of its orange, while a tungsten room stops being orange when it is not orange.
+ */
+export function whiteBalance(
+  source: Uint8ClampedArray,
+  cast: readonly [number, number, number],
+  strength: number,
+): Uint8ClampedArray {
+  const s = Math.min(1, Math.max(0, strength));
+  const out = new Uint8ClampedArray(source.length);
+  if (s === 0) {
+    out.set(source);
+    return out;
+  }
+  const kr = 1 + (cast[0] - 1) * s;
+  const kg = 1 + (cast[1] - 1) * s;
+  const kb = 1 + (cast[2] - 1) * s;
+  for (let p = 0; p + 3 < source.length; p += 4) {
+    out[p] = source[p] * kr;
+    out[p + 1] = source[p + 1] * kg;
+    out[p + 2] = source[p + 2] * kb;
+    out[p + 3] = source[p + 3];
+  }
+  return out;
+}
+
 export function exposureAndCurve(
   source: Uint8ClampedArray,
   _width: number,
   _height: number,
   strength = 0.75,
+  mode: LightReading["mode"] = "normal",
 ): (value: number) => number {
   const histogram = new Uint32Array(256);
   for (let p = 0; p < source.length; p += 4) {
@@ -140,7 +304,12 @@ export function exposureAndCurve(
     // caller who asks for no exposure correction gets exactly none.
     const lifted =
       strength <= 0 ? value : clamp(value + ((value - black) * norm - value) * strength, 0, 255);
-    const t = lifted / 255;
+    let t = lifted / 255;
+    // Then the shape, by the kind of light: a dim frame gets its shadows opened (a gamma below 1 lifts the
+    // bottom of the range without touching the top), a blown one gets a soft shoulder that pulls the
+    // highlights back into the range instead of letting them stay flat white.
+    if (mode === "dim") t = t ** 0.82;
+    if (mode === "bright") t = 1 - (1 - t) ** 1.25;
     const curved = t * t * (3 - 2 * t);
     return (t * 0.55 + curved * 0.45) * 255;
   };
@@ -501,16 +670,21 @@ export function styliseImageData(source: Uint8ClampedArray, width: number, heigh
     ...options,
   };
   const out = new Uint8ClampedArray(source.length);
-  const gray = toGray(source, width, height);
+  // Read the light before touching anything, then hand every pass downstream a photograph whose cast has
+  // been pulled back toward neutral — a room's tungsten and a street's shade both lie about colour, and
+  // the segmentation, the quantiser and the ink would all inherit the lie.
+  const reading = analyseLight(source, width, height);
+  const corrected = exposure > 0 ? whiteBalance(source, reading.cast, reading.balance) : source;
+  const gray = toGray(corrected, width, height);
   const scale = Math.max(width, height);
   // Exposure first, on the photograph, before anything else looks at it: segmentation, quantisation
   // and the ink all behave badly on a frame that is all in the bottom fifth of the range.
-  const curve = exposureAndCurve(source, width, height, exposure);
+  const curve = exposureAndCurve(corrected, width, height, exposure, reading.mode);
 
   // 1. Edge-preserving smoothing. The ink comes from the original luminance: an edge found in an
   //    already-smoothed frame is too late to be crisp.
   const radius = Math.min(3, Math.max(1, Math.round((Math.min(width, height) / 260) * (0.5 + smoothStrength))));
-  const smoothed = bilateral(source, width, height, radius, 2.2, 26 + smoothStrength * 26);
+  const smoothed = bilateral(corrected, width, height, radius, 2.2, 26 + smoothStrength * 26);
   const edges = edgeMap(gray, width, height);
 
   // 2. Label every pixel by its nearest centroid, then average each connected region into one colour.

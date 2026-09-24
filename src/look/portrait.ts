@@ -63,6 +63,61 @@ function canvasOf(width: number, height: number): { canvas: HTMLCanvasElement; c
   return { canvas, ctx };
 }
 
+/**
+ * Where the person was, the ground goes soft.
+ *
+ * In the "as it is" ground the room behind the subject is their own photograph, so the painted layer
+ * standing in front of it would otherwise look like a duplicate of someone still in the background. A
+ * bokeh haze over exactly the subject's area fixes that without inventing anything: it is the same room,
+ * blurred, which is also what a shallow depth of field would have done in the first place.
+ *
+ * Done after the cut, because it needs the mask — and the mask is only known once the model has answered.
+ */
+function softenWherePersonWas(
+  ground: HTMLCanvasElement,
+  mask: Uint8ClampedArray,
+  maskWidth: number,
+  maskHeight: number,
+): void {
+  const ctx = ground.getContext("2d");
+  if (!ctx) return;
+  const { width, height } = ground;
+
+  const tiny = document.createElement("canvas");
+  tiny.width = Math.max(1, Math.round(width / 10));
+  tiny.height = Math.max(1, Math.round(height / 10));
+  const tinyCtx = tiny.getContext("2d");
+  if (!tinyCtx) return;
+  tinyCtx.imageSmoothingQuality = "low";
+  tinyCtx.drawImage(ground, 0, 0, tiny.width, tiny.height);
+
+  const soft = document.createElement("canvas");
+  soft.width = width;
+  soft.height = height;
+  const softCtx = soft.getContext("2d");
+  if (!softCtx) return;
+  softCtx.imageSmoothingEnabled = true;
+  softCtx.imageSmoothingQuality = "high";
+  softCtx.drawImage(tiny, 0, 0, width, height);
+
+  const sharp = ctx.getImageData(0, 0, width, height);
+  const blurred = softCtx.getImageData(0, 0, width, height);
+  for (let y = 0; y < height; y += 1) {
+    const my = Math.min(maskHeight - 1, Math.round((y * maskHeight) / height));
+    for (let x = 0; x < width; x += 1) {
+      const mx = Math.min(maskWidth - 1, Math.round((x * maskWidth) / width));
+      const coverage = (mask[my * maskWidth + mx] ?? 0) / 255;
+      if (coverage <= 0.02) continue;
+      const mix = Math.min(1, coverage * 0.92);
+      const p = (y * width + x) * 4;
+      sharp.data[p] = sharp.data[p] * (1 - mix) + blurred.data[p] * mix;
+      sharp.data[p + 1] = sharp.data[p + 1] * (1 - mix) + blurred.data[p + 1] * mix;
+      sharp.data[p + 2] = sharp.data[p + 2] * (1 - mix) + blurred.data[p + 2] * mix;
+    }
+  }
+  ctx.putImageData(sharp, 0, 0);
+}
+
 export async function portraitFromImage(
   image: CanvasImageSource & { width: number; height: number },
   options: PortraitOptions = {},
@@ -99,7 +154,52 @@ export async function portraitFromImage(
   const grade = gradeFor(look ?? "dusk");
   const sceneWork: Promise<{ canvas: HTMLCanvasElement; width: number; height: number } | null> = (async () => {
     try {
-      const sceneImage = await loadImage(sceneSrc(scene));
+      const plateSrc = sceneSrc(scene);
+      if (!plateSrc) {
+        // "As it is": the ground is the visitor's own photograph, repainted. It is painted at a bounded
+        // size (a ground is a backdrop, not the subject), then graded to the hour and held back a step — a
+        // touch darker, a touch less saturated, with a soft vignette — so that the person painted over it
+        // at their own resolution reads as the subject rather than as one more thing in the room.
+        const bgW = Math.min(outW, 1280);
+        const bgH = Math.max(1, Math.round((bgW * outH) / outW));
+        const bg = canvasOf(bgW, bgH);
+        const cover = Math.max(bgW / workW, bgH / workH);
+        bg.ctx.imageSmoothingEnabled = true;
+        bg.ctx.imageSmoothingQuality = "high";
+        bg.ctx.drawImage(
+          photo.canvas,
+          (bgW - workW * cover) / 2,
+          (bgH - workH * cover) / 2,
+          workW * cover,
+          workH * cover,
+        );
+
+        const paintedFrame = styliseImageData(bg.ctx.getImageData(0, 0, bgW, bgH).data, bgW, bgH, {
+          ...paintOptions,
+          light: 0.12,
+        });
+        const frameImage = bg.ctx.createImageData(bgW, bgH);
+        if (paintedFrame.length === frameImage.data.length) frameImage.data.set(paintedFrame);
+        bg.ctx.putImageData(frameImage, 0, 0);
+
+        const graded = bg.ctx.getImageData(0, 0, bgW, bgH);
+        const hour = gradePixels(graded.data, grade);
+        for (let y = 0; y < bgH; y += 1) {
+          const dy = (y / bgH - 0.5) * 2;
+          for (let x = 0; x < bgW; x += 1) {
+            const dx = (x / bgW - 0.5) * 2;
+            const falloff = 1 - 0.22 * Math.min(1, (dx * dx + dy * dy) / 1.6);
+            const p = (y * bgW + x) * 4;
+            const luma = 0.2126 * hour[p] + 0.7152 * hour[p + 1] + 0.0722 * hour[p + 2];
+            graded.data[p] = (luma + (hour[p] - luma) * 0.74) * falloff;
+            graded.data[p + 1] = (luma + (hour[p + 1] - luma) * 0.74) * falloff;
+            graded.data[p + 2] = (luma + (hour[p + 2] - luma) * 0.74) * falloff;
+          }
+        }
+        bg.ctx.putImageData(graded, 0, 0);
+        return { canvas: bg.canvas, width: bgW, height: bgH };
+      }
+      const sceneImage = await loadImage(plateSrc);
       // Grade the plate at a bounded size and scale the result up into the frame. The grade is a per-pixel
       // tone curve, so its output at 1280px is indistinguishable from its output at 3300px — and the
       // difference in work is the difference between this pass being free and being the slowest thing in
@@ -258,6 +358,12 @@ export async function portraitFromImage(
   onStage?.(`setting the frame in ${plate.label.toLowerCase()}`);
   const out = canvasOf(outW, outH);
   const gradedScene = await sceneWork;
+  // The "as it is" ground is the visitor's own room, so where they were standing in it goes soft — the
+  // mask is known by now, and the haze is what makes the painted layer in front look placed rather than
+  // duplicated. Nothing is invented: it is the same room, blurred.
+  if (gradedScene && !sceneSrc(scene) && mask) {
+    softenWherePersonWas(gradedScene.canvas, mask, workW, workH);
+  }
   if (gradedScene) {
     out.ctx.imageSmoothingEnabled = true;
     out.ctx.imageSmoothingQuality = "high";

@@ -8,7 +8,7 @@
  * a rooftop pool, and getting that wrong is what makes a composite look pasted.
  */
 
-export type SceneId = "beach" | "mall" | "marina" | "rooftop" | "boulevard";
+export type SceneId = "asis" | "beach" | "mall" | "marina" | "rooftop" | "boulevard";
 
 export interface Scene {
   label: string;
@@ -26,6 +26,17 @@ export interface Scene {
 }
 
 export const SCENES: Record<SceneId, Scene> = {
+  asis: {
+    label: "As it is",
+    blurb: "your own frame, repainted — your light, the city's paint",
+    // No plate. The ground is the visitor's own photograph, repainted: the room, the street, the light
+    // they actually had. The person is still cut out as a separate layer and placed over it, so the
+    // drawing of them can be moved, sized and cut against the place they were standing in.
+    file: "",
+    ground: 0.94,
+    height: 0.84,
+    light: "behind",
+  },
   beach: {
     label: "Bahía beach",
     blurb: "golden hour on the sand, the towers behind you",
@@ -74,10 +85,17 @@ export const SCENES: Record<SceneId, Scene> = {
 
 export const SCENE_IDS = (Object.keys(SCENES) as SceneId[]).filter((id) => !SCENES[id].withheld);
 
-/** Resolved against the app's base path, so a sub-path deploy still finds the plates. */
+/**
+ * Resolved against the app's base path, so a sub-path deploy still finds the plates.
+ *
+ * An empty string means there is no plate to load: the scene *is* the visitor's own photograph, and the
+ * press paints that instead. Callers check for it rather than loading `/art/scenes/` and hoping.
+ */
 export function sceneSrc(id: SceneId): string {
+  const scene = SCENES[id];
+  if (!scene || !scene.file) return "";
   const base = (import.meta as unknown as { env?: Record<string, string> }).env?.BASE_URL ?? "/";
-  return `${base}art/scenes/${SCENES[id].file}`;
+  return `${base}art/scenes/${scene.file}`;
 }
 
 /**

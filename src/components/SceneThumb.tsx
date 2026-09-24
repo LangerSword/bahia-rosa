@@ -37,7 +37,25 @@ export function SceneThumb({
 
     const image = new Image();
     image.decoding = "async";
-    image.src = sceneSrc(scene);
+    const src = sceneSrc(scene);
+    if (!src) {
+      // A scene with no plate: the ground is the visitor's own photograph, which does not exist yet at the
+      // moment they choose it. So the thumbnail is a title card rather than a picture of somewhere they have
+      // not been — honest about what the choice means.
+      ctx.fillStyle = "#141019";
+      ctx.fillRect(0, 0, width, height);
+      ctx.strokeStyle = "rgba(244, 233, 216, 0.25)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
+      ctx.fillStyle = "#f4e9d8";
+      ctx.font = "600 13px ui-monospace, SFMono-Regular, Menlo, monospace";
+      ctx.fillText("your own frame", 12, height / 2 + 4);
+      ctx.fillStyle = "rgba(244, 233, 216, 0.55)";
+      ctx.font = "500 10px ui-monospace, SFMono-Regular, Menlo, monospace";
+      ctx.fillText("the photo you bring, repainted", 12, height / 2 + 20);
+      return;
+    }
+    image.src = src;
     void image
       .decode()
       .then(() => {

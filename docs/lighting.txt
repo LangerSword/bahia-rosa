@@ -1,0 +1,8 @@
+dim tungsten room: colour error 0.0541 as shot → 0.0112 after the correction · lightness 0.2730 → 0.0627 once the curve has lifted it
+overexposed in blue shade: colour error 0.0250 as shot → 0.0200 after the correction
+  highlights clipped (gain 1.9): colour error 0.0348 → 0.0348 — the white reference is gone, so there is nothing left to read the light from
+  clipped past recovery (gain 2.6): colour error 0.0416 → 0.0409 — the white reference is gone, so there is nothing left to read the light from
+normal light: colour error 0.0000 as shot → 0.0039 after the correction · the printed frame, look included, sits 0.0942 from the truth (that distance is the paint, not the correction)
+  dim tungsten   colour error 0.0541 → 0.0112
+  blown shade    colour error 0.0250 → 0.0200
+average across the bad lights: colour error 0.0395 → 0.0156 · 60.5% closer to the colours that were actually there
