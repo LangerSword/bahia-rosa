@@ -1050,13 +1050,13 @@ export const FAST: StyliseOptions = {
    * grain over small lettering is what turns a label into a smudge, and the smoothing comes down too: less
    * smoothing is both cleaner *and* cheaper, because the pass is the work.
    *
-   * The palette is not where this finish saves — sixteen colours over eight rounds, the same rounds as fine.
+   * The palette is not where this finish saves — twenty colours over eight rounds, the same rounds as fine.
    * What it spends less on is detail, and what it spends the savings on is the *subject's* resolution: the
    * crop is painted at fine's 1200px edge, so the lettering on a jacket and the small print on a sign survive.
    */
-  colours: 16,
+  colours: 20,
   palette: 0.6,
-  paper: 0.22,
+  paper: 0.16,
   iterations: 8,
   ink: 0.12,
   smooth: 0.35,
@@ -1065,7 +1065,7 @@ export const FAST: StyliseOptions = {
    * decides the colours, and this decides whether a letter still reads as a letter or as a blob. Measured in
    * tests/unit/detail.test.ts by the local contrast across a painted bar.
    */
-  detail: 0.85,
+  detail: 0.92,
 };
 
 export const FINE: StyliseOptions = {

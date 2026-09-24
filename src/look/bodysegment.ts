@@ -356,6 +356,54 @@ function boxBlur(source: Float32Array, width: number, height: number, radius: nu
  *
  * It is the "find the edges first, then paint" half of the press: the edge decides where the paint stops.
  */
+/**
+ * Pull a mask in by a pixel or two.
+ *
+ * The alpha a segmentation model returns is soft at the boundary, and the boundary pixels are a *mixture* of
+ * the person and whatever was behind them. That mixture is what a visitor sees as a pale halo or a sticker's
+ * edge — most visibly on a photograph whose subject was in front of a bright, plain wall. Taking the minimum
+ * over a small neighbourhood (an erosion) drops the ring of mixed pixels while leaving the person's own edge
+ * soft, because the upscale into the frame smooths what remains.
+ *
+ * Pure: `tests/unit/edge.test.ts` puts a block with a one-pixel fringe through it and measures both the
+ * fringe going and the interior staying.
+ */
+export function shrinkMask(
+  alpha: ArrayLike<number>,
+  width: number,
+  height: number,
+  by = 2,
+): Uint8ClampedArray {
+  const out = new Uint8ClampedArray(width * height);
+  if (by <= 0 || width < 3 || height < 3) {
+    for (let i = 0; i < out.length; i += 1) out[i] = alpha[i] ?? 0;
+    return out;
+  }
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let smallest = 255;
+      for (let dy = -by; dy <= by && smallest > 0; dy += 1) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= height) {
+          smallest = 0;
+          break;
+        }
+        for (let dx = -by; dx <= by; dx += 1) {
+          const nx = x + dx;
+          if (nx < 0 || nx >= width) {
+            smallest = 0;
+            break;
+          }
+          const value = alpha[ny * width + nx] ?? 0;
+          if (value < smallest) smallest = value;
+        }
+      }
+      out[y * width + x] = smallest;
+    }
+  }
+  return out;
+}
+
 export function refineEdges(
   alpha: Uint8ClampedArray,
   rgba: ArrayLike<number>,

@@ -22,7 +22,7 @@ driving the real press through the doors a visitor takes.
 | | |
 |---|---|
 | ![the fast finish](docs/samples/plate-fast.png) | ![the fine finish](docs/samples/plate-fine.png) |
-| **fast** — 1280×720, sixteen colours, one edge pass, your photograph's own detail kept where it has any (~10s) | **fine** — 1900×1080, thirty-two colours, three edge passes |
+| **fast** — 1280×720, twenty colours, one edge pass, your photograph's own detail kept where it has any (~10s) | **fine** — 1900×1080, thirty-two colours, three edge passes |
 | ![as it is](docs/samples/plate-as-it-is.png) | ![the outline](docs/samples/frame-outline.png) |
 | **as it is** — the whole photograph repainted, no cut, no layers (~7s) | **the frame** — the subject's box, with corners that size them |
 

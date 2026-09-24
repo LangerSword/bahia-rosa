@@ -1,5 +1,5 @@
 import { loadImage } from "../world/compose";
-import { bodyCut } from "./bodysegment";
+import { bodyCut, shrinkMask } from "./bodysegment";
 import { needsResample } from "./stylise";
 import { faceBox, subjectMask } from "./segment";
 import { SCENES, placeSubject, sceneSrc, type SceneId } from "./scenes";
@@ -231,10 +231,12 @@ export async function portraitFromImage(
   // mask's refinement above all) is a third cheaper than at 1900. Measured: 26.8s at 1900 with two paints,
   // 16.5s at 1600 with one, 12s here.
   const outLong = Math.round(maxSize ?? (fine ? (asItIsEarly ? 1400 : 1900) : 1280));
-  // Both finishes paint the subject's crop at the same edge: this is where lettering and small detail live, and
-  // "fast" may draw less *around* the person, never less *of* them. It pays for it with the lighter passes in
-  // its preset and the smaller frame it composes into.
-  const paintEdge = 1200;
+  // Both finishes paint the subject's crop above the frame they compose into: this is where lettering and small
+  // detail live, and "fast" may draw less *around* the person, never less *of* them. It pays for it with the
+  // lighter passes in its preset and the smaller frame it composes into. Raised a step when the ask became
+  // "just a little more details and quality": the crop is painted larger and then lands in the frame smaller,
+  // which is a free oversample of the person at the cost of a third of a second.
+  const paintEdge = fine ? 1500 : 1350;
   /**
    * "As it is" prints the visitor's own photograph, so it prints it as one: more colours, far less of the
    * ink-and-paper texture that makes a *city plate* read as a poster (there is no photographic grain on a
@@ -442,7 +444,7 @@ export async function portraitFromImage(
   // looks broken.
   {
     const longest = Math.max(paintW, paintH);
-    const ceiling = fine ? 1500 : 1100;
+    const ceiling = fine ? 1600 : 1250;
     if (longest > ceiling) {
       const shrink = ceiling / longest;
       paintW = Math.max(1, Math.round(paintW * shrink));
@@ -512,11 +514,15 @@ export async function portraitFromImage(
     painted.ctx.putImageData(paintedImage, 0, 0);
   }
 
-  // The subject's own mask, cropped and scaled with them, so the cut survives the upscale.
+  // The subject's own mask, cropped and scaled with them, so the cut survives the upscale — and pulled in by
+  // two pixels first, because the model's soft boundary is a mixture of the person and what stood behind
+  // them, and that mixture is the pale edge a visitor reads as a sticker. Measured by vision on a real
+  // photograph: "the people look like stickers with a halo… a white background behind their heads".
   if (mask) {
+    const cutAlpha = shrinkMask(mask, workW, workH, 2);
     const maskCanvas = canvasOf(workW, workH);
     const maskData = maskCanvas.ctx.createImageData(workW, workH);
-    for (let i = 0; i < mask.length; i += 1) maskData.data[i * 4 + 3] = mask[i];
+    for (let i = 0; i < cutAlpha.length; i += 1) maskData.data[i * 4 + 3] = cutAlpha[i];
     maskCanvas.ctx.putImageData(maskData, 0, 0);
 
     const cropMask = canvasOf(cropW, cropH);
@@ -627,7 +633,7 @@ export async function portraitFromImage(
       fromRight ? target.x : target.x + target.width,
       target.y + target.height,
     );
-    rim.addColorStop(0, "rgba(255, 214, 150, 0.14)");
+    rim.addColorStop(0, "rgba(255, 214, 150, 0.10)");
     rim.addColorStop(1, "rgba(255, 122, 61, 0)");
     subject.ctx.save();
     subject.ctx.globalCompositeOperation = "screen";

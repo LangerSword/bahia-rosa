@@ -70,7 +70,7 @@ paint, not a diffusion — so its own look lives in `src/look/stylise.ts` as two
 |---|---|---|
 | palette | 16 colours, eight rounds | 32 colours, eight rounds |
 | smoothing | 0.35 | 0.4 (of the default 0.55) |
-| detail (the photograph put back where it has detail) | 0.85 | 0 |
+| detail (the photograph put back where it has detail) | 0.92 | 0 |
 | ink (line work) | 0.12 — a hint of an edge | 0.16 |
 | grain (`paper`) | 0.22 | 0.16 |
 | the subject's crop | painted at 1200px | painted at 1200px |
