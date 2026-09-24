@@ -424,14 +424,14 @@ export function App() {
       </a>
 
       <header className="masthead rule sticky top-0 z-20 border-b">
-        <div className="mx-auto max-w-[1280px] px-8">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 py-4">
+        <div className="mx-auto max-w-[1280px] px-4 sm:px-8">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-3 sm:py-4">
             <div className="flex items-baseline gap-4">
               <a
                 href="#intake"
                 data-testid="home"
                 onClick={goHome}
-                className="wordmark text-3xl leading-none"
+                className="wordmark text-2xl leading-none sm:text-3xl"
                 aria-label="Bahía Rosa — back to the start"
               >
                 Bahía Rosa
@@ -449,7 +449,7 @@ export function App() {
                 bring a photo
               </a>
               <span className="kicker hidden md:inline">{locations.length} places</span>
-              <span className="kicker" style={{ color: "var(--color-flag)" }}>
+              <span className="kicker hidden sm:inline" style={{ color: "var(--color-flag)" }}>
                 {deskRoot() ? "printing at the desk" : "printing in your browser"}
               </span>
             </div>
@@ -482,7 +482,7 @@ export function App() {
         onProblem={setIntakeProblem}
       />
 
-      <main className="mx-auto max-w-[1280px] px-8">
+      <main className="mx-auto max-w-[1280px] px-4 sm:px-8">
         <motion.section
           initial={reduce ? undefined : "hidden"}
           animate={reduce ? undefined : "shown"}
@@ -493,8 +493,8 @@ export function App() {
         >
           <Hero3D scene={scene} look={look} className="absolute inset-0 h-full w-full" />
           <div className="city-scrim" aria-hidden="true" />
-          <div className="relative px-10 py-20">
-            <h1 className="display mt-5 text-5xl">Bahía Rosa</h1>
+          <div className="relative px-6 py-14 sm:px-10 sm:py-20">
+            <h1 className="display mt-5 text-4xl sm:text-5xl">Bahía Rosa</h1>
             <p className="deck mt-7">One photo. The city paints it, then runs it.</p>
 
             <div className="mt-9 flex flex-wrap items-center gap-3">
@@ -548,13 +548,13 @@ export function App() {
                       data-testid={`look-${id}`}
                       aria-pressed={active}
                       onClick={() => setLook(id)}
-                      className="lift text-left"
+                      className="lift w-full text-left sm:w-auto"
                       style={{ border: `1px solid ${active ? "var(--color-accent)" : "var(--color-rule)"}` }}
                     >
-                      <SceneThumb scene={scene} look={id} className="w-[208px]" />
+                      <SceneThumb scene={scene} look={id} className="w-full sm:w-[208px]" />
                       <span
                         className="block px-3 py-2 text-xs"
-                        style={{ color: active ? "var(--color-accent)" : "var(--color-muted)" }}
+                        style={{ color: active ? "var(--color-accent)" : "var(--color-body)" }}
                       >
                         {preset.label.toLowerCase()}
                         {active ? " · chosen" : ""}
@@ -582,10 +582,10 @@ export function App() {
                       data-testid={`scene-${id}`}
                       aria-pressed={active}
                       onClick={() => setScene(id)}
-                      className="lift text-left"
+                      className="lift w-full text-left sm:w-auto"
                       style={{ border: `1px solid ${active ? "var(--color-accent)" : "var(--color-rule)"}` }}
                     >
-                      <SceneThumb scene={id} look={look} className="w-[208px]" />
+                      <SceneThumb scene={id} look={look} className="w-full sm:w-[208px]" />
                       <span
                         className="block px-3 py-2 text-xs"
                         style={{ color: active ? "var(--color-accent)" : "var(--color-muted)" }}
@@ -798,15 +798,15 @@ export function App() {
             className="editor-shell panel rule mt-10 border p-4 sm:p-8"
             data-testid="editor-shell"
           >
-            <div className="rule mb-5 flex items-center justify-between border-b pb-4">
+            <div className="rule mb-5 flex flex-col items-start gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="display text-3xl">{plan.title}</h2>
+                <h2 className="display text-2xl sm:text-3xl">{plan.title}</h2>
               </div>
               <button
                 type="button"
                 data-testid="start-over"
                 onClick={reset}
-                className="lift rule border px-4 py-2 text-xs tracking-[0.2em] text-[color:var(--color-body)] uppercase hover:text-[color:var(--color-gold)]"
+                className="lift rule flex min-h-11 items-center border px-4 py-2 text-xs tracking-[0.2em] text-[color:var(--color-body)] uppercase hover:text-[color:var(--color-gold)]"
               >
                 Start over
               </button>
@@ -903,7 +903,7 @@ export function App() {
         </div>
       </main>
 
-      <footer className="rule mx-auto mt-16 max-w-[1280px] border-t px-8 py-8">
+      <footer className="rule mx-auto mt-16 max-w-[1280px] border-t px-4 py-8 sm:px-8">
         <p className="kicker">Bahía Rosa · la gaviota</p>
         <p className="mt-3 max-w-[70ch] text-xs leading-relaxed text-[color:var(--color-faint)]">
           Unofficial fan-made project for the Unlayer Build with React Image Editor Challenge. Not

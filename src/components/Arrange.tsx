@@ -98,6 +98,7 @@ export function Arrange({
 }: ArrangeProps) {
   const [dragging, setDragging] = useState(false);
   const [cropping, setCropping] = useState(false);
+  const surfaceRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState<Box | null>(null);
   /** The person's box with nothing cut — the extent the crop is measured and drawn against. */
   const [whole, setWhole] = useState<Box | null>(null);
@@ -337,6 +338,7 @@ export function Arrange({
             inside a 390px viewport, and everything after it was pushed sideways. */}
         <div className="min-w-0">
           <div
+            ref={surfaceRef}
             className="plate-inset relative max-w-full"
             data-testid="layer-surface"
             role="application"
@@ -387,12 +389,11 @@ export function Arrange({
                     onPointerCancel={endDrag}
                     style={{
                       position: "absolute",
-                      // Finger-sized under a coarse pointer, cursor-sized otherwise (see index.css).
+                      // The *hit* area is what the pointer has to find — 44px under a coarse pointer, the
+                      // guideline for a fingertip — while the dot that is drawn stays small, so a phone gets
+                      // a comfortable target without the frame growing four fat blobs on its corners.
                       width: "var(--hit, 14px)",
                       height: "var(--hit, 14px)",
-                      background: "var(--color-accent)",
-                      border: "1px solid var(--color-ink)",
-                      borderRadius: 2,
                       pointerEvents: "auto",
                       touchAction: "none",
                       cursor: `${corner}-resize`,
@@ -403,7 +404,22 @@ export function Arrange({
                         ? { left: "calc(var(--hit, 14px) / -2)" }
                         : { right: "calc(var(--hit, 14px) / -2)" }),
                     }}
-                  />
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        left: "50%",
+                        top: "50%",
+                        width: 12,
+                        height: 12,
+                        transform: "translate(-50%, -50%)",
+                        background: "var(--color-accent)",
+                        border: "1px solid var(--color-ink)",
+                        borderRadius: 2,
+                      }}
+                    />
+                  </span>
                 ))}
               </div>
             ) : null}
@@ -533,7 +549,19 @@ export function Arrange({
                 role="switch"
                 aria-checked={cropping}
                 data-testid="arrange-crop"
-                onClick={() => setCropping((on) => !on)}
+                onClick={() => {
+                  setCropping((on) => {
+                    const next = !on;
+                    // Choosing to crop is a decision about the picture, and on a phone the panel with the
+                    // cut lines is below the fold: without this the visitor gets sliders and no picture.
+                    if (next) {
+                      requestAnimationFrame(() => {
+                        surfaceRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                      });
+                    }
+                    return next;
+                  });
+                }}
                 className={cropping ? "btn" : "btn-quiet"}
               >
                 {cropping ? "done cropping" : cutSummary ? `crop · ${cutSummary}` : "crop"}

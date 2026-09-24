@@ -144,7 +144,7 @@ export function SceneThumb({
       className={className}
       data-testid={testId}
       aria-hidden="true"
-      style={{ display: "block", background: "#000" }}
+      style={{ display: "block", background: "#150f1d" }}
     />
   );
 }

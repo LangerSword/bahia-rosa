@@ -509,8 +509,15 @@ body {
 
 @media (pointer: coarse) {
   :root {
-    --hit: 30px;
-    --hit-line: 40px;
+    /* 44px is the guideline for a fingertip; the dots and bars drawn inside stay small. */
+    --hit: 44px;
+    --hit-line: 44px;
+  }
+
+  /* A range input's hit area is its box, and the browser's default is shorter than a thumb. */
+  input[type="range"] {
+    height: 44px;
+    accent-color: var(--color-accent);
   }
 }
 
@@ -532,4 +539,23 @@ html {
   -webkit-touch-callout: none;
   user-select: none;
   touch-action: none;
+}
+
+/*
+ * The hero's deck sits over a canvas that is moving: on a phone the words get their own shadow rather than a
+ * scrim heavy enough to dull the whole scene, which is the point of the scene.
+ */
+@media (max-width: 640px) {
+  /* The run's steps — "your plate · the city" — are orientation, and they were the faintest type on a phone. */
+  .steprail .step,
+  .steprail .step span {
+    font-size: 0.68rem;
+    color: color-mix(in srgb, var(--color-body) 82%, transparent);
+  }
+
+  .deck {
+    text-shadow:
+      0 1px 14px rgba(6, 6, 12, 0.9),
+      0 0 3px rgba(6, 6, 12, 0.95);
+  }
 }
