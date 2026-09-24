@@ -68,7 +68,7 @@ export function App() {
   /** The stages the press has actually reached, so the progress line is never a lie. */
   const [stages, setStages] = useState<string[]>([]);
   /** What the cut found, reported honestly under the frame. */
-  const [cut, setCut] = useState<Pick<PortraitResult, "cutOut" | "share" | "scene" | "cutSource" | "width" | "sourceEdge"> | null>(null);
+  const [cut, setCut] = useState<Pick<PortraitResult, "cutOut" | "share" | "scene" | "cutSource" | "width" | "sourceEdge" | "subjects"> | null>(null);
   const reduce = useReducedMotion();
 
   /** Where the city was entered from, so "back" goes where the visitor actually came from. */
@@ -138,6 +138,7 @@ export function App() {
           cutSource: result.cutSource,
           width: result.width,
           sourceEdge: result.sourceEdge,
+          subjects: result.subjects,
         });
         setPlate({
           kind: "photo",
