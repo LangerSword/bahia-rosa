@@ -11,7 +11,7 @@
  *   2. a press that cannot cope degrades to painting the whole frame, or reports itself at the intake;
  *   3. and it *never* lands on the desk screen.
  *
- *   node tools/group-check.mjs http://localhost:4187 [outDir]
+ *   node tools/group-check.mjs http://localhost:4187 [outDir] [photo] [prefix]
  *
  * What it saves (docs/shots by default): the pressed plate, and every placement canvas on the city stage.
  * A claim about a picture that nobody looks at is not evidence.
@@ -22,7 +22,9 @@ import { chromium } from "playwright";
 
 const url = process.argv[2] ?? "http://localhost:4187";
 const outDir = process.argv[3] ?? "docs/shots";
-const photo = "public/art/demo/group-of-four.jpg";
+const photo = process.argv[4] ?? "public/art/demo/group-of-four.jpg";
+/** Names the saved frames, so a run with a real photograph does not overwrite the fixture's. */
+const prefix = process.argv[5] ?? "group";
 
 /** Playwright hands this function to the page; it reads a blob:/data: URL into bytes as base64. */
 const grab = (source) => {
@@ -60,7 +62,7 @@ const outcome = await Promise.race([
 ]).catch(() => "timeout");
 
 const seconds = ((Date.now() - started) / 1000).toFixed(1);
-console.log(`group of four: ${outcome} in ${seconds}s`);
+console.log(`${photo}: ${outcome} in ${seconds}s`);
 
 if (outcome === "fork") {
   console.log("  cut line:", (await page.getByTestId("cut-line").textContent())?.trim());
@@ -69,8 +71,8 @@ if (outcome === "fork") {
     .evaluate((node) => ({ src: node.src, width: node.naturalWidth, height: node.naturalHeight }));
   console.log(`  plate: ${plate.width}x${plate.height}`);
   const bytes = await page.evaluate(grab, plate.src);
-  await writeFile(`${outDir}/group-plate.png`, Buffer.from(bytes, "base64"));
-  console.log(`  saved ${outDir}/group-plate.png`);
+  await writeFile(`${outDir}/${prefix}-plate.png`, Buffer.from(bytes, "base64"));
+  console.log(`  saved ${outDir}/${prefix}-plate.png`);
 
   // Into the city, so the placements can be saved too — the part that answers "can it draw the group":
   // the group composited into a real surface, not a cut-out on its own.
@@ -92,7 +94,7 @@ if (outcome === "fork") {
     return found;
   });
   for (const canvas of canvases) {
-    const name = `${outDir}/group-${canvas.label.replace(/[^a-z0-9-]/gi, "-")}.png`;
+    const name = `${outDir}/${prefix}-${canvas.label.replace(/[^a-z0-9-]/gi, "-")}.png`;
     await writeFile(name, Buffer.from(canvas.data.split(",")[1], "base64"));
     console.log(`  saved ${name}  (${canvas.width}x${canvas.height})`);
   }

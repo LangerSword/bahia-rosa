@@ -576,6 +576,21 @@ export function styliseImageData(source: Uint8ClampedArray, width: number, heigh
 }
 
 /**
+ * Does the crop have to be resampled before it is painted?
+ *
+ * It does whenever the two sizes differ — and "differs" is not the same question as "is bigger than the
+ * paint edge". A large crop needs no *upscale* and still needs resampling, because the ceiling may have
+ * shrunk the paint below the crop's own size. Answering the wrong question there cost a real group photo
+ * its press: the pixels went in at 1280×920 and came back to be written into a 1100×791 frame.
+ */
+export function needsResample(
+  crop: { width: number; height: number },
+  paint: { width: number; height: number },
+): boolean {
+  return paint.width !== crop.width || paint.height !== crop.height;
+}
+
+/**
  * The same look over an image element, through a canvas. The only DOM-aware function here, so the
  * maths above stays testable in node.
  */

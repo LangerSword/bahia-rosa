@@ -74,13 +74,29 @@ describe("placeSubject", () => {
 
     const placed = placeSubject(subject, crop, { height: 0.85 }, { width: 1280, height: 720 });
 
+    // The subject fits inside the frame with the margin on both sides — the crop may spill, because the
+    // crop is transparent where the mask did not cut, and a person is not.
     const scale = placed.height / crop.height;
-    expect(placed.width).toBeLessThanOrEqual(1280);
+    const subjectWidthOnFrame = subject.width * scale;
+    expect(subjectWidthOnFrame).toBeLessThanOrEqual(1280 * 0.92 + 1);
     expect(placed.width / placed.height).toBeCloseTo(crop.width / crop.height, 6);
     // The group is still centred, and its feet — the bottom of the *subject*, not of the crop that
     // carries it — are still on the frame's bottom edge, the same rule every placement obeys.
     expect(placed.x + placed.width / 2).toBeCloseTo(640, 6);
     expect(placed.y + (subject.y - crop.y + subject.height) * scale).toBeCloseTo(720, 6);
+  });
+
+  it("a subject who sits at the crop's edge still lands inside the frame", () => {
+    // The fault a real photograph found: the crop has margins of its own, so a subject near the crop's
+    // edge fits the crop and still runs off the frame. Capping by the crop answered the wrong question.
+    const crop = { x: 0, y: 0, width: 1000, height: 500 };
+    const subject = { x: 0, y: 0, width: 1000, height: 400 }; // the mask spans the whole crop width
+
+    const placed = placeSubject(subject, crop, { height: 0.85 }, { width: 1280, height: 720 });
+
+    const scale = placed.height / crop.height;
+    expect(subject.width * scale).toBeLessThanOrEqual(1280 * 0.92 + 1);
+    expect(placed.x + placed.width / 2).toBeCloseTo(640, 6);
   });
 
   it("a tall crop is still sized by height, where height is what fits", () => {

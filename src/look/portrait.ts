@@ -1,5 +1,6 @@
 import { loadImage } from "../world/compose";
 import { bodyCut } from "./bodysegment";
+import { needsResample } from "./stylise";
 import { faceBox, subjectMask } from "./segment";
 import { SCENES, placeSubject, sceneSrc, type SceneId } from "./scenes";
 import { styliseImageData, FAST, FINE, type StyliseOptions } from "./stylise";
@@ -168,7 +169,13 @@ export async function portraitFromImage(
   }
 
   let toPaint = crop.ctx.getImageData(0, 0, cropW, cropH).data;
-  if (upscale > 1.01) {
+  if (needsResample({ width: cropW, height: cropH }, { width: paintW, height: paintH })) {
+    // Resample whenever the paint size differs from the crop — up *or* down. The test here used to be
+    // "upscale > 1.01", which is false for a large crop: a wide group whose short edge is already past
+    // the paint edge skipped the resample, went to the press at its own size while the ceiling had
+    // shrunk the frame it would be written into, and came back longer than that frame. That is the
+    // "offset is out of bounds" a real group photo produced — a typed-array error naming neither the
+    // cause nor the place.
     const big = canvasOf(paintW, paintH);
     big.ctx.imageSmoothingEnabled = true;
     big.ctx.imageSmoothingQuality = "high";
@@ -182,6 +189,13 @@ export async function portraitFromImage(
   });
   const painted = canvasOf(paintW, paintH);
   const paintedImage = painted.ctx.createImageData(paintW, paintH);
+  // Checked rather than assumed: if the press ever hands back a buffer that does not match the frame it
+  // is written into, the message says so in the press's own terms.
+  if (paintedPixels.length !== paintedImage.data.length) {
+    throw new Error(
+      `the press returned ${paintedPixels.length} bytes for a ${paintedImage.data.length}-byte frame`,
+    );
+  }
   paintedImage.data.set(paintedPixels);
   painted.ctx.putImageData(paintedImage, 0, 0);
 

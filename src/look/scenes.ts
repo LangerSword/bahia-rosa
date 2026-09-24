@@ -105,10 +105,11 @@ export function placeSubject(
   // Height does the sizing: the subject fills `scene.height` of the frame.
   const heightScale = (out.height * scene.height) / Math.max(1, subject.height);
 
-  // But never wider than the frame. A group photo is wide, and scaling a wide crop to fill the height
-  // pushes the people at the ends off the sides — which would make "the whole group" false in exactly
-  // the case this rule exists for. The smaller of the two scales wins, so the group always fits.
-  const widthScale = (out.width * (1 - margin * 2)) / Math.max(1, crop.width);
+  // But never wider than the frame — and the *subject* is what has to fit, not the crop that carries it.
+  // Capping by the crop was the subtler half of the same mistake: the crop has margins of its own, so a
+  // subject sitting near the crop's edge still ran past the frame's. The crop's extra margin can spill
+  // off the frame harmlessly — it is transparent where the mask did not cut — but a person cannot.
+  const widthScale = (out.width * (1 - margin * 2)) / Math.max(1, subject.width);
   const scale = Math.min(heightScale, widthScale);
 
   // The subject's centre, measured inside the crop, lands on the frame's centre line.
