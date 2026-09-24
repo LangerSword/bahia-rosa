@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { drawPlacement, loadGround, loadImage, readyFonts } from "../world/compose";
+import { drawPlacement, loadGround, loadImage, readyFonts, type LayerTransform } from "../world/compose";
 import type { Placement, PlacementCopy } from "../world/placements";
 
 /**
@@ -17,10 +17,12 @@ export interface PlacementCanvasProps {
   copy: PlacementCopy;
   /** The visitor's fit choice; falls back to the placement's own default. */
   fit?: "cover" | "contain";
+  /** The subject's own framing within the surface — moved, sized, cut, or let run off the edge. */
+  layer?: LayerTransform;
   className?: string;
 }
 
-export function PlacementCanvas({ placement, artworkUrl, copy, fit, className }: PlacementCanvasProps) {
+export function PlacementCanvas({ placement, artworkUrl, copy, fit, layer, className }: PlacementCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { city, handle, title, line } = copy;
 
@@ -56,7 +58,7 @@ export function PlacementCanvas({ placement, artworkUrl, copy, fit, className }:
       if (!ctx) return;
       const scale = (cssWidth / placement.width) * dpr;
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
-      drawPlacement(ctx, placement, artwork, { city, handle, title, line }, ground, fit);
+      drawPlacement(ctx, placement, artwork, { city, handle, title, line }, ground, fit, layer);
     };
 
     void paint().catch(() => undefined);
@@ -66,7 +68,7 @@ export function PlacementCanvas({ placement, artworkUrl, copy, fit, className }:
       cancelled = true;
       observer.disconnect();
     };
-  }, [placement, artworkUrl, city, handle, title, line, fit]);
+  }, [placement, artworkUrl, city, handle, title, line, fit, layer]);
 
   // Decorative: the composite is not interactive, and a canvas that swallows clicks would break the
   // button it sits inside. The aspect-ratio box is set up front so the layout never waits on the paint.

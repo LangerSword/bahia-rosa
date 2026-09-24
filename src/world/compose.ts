@@ -161,6 +161,124 @@ function drawText(ctx: CanvasRenderingContext2D, layer: TextLayer, copy: Placeme
 }
 
 /** Draw the whole placement. Exported for the tests, which assert against the same numbers. */
+/**
+ * The subject as a layer you can move, size, cut and let run off the edge.
+ *
+ * The subject is already composited into the plate before it gets here — this is the *second* layer of
+ * control, on the surface: the plate's artwork placed inside the surface's artwork rect. The visitor's
+ * decisions are a transform, not a re-render, which is why dragging is instant and why a download is
+ * still the same function that drew the preview.
+ *
+ * Group photos use exactly this and nothing else. Splitting a group into separate people would mean
+ * cutting, painting and lighting each one independently — and the paint is what holds the group together
+ * (shared light, shared palette, one frame). So the group stays one layer, and gets the same controls a
+ * solo photograph gets.
+ */
+export interface LayerTransform {
+  /** Drag, as a fraction of the surface's width and height. 0 is centred. */
+  dx: number;
+  dy: number;
+  /** Size on top of the fitted size: 1 is exactly the fit, 2 is twice it. */
+  scale: number;
+  /** Cut away from the top and the bottom of the layer, 0..0.6 each — "just the top half of us". */
+  cropTop: number;
+  cropBottom: number;
+  /** Let the layer run past the surface's edge instead of being held inside it. */
+  overflow: boolean;
+}
+
+export const LAYER_DEFAULT: LayerTransform = {
+  dx: 0,
+  dy: 0,
+  scale: 1,
+  cropTop: 0,
+  cropBottom: 0,
+  overflow: false,
+};
+
+/** True when a transform would change nothing — the path that must stay byte-identical to the old one. */
+export function isDefaultLayer(layer: LayerTransform | undefined): boolean {
+  if (!layer) return true;
+  return (
+    layer.dx === 0 &&
+    layer.dy === 0 &&
+    layer.scale === 1 &&
+    layer.cropTop === 0 &&
+    layer.cropBottom === 0 &&
+    !layer.overflow
+  );
+}
+
+/**
+ * Where the layer's pixels come from and where they go.
+ *
+ * The source rect is the *cut*: cropping the top and bottom of the layer rather than squashing it, so a
+ * body with its legs cut away keeps its proportions. The destination is the fitted size for what is left,
+ * scaled, moved, and — unless the visitor asked for overflow — held inside the surface.
+ */
+export function layerGeometry(
+  image: { width: number; height: number },
+  rect: { x: number; y: number; w: number; h: number },
+  transform: LayerTransform = LAYER_DEFAULT,
+  fit: "cover" | "contain" = "contain",
+): { source: { x: number; y: number; w: number; h: number }; destination: { x: number; y: number; w: number; h: number } } {
+  const cropTop = Math.min(0.6, Math.max(0, transform.cropTop));
+  const cropBottom = Math.min(0.6, Math.max(0, transform.cropBottom));
+  const top = Math.round(image.height * cropTop);
+  const bottom = Math.min(image.height - top - 1, Math.round(image.height * cropBottom));
+  const source = {
+    x: 0,
+    y: top,
+    w: Math.max(1, image.width),
+    h: Math.max(1, image.height - top - bottom),
+  };
+
+  const base = fitRect({ width: source.w, height: source.h }, rect, fit);
+  const scale = Math.min(4, Math.max(0.05, transform.scale));
+  const w = base.w * scale;
+  const h = base.h * scale;
+
+  // The anchor is the placement's own: centred in the rect, exactly as the untransformed fit is — so the
+  // default transform reproduces the old output to the pixel, and a drag is measured from there.
+  let x = rect.x + (rect.w - w) / 2 + transform.dx * rect.w;
+  let y = rect.y + (rect.h - h) / 2 + transform.dy * rect.h;
+
+  if (!transform.overflow) {
+    // Held inside the surface. When the layer is larger than the rect there is nothing to clamp against,
+    // so it is centred instead — which is what "no overflow" means at that size.
+    x = w >= rect.w ? rect.x + (rect.w - w) / 2 : Math.min(rect.x + rect.w - w, Math.max(rect.x, x));
+    y = h >= rect.h ? rect.y + (rect.h - h) / 2 : Math.min(rect.y + rect.h - h, Math.max(rect.y, y));
+  }
+
+  return { source, destination: { x, y, w, h } };
+}
+
+/** The artwork into a rect, through the layer transform — or straight through when there is none. */
+function drawLayer(
+  ctx: CanvasRenderingContext2D,
+  artwork: HTMLImageElement,
+  rect: { x: number; y: number; w: number; h: number },
+  fit: "cover" | "contain",
+  layer?: LayerTransform,
+): void {
+  if (isDefaultLayer(layer)) {
+    drawFitted(ctx, artwork, rect, fit);
+    return;
+  }
+  const { source, destination } = layerGeometry(artwork, rect, layer, fit);
+  ctx.drawImage(
+    artwork,
+    source.x,
+    source.y,
+    source.w,
+    source.h,
+    destination.x,
+    destination.y,
+    destination.w,
+    destination.h,
+  );
+}
+
 export function drawPlacement(
   ctx: CanvasRenderingContext2D,
   placement: Placement,
@@ -169,6 +287,8 @@ export function drawPlacement(
   ground: HTMLImageElement | null = null,
   /** Overrides the placement's own default — the visitor's choice, for this download. */
   fitOverride?: "cover" | "contain",
+  /** The subject as a layer: moved, sized, cut, or let run off the edge. */
+  layer?: LayerTransform,
 ): void {
   const { width, height } = placement;
   const fit = fitOverride ?? placement.artwork.fit;
@@ -187,9 +307,9 @@ export function drawPlacement(
     ctx.fillRect(placement.artwork.x, placement.artwork.y, placement.artwork.w, placement.artwork.h);
   }
 
-  drawFitted(ctx, artwork, placement.artwork, fit);
+  drawLayer(ctx, artwork, placement.artwork, fit, layer);
 
-  if (fit === "contain") {
+  if (fit === "contain" && isDefaultLayer(layer)) {
     // And the photograph's own edge, so the mount is a mount and not a shadow.
     const placed = fitRect(artwork, placement.artwork, "contain");
     ctx.strokeStyle = PALETTE.rule;
@@ -227,11 +347,13 @@ export interface ComposeOptions {
   copy: PlacementCopy;
   /** The visitor's fit choice for this download; falls back to the placement's own default. */
   fit?: "cover" | "contain";
+  /** The subject's own framing within the surface, as arranged on screen. */
+  layer?: LayerTransform;
   /** Scale the export down (1 = spec pixels). Kept for a future "small download". */
   pixelRatio?: number;
 }
 
-export async function composePlacement({ placement, artworkUrl, copy, fit, pixelRatio = 1 }: ComposeOptions): Promise<Blob> {
+export async function composePlacement({ placement, artworkUrl, copy, fit, layer, pixelRatio = 1 }: ComposeOptions): Promise<Blob> {
   await readyFonts();
   const [artwork, ground] = await Promise.all([loadImage(artworkUrl), loadGround(placement)]);
   const canvas = document.createElement("canvas");
@@ -240,7 +362,7 @@ export async function composePlacement({ placement, artworkUrl, copy, fit, pixel
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("this browser has no 2d canvas context");
   if (pixelRatio !== 1) ctx.scale(pixelRatio, pixelRatio);
-  drawPlacement(ctx, placement, artwork, copy, ground, fit);
+  drawPlacement(ctx, placement, artwork, copy, ground, fit, layer);
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!blob) throw new Error("the export failed");
   return blob;

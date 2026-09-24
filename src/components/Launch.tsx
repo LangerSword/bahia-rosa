@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { PlacementCanvas } from "./PlacementCanvas";
-import { composePlacement, downloadBlob, placementFilename } from "../world/compose";
+import { LAYER_DEFAULT, composePlacement, downloadBlob, placementFilename, type LayerTransform } from "../world/compose";
 import { PLACEMENTS, type Placement, type PlacementCopy } from "../world/placements";
 
 /**
@@ -45,9 +45,27 @@ interface StoredPayoff {
   copy?: Partial<PlacementCopy>;
   placement?: string;
   fit?: Fit;
+  /** The subject's framing, per surface — so leaving and coming back does not undo your arrangement. */
+  layers?: Record<string, LayerTransform>;
 }
 
-function defaults(city: string, location: string | null | undefined): { copy: PlacementCopy; placement: string; fit: Fit } {
+/** A stored layer, read defensively: a corrupted or hostile entry becomes the default, never a NaN. */
+function readLayer(value: unknown): LayerTransform | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<LayerTransform>;
+  const number = (input: unknown, fallback: number, min: number, max: number): number =>
+    typeof input === "number" && Number.isFinite(input) ? Math.min(max, Math.max(min, input)) : fallback;
+  return {
+    dx: number(candidate.dx, 0, -1.5, 1.5),
+    dy: number(candidate.dy, 0, -1.5, 1.5),
+    scale: number(candidate.scale, 1, 0.2, 4),
+    cropTop: number(candidate.cropTop, 0, 0, 0.6),
+    cropBottom: number(candidate.cropBottom, 0, 0, 0.6),
+    overflow: candidate.overflow === true,
+  };
+}
+
+function defaults(city: string, location: string | null | undefined): { copy: PlacementCopy; placement: string; fit: Fit; layers: Record<string, LayerTransform> } {
   return {
     copy: {
       city,
@@ -59,10 +77,13 @@ function defaults(city: string, location: string | null | undefined): { copy: Pl
     // The whole photograph, by default. A surface that hides part of someone's picture should be their
     // decision — so `cover` is offered, never assumed.
     fit: "contain",
+    // And the subject exactly where the press put it: centred, fitted, nothing cut. Every control below
+    // starts from the honest default and only moves if the visitor moves it.
+    layers: {},
   };
 }
 
-function restore(city: string, location: string | null | undefined): { copy: PlacementCopy; placement: string; fit: Fit } {
+function restore(city: string, location: string | null | undefined): { copy: PlacementCopy; placement: string; fit: Fit; layers: Record<string, LayerTransform> } {
   const fallback = defaults(city, location);
   if (typeof window === "undefined") return fallback;
   try {
@@ -70,10 +91,16 @@ function restore(city: string, location: string | null | undefined): { copy: Pla
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as StoredPayoff;
     const known = PLACEMENTS.some((placement) => placement.id === parsed.placement);
+    const layers: Record<string, LayerTransform> = {};
+    for (const placement of PLACEMENTS) {
+      const layer = readLayer(parsed.layers?.[placement.id]);
+      if (layer) layers[placement.id] = layer;
+    }
     return {
       copy: { ...fallback.copy, ...parsed.copy },
       placement: known ? (parsed.placement as string) : fallback.placement,
       fit: parsed.fit === "cover" || parsed.fit === "contain" ? parsed.fit : fallback.fit,
+      layers,
     };
   } catch {
     return fallback;
@@ -85,20 +112,83 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
   const [selectedId, setSelectedId] = useState<string>(first.placement);
   const [copy, setCopy] = useState<PlacementCopy>(first.copy);
   const [fit, setFit] = useState<Fit>(first.fit);
+  const [layers, setLayers] = useState<Record<string, LayerTransform>>(first.layers);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const dragRef = useRef<{ x: number; y: number; dx: number; dy: number; w: number; h: number } | null>(null);
 
-  // Kept as you type: the whole point is that a detour does not cost you the words.
+  /** This surface's framing, defaulted — every read of it goes through here so nothing is undefined. */
+  const layer = layers[selectedId] ?? LAYER_DEFAULT;
+
+  /** One writer for the layer, so a drag, a slider and a reset cannot disagree about the shape. */
+  const setLayer = (id: string, patch: Partial<LayerTransform>) => {
+    setLayers((all) => ({ ...all, [id]: { ...(all[id] ?? LAYER_DEFAULT), ...patch } }));
+  };
+
+  const clampMove = (value: number) => Math.min(1.5, Math.max(-1.5, value));
+
+  const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    dragRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      dx: layer.dx,
+      dy: layer.dy,
+      w: Math.max(1, rect.width),
+      h: Math.max(1, rect.height),
+    };
+    setDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const moveDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    // A drag is a fraction of the surface, so the same gesture means the same thing on a postcard and on
+    // a billboard — and a download at 1600px wide reproduces it exactly.
+    setLayer(selectedId, {
+      dx: clampMove(drag.dx + (event.clientX - drag.x) / drag.w),
+      dy: clampMove(drag.dy + (event.clientY - drag.y) / drag.h),
+    });
+  };
+
+  const endDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    dragRef.current = null;
+    setDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  /** The same movement without a pointer: arrows nudge, shift-arrows move by a bigger step. */
+  const nudge = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const step = event.shiftKey ? 0.1 : 0.02;
+    const moves: Record<string, [number, number]> = {
+      ArrowLeft: [-step, 0],
+      ArrowRight: [step, 0],
+      ArrowUp: [0, -step],
+      ArrowDown: [0, step],
+    };
+    const move = moves[event.key];
+    if (!move) return;
+    event.preventDefault();
+    setLayer(selectedId, { dx: clampMove(layer.dx + move[0]), dy: clampMove(layer.dy + move[1]) });
+  };
+
+  // Kept as you type — and as you arrange. The layer belongs in the dependency list as much as the words
+  // do: without it the drag updates the canvas and never reaches storage, which is a memory that looks
+  // like it works until the visitor comes back.
   useEffect(() => {
     try {
       window.localStorage.setItem(
         STORE,
-        JSON.stringify({ copy, placement: selectedId, fit } satisfies StoredPayoff),
+        JSON.stringify({ copy, placement: selectedId, fit, layers } satisfies StoredPayoff),
       );
     } catch {
       // A browser with storage disabled is not a broken page: the copy simply is not remembered.
     }
-  }, [copy, selectedId, fit]);
+  }, [copy, selectedId, fit, layers]);
 
   const selected = useMemo<Placement>(
     () => PLACEMENTS.find((placement) => placement.id === selectedId) ?? PLACEMENTS[0],
@@ -109,7 +199,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
     setBusy(placement.id);
     setError(null);
     try {
-      const blob = await composePlacement({ placement, artworkUrl, copy, fit });
+      const blob = await composePlacement({ placement, artworkUrl, copy, fit, layer: layers[placement.id] });
       downloadBlob(blob, placementFilename(placement, copy.city));
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "the export failed");
@@ -123,7 +213,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
     setError(null);
     try {
       for (const placement of PLACEMENTS) {
-        const blob = await composePlacement({ placement, artworkUrl, copy, fit });
+        const blob = await composePlacement({ placement, artworkUrl, copy, fit, layer: layers[placement.id] });
         downloadBlob(blob, placementFilename(placement, copy.city));
         await new Promise((resolve) => setTimeout(resolve, 400));
       }
@@ -152,11 +242,26 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
 
       <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_minmax(260px,320px)]">
         <div>
-          <div className="plate-inset">
-            <PlacementCanvas placement={selected} artworkUrl={artworkUrl} copy={copy} fit={fit} className="block w-full" />
+          <div
+            className="plate-inset"
+            data-testid="layer-surface"
+            role="application"
+            tabIndex={0}
+            aria-label="the subject in the frame: drag it, or nudge it with the arrow keys"
+            onPointerDown={startDrag}
+            onPointerMove={moveDrag}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            onKeyDown={nudge}
+            style={{ touchAction: "none", cursor: dragging ? "grabbing" : "grab" }}
+          >
+            <PlacementCanvas placement={selected} artworkUrl={artworkUrl} copy={copy} fit={fit} layer={layer} className="block w-full" />
           </div>
           <p className="mt-3 text-xs" style={{ color: "var(--color-faint)" }}>
             {selected.label} · {selected.width}×{selected.height} · {selected.blurb}
+          </p>
+          <p className="mt-2 text-xs" style={{ color: "var(--color-muted)" }}>
+            drag the frame to place yourself · arrows nudge · shift-arrows move further
           </p>
           <p className="sr-only">{selected.caption}</p>
 
@@ -279,6 +384,78 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
             </p>
           </div>
 
+          <div className="mt-8">
+            <h3 className="text-xs" style={{ color: "var(--color-muted)" }}>
+              the layer
+            </h3>
+            <p className="measure mt-2 text-xs" style={{ color: "var(--color-faint)" }}>
+              one layer, however many of you are in the photograph — a group moves, sizes and cuts as one,
+              because the paint is what holds a group together. let it run off the edge if you want only
+              part of it in the frame.
+            </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-3">
+              <label className="block text-xs" style={{ color: "var(--color-muted)" }}>
+                size · {layer.scale.toFixed(2)}×
+                <input
+                  data-testid="layer-scale"
+                  type="range"
+                  min={0.4}
+                  max={2.4}
+                  step={0.02}
+                  value={layer.scale}
+                  onChange={(event) => setLayer(selectedId, { scale: Number(event.target.value) })}
+                  className="mt-2 w-full"
+                />
+              </label>
+              <label className="block text-xs" style={{ color: "var(--color-muted)" }}>
+                cut from the top · {Math.round(layer.cropTop * 100)}%
+                <input
+                  data-testid="layer-crop-top"
+                  type="range"
+                  min={0}
+                  max={0.6}
+                  step={0.01}
+                  value={layer.cropTop}
+                  onChange={(event) => setLayer(selectedId, { cropTop: Number(event.target.value) })}
+                  className="mt-2 w-full"
+                />
+              </label>
+              <label className="block text-xs" style={{ color: "var(--color-muted)" }}>
+                cut from the bottom · {Math.round(layer.cropBottom * 100)}%
+                <input
+                  data-testid="layer-crop-bottom"
+                  type="range"
+                  min={0}
+                  max={0.6}
+                  step={0.01}
+                  value={layer.cropBottom}
+                  onChange={(event) => setLayer(selectedId, { cropBottom: Number(event.target.value) })}
+                  className="mt-2 w-full"
+                />
+              </label>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={layer.overflow}
+                data-testid="layer-overflow"
+                onClick={() => setLayer(selectedId, { overflow: !layer.overflow })}
+                className="btn-quiet"
+              >
+                {layer.overflow ? "runs off the edge" : "held inside the frame"}
+              </button>
+              <button
+                type="button"
+                data-testid="layer-reset"
+                onClick={() => setLayer(selectedId, LAYER_DEFAULT)}
+                className="btn-quiet"
+              >
+                reset the layer
+              </button>
+            </div>
+          </div>
+
           <div>
             <h3 className="text-xs" style={{ color: "var(--color-muted)" }}>
               where it runs
@@ -297,7 +474,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
                     padding: "6px",
                   }}
                 >
-                  <PlacementCanvas placement={placement} artworkUrl={artworkUrl} copy={copy} fit={fit} className="block w-full" />
+                  <PlacementCanvas placement={placement} artworkUrl={artworkUrl} copy={copy} fit={fit} layer={layers[placement.id]} className="block w-full" />
                   <span className="mt-2 block px-1 pb-1 text-xs" style={{ color: "var(--color-muted)" }}>
                     {placement.label.toLowerCase()}
                   </span>
