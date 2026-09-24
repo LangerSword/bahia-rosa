@@ -35,7 +35,7 @@ test("the subject is a layer: drag it, size it, cut it, let it run off the edge"
   const stored = () =>
     page.evaluate(() =>
       JSON.parse(window.localStorage.getItem("bahia-rosa.payoff.v1") ?? "{}"),
-    ) as Promise<{ layer?: { dx: number; dy: number; scale: number; cropBottom: number; overflow: boolean } }>;
+    ) as Promise<{ layer?: { dx: number; dy: number; scale: number; cropTop: number; cropBottom: number; overflow: boolean } }>;
 
   const previewPixels = async () =>
     surface.locator("canvas").evaluate((node) => (node as HTMLCanvasElement).toDataURL().length);
@@ -66,9 +66,38 @@ test("the subject is a layer: drag it, size it, cut it, let it run off the edge"
   await page.getByTestId("layer-scale").fill("1.6");
   expect((await stored()).layer?.scale).toBeCloseTo(1.6, 2);
 
-  // 3. Cut from the bottom — "I don't want the full body".
+  // 3. Crop — "I don't want the full body". The crop button opens the mode, and the cut lines sit on the
+  //    person where the cut will land.
+  await page.getByTestId("arrange-crop").click();
+  await expect(page.getByTestId("arrange-crop")).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("crop-handle-top")).toBeVisible();
+  await expect(page.getByTestId("crop-handle-bottom")).toBeVisible();
+
+  // Directly, with the pointer: drag the top cut line down the person, then read the arrangement back.
+  //   `hover` rather than a bounding box read: a box captured while the phase is still laying out is a box
+  //   from the past, and the drag then lands next to the line instead of on it — which is exactly how this
+  //   test failed the first time, with the arrangement unchanged and a screenshot of a click in empty space.
+  const cutLine = page.getByTestId("crop-handle-top");
+  await cutLine.hover();
+  const line = await cutLine.boundingBox();
+  if (!line) throw new Error("the crop has no line to drag");
+  await page.mouse.down();
+  await page.mouse.move(line.x + line.width / 2, line.y + line.height / 2 + 60, { steps: 6 });
+  await page.mouse.up();
+  expect((await stored()).layer?.cropTop).toBeGreaterThan(0.05);
+  await expect(page.getByTestId("crop-shade-top")).toBeVisible();
+
+  // Dragging the line must not have moved the person: crop mode is a crop, not a second drag surface.
+  expect((await stored()).layer?.dx).toBeCloseTo(dragged?.dx ?? 0, 5);
+
+  // And the slider is the same number, for anyone who would rather type.
   await page.getByTestId("layer-crop-bottom").fill("0.3");
   expect((await stored()).layer?.cropBottom).toBeCloseTo(0.3, 2);
+
+  // Done cropping puts the controls away again — they are a mode, not permanent furniture.
+  await page.getByTestId("arrange-crop").click();
+  await expect(page.getByTestId("layer-crop-bottom")).toHaveCount(0);
+  await expect(page.getByTestId("crop-handle-top")).toHaveCount(0);
 
   // 4. Overflow — let it run off the edge.
   await page.getByTestId("layer-overflow").click();
@@ -81,6 +110,7 @@ test("the subject is a layer: drag it, size it, cut it, let it run off the edge"
   expect(reset?.dx).toBe(0);
   expect(reset?.scale).toBe(1);
   expect(reset?.cropBottom).toBe(0);
+  expect(reset?.cropTop).toBe(0);
   expect(reset?.overflow).toBe(false);
 
   // 6. The outline: their actual box in the frame, drawn from the same geometry the exporter uses — and

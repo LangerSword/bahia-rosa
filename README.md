@@ -94,6 +94,13 @@ the page. Point the app at one with `?desk=<url>` and it is remembered — see
 
 ## The editor
 
+The arrangement has a **crop button**. Pressing it turns the frame into a crop: the cut lines sit on the
+person where the cut will land, each one drags straight to where you want it, and the same two numbers
+are on sliders for anyone who would rather type — because "I don't want the full body in this one" is a
+decision about the picture, not a percentage. The lines are drawn on the *uncropped* extent, which is the
+part that is otherwise invisible: the cut is applied before the fit, so what is drawn is the cropped
+person, and the only honest way to show what a cut takes away is to draw the box it is taking it from.
+
 React Image Editor (`@unlayer/react-image-editor`) is the workstation. Each surface hands it a different tool
 set (`features.imageEditor.tools`), so "the editor is core" is structural rather than a claim — and the
 arrangement lives in the same phase, in the frame above the tools: drag the subject, drag a corner to size

@@ -257,6 +257,27 @@ export function layerGeometry(
   return { source, destination: { x, y, w, h } };
 }
 
+/**
+ * Where a cut line lands, given a pointer position in the frame's own units.
+ *
+ * The whole of the crop's arithmetic, in one place and testable without a browser: the top line's distance
+ * down from the person's box is the fraction cut from the top, and the bottom line measures the same way up
+ * from the foot. The box handed in is the **uncropped** one — `layerGeometry` with the cuts lifted off —
+ * because the drawn box is the cropped fit, and a mapping measured against it would move under the very drag
+ * that is using it.
+ */
+export function cutAt(
+  pointerY: number,
+  box: { y: number; h: number },
+  edge: "top" | "bottom",
+  max = 0.6,
+): number {
+  if (box.h <= 0) return 0;
+  const fraction = (pointerY - box.y) / box.h;
+  const value = edge === "top" ? fraction : 1 - fraction;
+  return Math.min(max, Math.max(0, value));
+}
+
 /** The artwork into a rect, through the layer transform — or straight through when there is none. */
 function drawLayer(
   ctx: CanvasRenderingContext2D,
