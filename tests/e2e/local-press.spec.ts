@@ -42,7 +42,10 @@ test("a photo is pressed into a plate, then the fork offers it raw or in the edi
   // The cut reports itself — and it has to be the model that did the work. A run where the classic
   // fallback answered for a clean single-subject portrait is a run where the segmenter never loaded,
   // which is precisely the regression that let a recolour pass for a cut-out.
-  await expect(page.getByTestId("cut-line")).toContainText(/found you in the frame/i);
+  // The line speaks about whoever the cut kept, and reports the finish from the result — never a claim.
+  const report = (await page.getByTestId("cut-line").textContent()) ?? "";
+  expect(report).toMatch(/^(you|the .+ of you), /);
+  expect(report).toMatch(/· (fast|fine) · \d+px wide/);
 
     // And the third door: straight into the city, with no editor in the way at all.
   await expect(page.getByTestId("take-to-city")).toBeVisible();

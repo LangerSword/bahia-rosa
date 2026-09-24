@@ -139,7 +139,15 @@ export function App() {
           width: result.width,
           sourceEdge: result.sourceEdge,
         });
-        setPlate({ kind: "photo", objectUrl: result.canvas.toDataURL("image/jpeg", 0.94), name: file.name });
+        setPlate({
+          kind: "photo",
+          objectUrl: result.canvas.toDataURL("image/jpeg", 0.94),
+          name: file.name,
+          // The two layers, kept apart all the way to the surfaces: the place without the person, and the
+          // person on their own. The plate above is the two of them flattened, for the raw download.
+          groundUrl: result.ground.toDataURL("image/jpeg", 0.92),
+          subjectUrl: result.subject.toDataURL("image/png"),
+        });
         setSource(url); // kept for the before/after comparison; revoked on reset
         setMeta(null);
         setStage("printed");
@@ -284,23 +292,50 @@ export function App() {
   /** What the finish actually produced — read from the result, so it cannot be a claim. */
   const cutLabel = `${quality === "fine" ? "fine" : "fast"} · ${cut?.width ?? 0}px wide`;
 
-  /** What the cut did, and what the finish produced — reported from the result, never guessed at. */
-  const cutLine =
-    (cut?.cutSource === "model"
-      ? `found you in the frame — ${Math.round(cut.share * 100)}% of it`
+  /**
+   * What the cut did, in the city's voice rather than as a readout.
+   *
+   * The count and the share are still doing the work — they decide which line is true — but a visitor wants
+   * to know how the frame sees them, not what percentage of it they occupy. So the number is spent on
+   * choosing a phrase instead of being printed.
+   */
+  const who =
+    cut?.subjects && cut.subjects > 1
+      ? cut.subjects === 2
+        ? "the two of you"
+        : cut.subjects === 3
+          ? "the three of you"
+          : cut.subjects === 4
+            ? "the four of you"
+            : "all of you"
+      : "you";
+  const presence =
+    cut?.cutSource === "model"
+      ? cut.share > 0.45
+        ? `${who}, filling the frame`
+        : cut.share > 0.22
+          ? `${who}, close to the lens`
+          : cut.share > 0.09
+            ? `${who}, a little way off`
+            : `${who}, small in a wide frame`
       : cut?.cutSource === "classic"
         ? "the rough find did the cut — the segmenter could not load"
         : meta
           ? "printed at the desk"
           : cut
-            ? "no person could be told apart, so the whole frame was painted"
-            : "") +
-    (cut ? ` · ${cutLabel}` : "") +
+            ? "no one could be told apart from the room, so the whole frame was painted"
+            : "";
+  const cutLine = [
+    presence,
+    cut ? cutLabel : "",
     // A small photograph is named rather than quietly smeared: a pasted screenshot is often half the size
     // the subject is painted at, and the honest advice is a bigger copy.
-    (cut && cut.sourceEdge < 900
-      ? ` · from a ${cut.sourceEdge}px photo${cut.sourceEdge < 640 ? " — a bigger copy will press sharper" : ""}`
-      : "");
+    cut && cut.sourceEdge < 900
+      ? `from a ${cut.sourceEdge}px photo${cut.sourceEdge < 640 ? " — a bigger copy will press sharper" : ""}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="grain vignette min-h-screen">
@@ -737,7 +772,8 @@ export function App() {
             className="mt-10"
           >
             <Launch
-              artworkUrl={saved}
+              artworkUrl={plate?.kind === "photo" ? plate.groundUrl ?? saved : saved}
+              subjectUrl={plate?.kind === "photo" ? plate.subjectUrl : undefined}
               location={meta?.location ?? null}
               onBack={() => setStage(viaEditor ? "editing" : "printed")}
               backLabel={viaEditor ? "Back to the editor" : "Back to your plate"}

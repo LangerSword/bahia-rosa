@@ -40,6 +40,10 @@ export interface PortraitOptions extends StyliseOptions {
 
 export interface PortraitResult {
   canvas: HTMLCanvasElement;
+  /** The place on its own — no person in it. What the surfaces put behind the layer. */
+  ground: HTMLCanvasElement;
+  /** The person on their own — painted, transparent, at output size. What the surfaces move. */
+  subject: HTMLCanvasElement;
   /** Fraction of the frame the subject covered in the photograph, 0..1. */
   share: number;
   /** True when the subject was cut out and placed; false when the whole frame was painted. */
@@ -50,6 +54,8 @@ export interface PortraitResult {
   width: number;
   /** The photograph's own short edge, so a small one can be named rather than silently smeared. */
   sourceEdge: number;
+  /** How many people the cut kept, so the report can speak about them rather than about a percentage. */
+  subjects: number;
   scene: SceneId;
 }
 
@@ -66,16 +72,18 @@ function canvasOf(width: number, height: number): { canvas: HTMLCanvasElement; c
 }
 
 /**
- * Where the person was, the ground goes soft.
+ * Where the person was, the room comes back.
  *
- * In the "as it is" ground the room behind the subject is their own photograph, so the painted layer
- * standing in front of it would otherwise look like a duplicate of someone still in the background. A
- * bokeh haze over exactly the subject's area fixes that without inventing anything: it is the same room,
- * blurred, which is also what a shallow depth of field would have done in the first place.
+ * "As it is" keeps the visitor's own room as the ground — which means the ground must not *contain* them.
+ * Blurring them was the first attempt and it was wrong: a blurred person is still a second person, which is
+ * exactly the doubling the visitor saw. So the mask's area is filled by diffusion — the room's own colours
+ * pushed inward from the edge of the silhouette, a few dozen passes — and then softened, so the fill reads
+ * as the wall behind them rather than as a hole. Nothing is invented: it is the same room, smeared over the
+ * place where somebody was standing.
  *
  * Done after the cut, because it needs the mask — and the mask is only known once the model has answered.
  */
-function softenWherePersonWas(
+function clearWherePersonWas(
   ground: HTMLCanvasElement,
   mask: Uint8ClampedArray,
   maskWidth: number,
@@ -84,40 +92,92 @@ function softenWherePersonWas(
   const ctx = ground.getContext("2d");
   if (!ctx) return;
   const { width, height } = ground;
+  const image = ctx.getImageData(0, 0, width, height);
+  const pixels = image.data;
 
-  const tiny = document.createElement("canvas");
-  tiny.width = Math.max(1, Math.round(width / 10));
-  tiny.height = Math.max(1, Math.round(height / 10));
-  const tinyCtx = tiny.getContext("2d");
-  if (!tinyCtx) return;
-  tinyCtx.imageSmoothingQuality = "low";
-  tinyCtx.drawImage(ground, 0, 0, tiny.width, tiny.height);
-
-  const soft = document.createElement("canvas");
-  soft.width = width;
-  soft.height = height;
-  const softCtx = soft.getContext("2d");
-  if (!softCtx) return;
-  softCtx.imageSmoothingEnabled = true;
-  softCtx.imageSmoothingQuality = "high";
-  softCtx.drawImage(tiny, 0, 0, width, height);
-
-  const sharp = ctx.getImageData(0, 0, width, height);
-  const blurred = softCtx.getImageData(0, 0, width, height);
+  const hole = new Uint8Array(width * height);
+  let holeCount = 0;
   for (let y = 0; y < height; y += 1) {
     const my = Math.min(maskHeight - 1, Math.round((y * maskHeight) / height));
     for (let x = 0; x < width; x += 1) {
       const mx = Math.min(maskWidth - 1, Math.round((x * maskWidth) / width));
-      const coverage = (mask[my * maskWidth + mx] ?? 0) / 255;
-      if (coverage <= 0.02) continue;
-      const mix = Math.min(1, coverage * 0.92);
-      const p = (y * width + x) * 4;
-      sharp.data[p] = sharp.data[p] * (1 - mix) + blurred.data[p] * mix;
-      sharp.data[p + 1] = sharp.data[p + 1] * (1 - mix) + blurred.data[p + 1] * mix;
-      sharp.data[p + 2] = sharp.data[p + 2] * (1 - mix) + blurred.data[p + 2] * mix;
+      if ((mask[my * maskWidth + mx] ?? 0) > 96) {
+        hole[y * width + x] = 1;
+        holeCount += 1;
+      }
     }
   }
-  ctx.putImageData(sharp, 0, 0);
+  if (!holeCount) return;
+
+  // Diffusion: every pass gives each unfilled pixel the average of the neighbours that already have a
+  // colour. The room's own light, its own walls, carried inward — which is why the fill matches instead of
+  // announcing itself.
+  const filled = new Uint8Array(hole.length);
+  let remaining = holeCount;
+  for (let pass = 0; pass < 160 && remaining > 0; pass += 1) {
+    const born: number[] = [];
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const index = y * width + x;
+        if (!hole[index] || filled[index]) continue;
+        let r = 0;
+        let g = 0;
+        let b = 0;
+        let count = 0;
+        for (let dy = -1; dy <= 1; dy += 1) {
+          const sy = y + dy;
+          if (sy < 0 || sy >= height) continue;
+          for (let dx = -1; dx <= 1; dx += 1) {
+            const sx = x + dx;
+            if (sx < 0 || sx >= width) continue;
+            const neighbour = sy * width + sx;
+            if (hole[neighbour] && !filled[neighbour]) continue;
+            const p = neighbour * 4;
+            r += pixels[p];
+            g += pixels[p + 1];
+            b += pixels[p + 2];
+            count += 1;
+          }
+        }
+        if (!count) continue;
+        const p = index * 4;
+        pixels[p] = r / count;
+        pixels[p + 1] = g / count;
+        pixels[p + 2] = b / count;
+        born.push(index);
+      }
+    }
+    for (const index of born) filled[index] = 1;
+    remaining -= born.length;
+  }
+
+  // And then a light blur over the patched area alone, so the diffusion's passes do not show as rings.
+  const tiny = document.createElement("canvas");
+  tiny.width = Math.max(1, Math.round(width / 12));
+  tiny.height = Math.max(1, Math.round(height / 12));
+  const tinyCtx = tiny.getContext("2d");
+  if (tinyCtx) {
+    tinyCtx.drawImage(ground, 0, 0, tiny.width, tiny.height);
+    const soft = document.createElement("canvas");
+    soft.width = width;
+    soft.height = height;
+    const softCtx = soft.getContext("2d");
+    if (softCtx) {
+      softCtx.imageSmoothingEnabled = true;
+      softCtx.imageSmoothingQuality = "high";
+      softCtx.drawImage(tiny, 0, 0, width, height);
+      const blurred = softCtx.getImageData(0, 0, width, height).data;
+      for (let index = 0; index < hole.length; index += 1) {
+        if (!hole[index]) continue;
+        const p = index * 4;
+        pixels[p] = pixels[p] * 0.35 + blurred[p] * 0.65;
+        pixels[p + 1] = pixels[p + 1] * 0.35 + blurred[p + 1] * 0.65;
+        pixels[p + 2] = pixels[p + 2] * 0.35 + blurred[p + 2] * 0.65;
+      }
+    }
+  }
+
+  ctx.putImageData(image, 0, 0);
 }
 
 export async function portraitFromImage(
@@ -229,6 +289,7 @@ export async function portraitFromImage(
   let mask: Uint8ClampedArray | null = null;
   let box = { x: 0, y: 0, width: workW, height: workH };
   let share = 0;
+  let subjects = 1;
   let cutSource: PortraitResult["cutSource"] = "none";
   if (!wholeFrame) {
     onStage?.("finding you in the frame");
@@ -253,6 +314,7 @@ export async function portraitFromImage(
         mask = cut.alpha;
         box = cut.box;
         share = cut.share;
+        subjects = cut.subjects;
         cutSource = "model";
       } else {
         // The classic find, for the case where the model could not load. Good on a plain background, and
@@ -367,18 +429,20 @@ export async function portraitFromImage(
 
   // The scene: a real plate, graded to the hour the visitor chose, cropped to the output's aspect.
   onStage?.(`setting the frame in ${plate.label.toLowerCase()}`);
-  const out = canvasOf(outW, outH);
+  // The two layers the whole product is actually about: the **ground** (the place, with nobody in it) and
+  // the **subject** (the person, painted, on nothing). They stay apart all the way to the surface, which is
+  // what lets the person be moved over their own background instead of the whole picture moving together —
+  // and it is why the ground must never contain a second copy of them.
+  const ground = canvasOf(outW, outH);
   const gradedScene = await sceneWork;
-  // The "as it is" ground is the visitor's own room, so where they were standing in it goes soft — the
-  // mask is known by now, and the haze is what makes the painted layer in front look placed rather than
-  // duplicated. Nothing is invented: it is the same room, blurred.
   if (gradedScene && !sceneSrc(scene) && mask) {
-    softenWherePersonWas(gradedScene.canvas, mask, workW, workH);
+    // "As it is" keeps the visitor's own room as the ground, so the room has to be *cleared* of them.
+    clearWherePersonWas(gradedScene.canvas, mask, workW, workH);
   }
   if (gradedScene) {
-    out.ctx.imageSmoothingEnabled = true;
-    out.ctx.imageSmoothingQuality = "high";
-    out.ctx.drawImage(
+    ground.ctx.imageSmoothingEnabled = true;
+    ground.ctx.imageSmoothingQuality = "high";
+    ground.ctx.drawImage(
       gradedScene.canvas,
       0,
       0,
@@ -390,9 +454,10 @@ export async function portraitFromImage(
       outH,
     );
   } else {
-    out.ctx.fillStyle = "#0b0a12";
-    out.ctx.fillRect(0, 0, outW, outH);
+    ground.ctx.fillStyle = "#0b0a12";
+    ground.ctx.fillRect(0, 0, outW, outH);
   }
+  const subject = canvasOf(outW, outH);
 
   // Centre-bottom, aspect preserved: the *crop* is placed and the subject inside it sets the scale, so
   // the margin around them is never compressed into a stretch.
@@ -414,7 +479,7 @@ export async function portraitFromImage(
 
   if (mask) {
     onStage?.("placing you in it");
-    const shadow = out.ctx.createRadialGradient(
+    const shadow = subject.ctx.createRadialGradient(
       target.x + target.width / 2,
       target.y + target.height,
       0,
@@ -424,16 +489,16 @@ export async function portraitFromImage(
     );
     shadow.addColorStop(0, "rgba(4, 3, 10, 0.55)");
     shadow.addColorStop(1, "rgba(4, 3, 10, 0)");
-    out.ctx.fillStyle = shadow;
-    out.ctx.fillRect(target.x - target.width, target.y + target.height * 0.5, target.width * 3, target.height * 0.8);
+    subject.ctx.fillStyle = shadow;
+    subject.ctx.fillRect(target.x - target.width, target.y + target.height * 0.5, target.width * 3, target.height * 0.8);
   }
 
-  out.ctx.drawImage(painted.canvas, target.x, target.y, target.width, target.height);
+  subject.ctx.drawImage(painted.canvas, target.x, target.y, target.width, target.height);
 
   if (mask) {
     onStage?.("matching the light");
     const fromRight = plate.light === "right";
-    const rim = out.ctx.createLinearGradient(
+    const rim = subject.ctx.createLinearGradient(
       fromRight ? target.x + target.width : target.x,
       target.y,
       fromRight ? target.x : target.x + target.width,
@@ -441,28 +506,18 @@ export async function portraitFromImage(
     );
     rim.addColorStop(0, "rgba(255, 214, 150, 0.24)");
     rim.addColorStop(1, "rgba(255, 122, 61, 0)");
-    out.ctx.save();
-    out.ctx.globalCompositeOperation = "screen";
-    out.ctx.fillStyle = rim;
-    out.ctx.drawImage(painted.canvas, target.x, target.y, target.width, target.height);
-    out.ctx.restore();
+    subject.ctx.save();
+    subject.ctx.globalCompositeOperation = "screen";
+    subject.ctx.fillStyle = rim;
+    subject.ctx.drawImage(painted.canvas, target.x, target.y, target.width, target.height);
+    subject.ctx.restore();
   }
 
   // Fine mode composited at 1.5×: scale down to the size the caller asked for first, so the grade runs
   // once, on the pixels that actually ship.
   const finalW = Math.round(outLong);
   const finalH = Math.round((outLong * 9) / 16);
-  const final = canvasOf(finalW, finalH);
-  final.ctx.imageSmoothingEnabled = true;
-  final.ctx.imageSmoothingQuality = "high";
-  final.ctx.drawImage(out.canvas, 0, 0, outW, outH, 0, 0, finalW, finalH);
-
-  // The unifying pass: subject and place, one palette, one grain. Kept light on purpose — a heavy
-  // second quantisation would repaint the plate's own detail away — and lighter still in fine mode,
-  // where the whole point is that the colour came through.
-  onStage?.(fine ? "grading the whole frame (fine)" : "grading the whole frame");
-  const composed = final.ctx.getImageData(0, 0, finalW, finalH);
-  const graded = styliseImageData(composed.data, finalW, finalH, {
+  const gradeOptions = {
     colours: 16,
     palette: 0.18,
     ink: 0.12,
@@ -473,10 +528,39 @@ export async function portraitFromImage(
     smooth: 0,
     exposure: 0.35,
     seed: style.seed ?? 1,
-  });
-  const gradedImage = final.ctx.createImageData(finalW, finalH);
-  gradedImage.data.set(graded);
-  final.ctx.putImageData(gradedImage, 0, 0);
+  };
+  // The unifying pass: subject and place, one palette, one grain — run on *each layer*, so the two things
+  // that leave here are graded like the plate they flatten into. The plate itself is then the two of them
+  // drawn in order, which is why the download and the arrangement cannot drift apart.
+  onStage?.(fine ? "grading the whole frame (fine)" : "grading the whole frame");
+  const gradeLayer = (layer: { canvas: HTMLCanvasElement }): HTMLCanvasElement => {
+    const small = canvasOf(finalW, finalH);
+    small.ctx.imageSmoothingEnabled = true;
+    small.ctx.imageSmoothingQuality = "high";
+    small.ctx.drawImage(layer.canvas, 0, 0, outW, outH, 0, 0, finalW, finalH);
+    const data = small.ctx.getImageData(0, 0, finalW, finalH);
+    const pixels = styliseImageData(data.data, finalW, finalH, gradeOptions);
+    const image = small.ctx.createImageData(finalW, finalH);
+    if (pixels.length === image.data.length) image.data.set(pixels);
+    small.ctx.putImageData(image, 0, 0);
+    return small.canvas;
+  };
+  const gradedGround = gradeLayer(ground);
+  const gradedSubject = gradeLayer(subject);
+  const final = canvasOf(finalW, finalH);
+  final.ctx.drawImage(gradedGround, 0, 0);
+  final.ctx.drawImage(gradedSubject, 0, 0);
 
-  return { canvas: final.canvas, share, cutOut: Boolean(mask), cutSource, width: finalW, sourceEdge, scene };
+  return {
+    canvas: final.canvas,
+    ground: gradedGround,
+    subject: gradedSubject,
+    share,
+    cutOut: Boolean(mask),
+    cutSource,
+    width: finalW,
+    sourceEdge,
+    subjects: subjects || 1,
+    scene,
+  };
 }

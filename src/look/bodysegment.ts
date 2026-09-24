@@ -26,6 +26,8 @@ export interface BodyCut {
   box: { x: number; y: number; width: number; height: number };
   /** Fraction of the frame the person covers, 0..1. */
   share: number;
+  /** How many separate people the cut kept — one, or the whole group. */
+  subjects: number;
   source: "model" | "classic";
 }
 
@@ -90,7 +92,7 @@ export function cleanMask(
   classes: Uint8Array | Uint8ClampedArray,
   width: number,
   height: number,
-): { alpha: Uint8ClampedArray; box: BodyCut["box"]; share: number } {
+): { alpha: Uint8ClampedArray; box: BodyCut["box"]; share: number; subjects: number } {
   const pixels = width * height;
   const binary = new Uint8Array(pixels);
   for (let i = 0; i < Math.min(pixels, classes.length); i += 1) {
@@ -148,6 +150,9 @@ export function cleanMask(
   // Everybody who is part of the picture, not just the tallest person in it.
   const noiseFloor = Math.max(24, Math.round(pixels * NOISE_SHARE));
   const keep = sizes.map((size) => size >= Math.max(noiseFloor, largest * GROUP_SHARE));
+  // How many people the cut kept, so the report can say "the four of you" instead of a percentage.
+  let subjects = 0;
+  for (const kept of keep) if (kept) subjects += 1;
   const solid = new Uint8Array(pixels);
   for (let i = 0; i < pixels; i += 1) {
     const component = label[i];
@@ -209,7 +214,7 @@ export function cleanMask(
     maxX < 0
       ? { x: 0, y: 0, width, height }
       : { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
-  return { alpha, box, share: count / pixels };
+  return { alpha, box, share: count / pixels, subjects };
 }
 
 /**
@@ -411,7 +416,7 @@ export async function bodyCut(
 
     let count = 0;
     for (let i = 0; i < alpha.length; i += 1) if (alpha[i] > 127) count += 1;
-    return { alpha, box: cleaned.box, share: count / (width * height), source: "model" };
+    return { alpha, box: cleaned.box, share: count / (width * height), subjects: cleaned.subjects, source: "model" };
   } catch {
     return null;
   }

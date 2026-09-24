@@ -293,6 +293,8 @@ export function drawPlacement(
   fitOverride?: "cover" | "contain",
   /** The subject as a layer: moved, sized, cut, or let run off the edge. */
   layer?: LayerTransform,
+  /** The person on their own, drawn over the ground and moved by the layer. Without it, just the plate. */
+  subject?: HTMLImageElement | null,
 ): void {
   const { width, height } = placement;
   const fit = fitOverride ?? placement.artwork.fit;
@@ -311,7 +313,11 @@ export function drawPlacement(
     ctx.fillRect(placement.artwork.x, placement.artwork.y, placement.artwork.w, placement.artwork.h);
   }
 
-  drawLayer(ctx, artwork, placement.artwork, fit, layer);
+  // The ground is *placed*, never moved: it is the room, and a room does not follow you around. Only the
+  // person is a layer — which is what "keep the drawing in a separate layer" means once the picture leaves
+  // the press, and why a drag moves them over their background instead of dragging the whole frame.
+  drawFitted(ctx, artwork, placement.artwork, fit);
+  if (subject) drawLayer(ctx, subject, placement.artwork, fit, layer);
 
   if (fit === "contain" && isDefaultLayer(layer)) {
     // And the photograph's own edge, so the mount is a mount and not a shadow.
@@ -348,6 +354,8 @@ export function drawPlacement(
 export interface ComposeOptions {
   placement: Placement;
   artworkUrl: string;
+  /** The person on their own, if the press kept the layers apart. */
+  subjectUrl?: string;
   copy: PlacementCopy;
   /** The visitor's fit choice for this download; falls back to the placement's own default. */
   fit?: "cover" | "contain";
@@ -357,16 +365,20 @@ export interface ComposeOptions {
   pixelRatio?: number;
 }
 
-export async function composePlacement({ placement, artworkUrl, copy, fit, layer, pixelRatio = 1 }: ComposeOptions): Promise<Blob> {
+export async function composePlacement({ placement, artworkUrl, subjectUrl, copy, fit, layer, pixelRatio = 1 }: ComposeOptions): Promise<Blob> {
   await readyFonts();
-  const [artwork, ground] = await Promise.all([loadImage(artworkUrl), loadGround(placement)]);
+  const [artwork, ground, subject] = await Promise.all([
+    loadImage(artworkUrl),
+    loadGround(placement),
+    subjectUrl ? loadImage(subjectUrl) : Promise.resolve(null),
+  ]);
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(placement.width * pixelRatio);
   canvas.height = Math.round(placement.height * pixelRatio);
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("this browser has no 2d canvas context");
   if (pixelRatio !== 1) ctx.scale(pixelRatio, pixelRatio);
-  drawPlacement(ctx, placement, artwork, copy, ground, fit, layer);
+  drawPlacement(ctx, placement, artwork, copy, ground, fit, layer, subject);
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!blob) throw new Error("the export failed");
   return blob;

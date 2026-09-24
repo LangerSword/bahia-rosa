@@ -24,6 +24,8 @@ import { PLACEMENTS, type Placement, type PlacementCopy } from "../world/placeme
 
 export interface LaunchProps {
   artworkUrl: string;
+  /** The person on their own, if the press kept the layers apart — what the layer controls move. */
+  subjectUrl?: string;
   city?: string;
   /** Where the plate was printed, used as the default headline. */
   location?: string | null;
@@ -110,7 +112,7 @@ function restore(city: string, location: string | null | undefined): { copy: Pla
   }
 }
 
-export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, backLabel = "Back to the editor" }: LaunchProps) {
+export function Launch({ artworkUrl, subjectUrl, city = "Bahía Rosa", location, onBack, backLabel = "Back to the editor" }: LaunchProps) {
   const first = useMemo(() => restore(city, location), [city, location]);
   const [selectedId, setSelectedId] = useState<string>(first.placement);
   const [copy, setCopy] = useState<PlacementCopy>(first.copy);
@@ -199,7 +201,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
     setBusy(placement.id);
     setError(null);
     try {
-      const blob = await composePlacement({ placement, artworkUrl, copy, fit, layer });
+      const blob = await composePlacement({ placement, artworkUrl, subjectUrl, copy, fit, layer });
       downloadBlob(blob, placementFilename(placement, copy.city));
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "the export failed");
@@ -213,7 +215,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
     setError(null);
     try {
       for (const placement of PLACEMENTS) {
-        const blob = await composePlacement({ placement, artworkUrl, copy, fit, layer });
+        const blob = await composePlacement({ placement, artworkUrl, subjectUrl, copy, fit, layer });
         downloadBlob(blob, placementFilename(placement, copy.city));
         await new Promise((resolve) => setTimeout(resolve, 400));
       }
@@ -255,7 +257,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
             onKeyDown={nudge}
             style={{ touchAction: "none", cursor: dragging ? "grabbing" : "grab" }}
           >
-            <PlacementCanvas placement={selected} artworkUrl={artworkUrl} copy={copy} fit={fit} layer={layer} className="block w-full" />
+            <PlacementCanvas placement={selected} artworkUrl={artworkUrl} subjectUrl={subjectUrl} copy={copy} fit={fit} layer={layer} className="block w-full" />
           </div>
           <p className="mt-3 text-xs" style={{ color: "var(--color-faint)" }}>
             {selected.label} · {selected.width}×{selected.height} · {selected.blurb}
@@ -474,7 +476,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
                     padding: "6px",
                   }}
                 >
-                  <PlacementCanvas placement={placement} artworkUrl={artworkUrl} copy={copy} fit={fit} layer={layer} className="block w-full" />
+                  <PlacementCanvas placement={placement} artworkUrl={artworkUrl} subjectUrl={subjectUrl} copy={copy} fit={fit} layer={layer} className="block w-full" />
                   <span className="mt-2 block px-1 pb-1 text-xs" style={{ color: "var(--color-muted)" }}>
                     {placement.label.toLowerCase()}
                   </span>

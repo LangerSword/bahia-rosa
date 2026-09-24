@@ -40,19 +40,74 @@ export function SceneThumb({
     const src = sceneSrc(scene);
     if (!src) {
       // A scene with no plate: the ground is the visitor's own photograph, which does not exist yet at the
-      // moment they choose it. So the thumbnail is a title card rather than a picture of somewhere they have
-      // not been — honest about what the choice means.
-      ctx.fillStyle = "#141019";
+      // moment they choose it. So the thumbnail is a *drawing* of what the choice means — a room of one's
+      // own, lit — rather than a title card with words on it. The words were the first attempt and they read
+      // as a placeholder, which is exactly what a choice should never look like.
+      const wall = ctx.createLinearGradient(0, 0, 0, height);
+      wall.addColorStop(0, "#241a2e");
+      wall.addColorStop(1, "#150f1d");
+      ctx.fillStyle = wall;
       ctx.fillRect(0, 0, width, height);
-      ctx.strokeStyle = "rgba(244, 233, 216, 0.25)";
+
+      ctx.fillStyle = "#1c1526";
+      ctx.fillRect(0, height * 0.72, width, height * 0.28);
+      ctx.strokeStyle = "rgba(244, 233, 216, 0.14)";
       ctx.lineWidth = 1;
-      ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
-      ctx.fillStyle = "#f4e9d8";
-      ctx.font = "600 13px ui-monospace, SFMono-Regular, Menlo, monospace";
-      ctx.fillText("your own frame", 12, height / 2 + 4);
-      ctx.fillStyle = "rgba(244, 233, 216, 0.55)";
-      ctx.font = "500 10px ui-monospace, SFMono-Regular, Menlo, monospace";
-      ctx.fillText("the photo you bring, repainted", 12, height / 2 + 20);
+      ctx.beginPath();
+      ctx.moveTo(0, height * 0.72);
+      ctx.lineTo(width, height * 0.72);
+      ctx.stroke();
+
+      // A window, and the light it throws across the floor.
+      const wx = width * 0.58;
+      const wy = height * 0.14;
+      const ww = width * 0.28;
+      const wh = height * 0.44;
+      const daylight = ctx.createLinearGradient(wx, wy, wx, wy + wh);
+      daylight.addColorStop(0, "#f3d095");
+      daylight.addColorStop(1, "#c98f5e");
+      ctx.fillStyle = daylight;
+      ctx.fillRect(wx, wy, ww, wh);
+      ctx.strokeStyle = "rgba(20, 15, 28, 0.85)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(wx + ww / 2, wy);
+      ctx.lineTo(wx + ww / 2, wy + wh);
+      ctx.moveTo(wx, wy + wh / 2);
+      ctx.lineTo(wx + ww, wy + wh / 2);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(243, 208, 149, 0.16)";
+      ctx.beginPath();
+      ctx.moveTo(wx, wy + wh);
+      ctx.lineTo(wx + ww, wy + wh);
+      ctx.lineTo(wx + ww * 1.6, height);
+      ctx.lineTo(wx - ww * 0.4, height);
+      ctx.closePath();
+      ctx.fill();
+
+      // Somebody standing in their own room, before the city gets hold of them.
+      const fx = width * 0.28;
+      const fw = width * 0.11;
+      const fh = height * 0.42;
+      const fy = height * 0.72 - fh;
+      ctx.fillStyle = "#0d0912";
+      ctx.beginPath();
+      ctx.ellipse(fx + fw / 2, fy - fw * 0.3, fw * 0.42, fw * 0.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(fx, fy, fw, fh);
+
+      const vignette = ctx.createRadialGradient(
+        width / 2,
+        height / 2,
+        Math.min(width, height) * 0.2,
+        width / 2,
+        height / 2,
+        Math.max(width, height) * 0.72,
+      );
+      vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+      vignette.addColorStop(1, "rgba(0, 0, 0, 0.5)");
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, width, height);
       return;
     }
     image.src = src;

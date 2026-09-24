@@ -82,7 +82,11 @@ test("a screenshot pasted from the clipboard is pressed", async ({ page }) => {
   await pasteFile(page, "pasted.png", "image/png");
 
   await expect(page.getByTestId("printed-fork")).toBeVisible({ timeout: 150_000 });
-  expect(await page.getByTestId("cut-line").textContent()).toMatch(/found you in the frame/);
+  // The report is a line about how the frame sees them, not a percentage — so the assertion is that it
+  // speaks about a person (or a group) and names the finish, rather than matching a phrase that will change.
+  const line = (await page.getByTestId("cut-line").textContent()) ?? "";
+  expect(line).toMatch(/^(you|the .+ of you), /);
+  expect(line).toMatch(/· (fast|fine) · \d+px wide/);
 });
 
 test("a photo dropped on the city is pressed — a drop works wherever the visitor is", async ({ page }) => {

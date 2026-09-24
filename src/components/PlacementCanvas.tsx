@@ -14,6 +14,8 @@ import type { Placement, PlacementCopy } from "../world/placements";
 export interface PlacementCanvasProps {
   placement: Placement;
   artworkUrl: string;
+  /** The person on their own, if the press kept the layers apart — the thing the layer controls move. */
+  subjectUrl?: string;
   copy: PlacementCopy;
   /** The visitor's fit choice; falls back to the placement's own default. */
   fit?: "cover" | "contain";
@@ -22,7 +24,7 @@ export interface PlacementCanvasProps {
   className?: string;
 }
 
-export function PlacementCanvas({ placement, artworkUrl, copy, fit, layer, className }: PlacementCanvasProps) {
+export function PlacementCanvas({ placement, artworkUrl, subjectUrl, copy, fit, layer, className }: PlacementCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { city, handle, title, line } = copy;
 
@@ -45,7 +47,11 @@ export function PlacementCanvas({ placement, artworkUrl, copy, fit, layer, class
       const dpr = Math.min(2, window.devicePixelRatio || 1);
 
       await readyFonts();
-      const [artwork, ground] = await Promise.all([loadImage(artworkUrl), loadGround(placement)]);
+      const [artwork, ground, subject] = await Promise.all([
+        loadImage(artworkUrl),
+        loadGround(placement),
+        subjectUrl ? loadImage(subjectUrl) : Promise.resolve(null),
+      ]);
       if (cancelled) return;
 
       canvas.width = Math.round(cssWidth * dpr);
@@ -58,7 +64,7 @@ export function PlacementCanvas({ placement, artworkUrl, copy, fit, layer, class
       if (!ctx) return;
       const scale = (cssWidth / placement.width) * dpr;
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
-      drawPlacement(ctx, placement, artwork, { city, handle, title, line }, ground, fit, layer);
+      drawPlacement(ctx, placement, artwork, { city, handle, title, line }, ground, fit, layer, subject);
     };
 
     void paint().catch(() => undefined);
@@ -68,7 +74,7 @@ export function PlacementCanvas({ placement, artworkUrl, copy, fit, layer, class
       cancelled = true;
       observer.disconnect();
     };
-  }, [placement, artworkUrl, city, handle, title, line, fit, layer]);
+  }, [placement, artworkUrl, subjectUrl, city, handle, title, line, fit, layer]);
 
   // Decorative: the composite is not interactive, and a canvas that swallows clicks would break the
   // button it sits inside. The aspect-ratio box is set up front so the layout never waits on the paint.

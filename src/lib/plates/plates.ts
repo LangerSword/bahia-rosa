@@ -14,7 +14,17 @@
  * what React Image Editor is for, and what the challenge asks to be judged on.
  */
 
-export type PlateSource = { kind: "photo"; objectUrl: string; name: string } | { kind: "plate"; id: string; src: string };
+export type PlateSource =
+  | {
+      kind: "photo";
+      objectUrl: string;
+      name: string;
+      /** The place on its own, if the press kept the layers apart: what the surfaces put behind the person. */
+      groundUrl?: string;
+      /** The person on their own, transparent: what the layer controls move over that ground. */
+      subjectUrl?: string;
+    }
+  | { kind: "plate"; id: string; src: string };
 
 export interface BakedPlate {
   id: string;
