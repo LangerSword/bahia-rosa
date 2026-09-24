@@ -100,8 +100,16 @@ export function placeSubject(
   crop: { x: number; y: number; width: number; height: number },
   scene: { height: number },
   out: { width: number; height: number },
+  margin = 0.04,
 ): { x: number; y: number; width: number; height: number } {
-  const scale = (out.height * scene.height) / Math.max(1, subject.height);
+  // Height does the sizing: the subject fills `scene.height` of the frame.
+  const heightScale = (out.height * scene.height) / Math.max(1, subject.height);
+
+  // But never wider than the frame. A group photo is wide, and scaling a wide crop to fill the height
+  // pushes the people at the ends off the sides — which would make "the whole group" false in exactly
+  // the case this rule exists for. The smaller of the two scales wins, so the group always fits.
+  const widthScale = (out.width * (1 - margin * 2)) / Math.max(1, crop.width);
+  const scale = Math.min(heightScale, widthScale);
 
   // The subject's centre, measured inside the crop, lands on the frame's centre line.
   const subjectCentreInCrop = subject.x - crop.x + subject.width / 2;

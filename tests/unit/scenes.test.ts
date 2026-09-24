@@ -65,6 +65,35 @@ describe("placeSubject", () => {
     expect(centreOf(right, { x: 380, width: 200 })).toBeCloseTo(out.width / 2, 6);
   });
 
+  it("a wide group is never pushed off the sides", () => {
+    // The case this rule exists for: five people across a landscape frame. Sizing by height alone would
+    // make the crop far wider than the frame and cut the end people off, which makes "the whole group"
+    // false exactly where it was promised.
+    const subject = { x: 40, y: 20, width: 1520, height: 500 };
+    const crop = { x: 0, y: 0, width: 1600, height: 620 };
+
+    const placed = placeSubject(subject, crop, { height: 0.85 }, { width: 1280, height: 720 });
+
+    const scale = placed.height / crop.height;
+    expect(placed.width).toBeLessThanOrEqual(1280);
+    expect(placed.width / placed.height).toBeCloseTo(crop.width / crop.height, 6);
+    // The group is still centred, and its feet — the bottom of the *subject*, not of the crop that
+    // carries it — are still on the frame's bottom edge, the same rule every placement obeys.
+    expect(placed.x + placed.width / 2).toBeCloseTo(640, 6);
+    expect(placed.y + (subject.y - crop.y + subject.height) * scale).toBeCloseTo(720, 6);
+  });
+
+  it("a tall crop is still sized by height, where height is what fits", () => {
+    // The width cap must not shrink a portrait that already fits: only the binding constraint applies.
+    const subject = { x: 100, y: 100, width: 400, height: 1200 };
+    const crop = { x: 80, y: 80, width: 440, height: 1240 };
+
+    const placed = placeSubject(subject, crop, { height: 0.85 }, { width: 1280, height: 720 });
+
+    const scale = placed.height / crop.height;
+    expect(subject.height * scale).toBeCloseTo(720 * 0.85, 6);
+  });
+
   it("a subject who was small in the photograph is still a presence on the plate", () => {
     // A full-body figure a tenth of the frame: 4000px tall photo, subject 400 tall.
     const subject = { x: 1800, y: 2000, width: 300, height: 400 };
