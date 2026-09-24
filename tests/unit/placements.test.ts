@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { PLACEMENTS, fillCopy, findPlacement, FONT_STACKS } from "../../src/world/placements";
+import { PLACEMENTS, PALETTE, fillCopy, findPlacement, FONT_STACKS } from "../../src/world/placements";
 
 /**
  * The placements are data, so they can be checked like data — before anything is drawn. Every failure
@@ -73,15 +73,22 @@ describe("placements", () => {
     expect(filled).not.toContain("{");
   });
 
-  test("every family the layers use has a stack, and the display face is not the body face", () => {
+  test("every family resolves to the one monospaced voice", () => {
+    // The rule used to be "the display face is not the body face". It is now the opposite, on purpose:
+    // the four roles all resolve to a system monospaced stack, so hierarchy comes from size, weight and
+    // tracking, and no export can silently draw in a fallback face that has not loaded yet.
     for (const placement of PLACEMENTS) {
       for (const layer of placement.layers) expect(FONT_STACKS[layer.family]).toBeTruthy();
     }
-    expect(FONT_STACKS.display).not.toBe(FONT_STACKS.text);
+    const stacks = new Set(Object.values(FONT_STACKS));
+    expect(stacks.size, "the placements should speak with one voice").toBe(1);
+    expect([...stacks][0]).toMatch(/mono/i);
   });
 
   test("three night surfaces sit on a city plate behind a scrim; the postcard stays paper", () => {
-    const light = PLACEMENTS.filter((placement) => (placement.ground.stops?.[0] ?? "").toLowerCase() === "#f2efe9");
+    // Read against the palette rather than a literal: pinning the hex here meant the test kept passing
+    // its own copy of a colour the design had already retired.
+    const light = PLACEMENTS.filter((placement) => placement.ground.stops?.[0] === PALETTE.paper);
     expect(light.map((placement) => placement.id)).toEqual(["postcard"]);
 
     const imaged = PLACEMENTS.filter((placement) => placement.ground.kind === "image");

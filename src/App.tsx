@@ -76,7 +76,7 @@ export function App() {
   }, []);
   const image = plate ? (plate.kind === "photo" ? plate.objectUrl : plate.src) : null;
   /** The download's own filename: from the photo's name where there is one, without any text burned in. */
-  const frameName = `late-edition-${
+  const frameName = `night-desk-${
     plate && "name" in plate && plate.name ? String(plate.name).replace(/\.[^.]+$/, "") : "frame"
   }.png`;
   const plan = PLANS[choice.surface] ?? PLANS.debut;
@@ -202,7 +202,7 @@ export function App() {
         <div className="mx-auto max-w-[1280px] px-8">
           <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 py-4">
             <div className="flex items-baseline gap-4">
-              <span className="wordmark text-3xl leading-none">Late Edition</span>
+              <span className="wordmark text-3xl leading-none">Night Desk</span>
               <span className="kicker hidden sm:inline">Bahía Rosa · La Gaviota</span>
             </div>
             <div className="flex items-center gap-6">
@@ -241,7 +241,7 @@ export function App() {
           <Hero3D scene={scene} look={look} className="absolute inset-0 h-full w-full" />
           <div className="city-scrim" aria-hidden="true" />
           <div className="relative px-10 py-20">
-            <h1 className="display mt-5 text-5xl">Late Edition</h1>
+            <h1 className="display mt-5 text-5xl">Night Desk</h1>
             <p className="deck mt-7">
               Bring one photo. It becomes a painted frame in the city&rsquo;s own light — flat colour,
               ink over the lines, violet in the shadows and gold where the sun lands — then the editor
@@ -567,7 +567,7 @@ export function App() {
       </main>
 
       <footer className="rule mx-auto mt-16 max-w-[1280px] border-t px-8 py-8">
-        <p className="kicker">Late Edition · Bahía Rosa</p>
+        <p className="kicker">Night Desk · Bahía Rosa</p>
         <p className="mt-3 max-w-[70ch] text-xs leading-relaxed text-[color:var(--color-faint)]">
           Unofficial fan-made project for the Unlayer Build with React Image Editor Challenge. Not
           affiliated with, endorsed by, or connected to Rockstar Games or Take-Two Interactive. All

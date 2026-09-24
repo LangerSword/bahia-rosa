@@ -9,23 +9,24 @@
 import {
   FEED_AVATAR,
   FONT_STACKS,
+  PALETTE,
   fillCopy,
   type Placement,
   type PlacementCopy,
   type TextLayer,
 } from "./placements";
 
-/** Fonts must be resident before canvas text, or the export falls back to a system face. */
+/**
+ * Fonts must be resident before canvas text, or the export falls back to a system face.
+ *
+ * The placements all draw in the monospaced stack now — a *system* stack, which is resident by
+ * definition. That removes the tab the old version had for a decorative family that might not have
+ * loaded yet: `ctx.font` naming an unloaded face draws a fallback **without throwing**, so a slow load
+ * would quietly change how the printed product looked. Nothing to load, nothing to race.
+ */
 export async function readyFonts(): Promise<void> {
   if (typeof document === "undefined" || !document.fonts) return;
-  await Promise.all([
-    document.fonts.load('400 32px "Limelight"'),
-    document.fonts.load('400 32px "Poiret One"'),
-    document.fonts.load('400 32px "Pinyon Script"'),
-    document.fonts.load('400 32px "Inter"'),
-    document.fonts.load('600 32px "Inter"'),
-    document.fonts.ready,
-  ]);
+  await document.fonts.ready;
 }
 
 export function loadImage(src: string): Promise<HTMLImageElement> {
@@ -38,7 +39,16 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-/** Cover crop: fill the rect, keep the aspect, centre the overflow. */
+/**
+ * Cover crop: fill the rect, keep the aspect, and bias the overflow upward.
+ *
+ * Centring the crop is what cuts a portrait photograph off at the chin when it is fitted into a wide
+ * surface: the interesting part of a person is in the upper half of their frame. `BIAS_Y` keeps a
+ * little more of the top than the bottom, on every surface, so all four outputs frame the subject
+ * rather than the middle of the file.
+ */
+const BIAS_Y = 0.4;
+
 function drawCover(
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
@@ -47,7 +57,7 @@ function drawCover(
   const scale = Math.max(rect.w / image.width, rect.h / image.height);
   const w = image.width * scale;
   const h = image.height * scale;
-  ctx.drawImage(image, rect.x + (rect.w - w) / 2, rect.y + (rect.h - h) / 2, w, h);
+  ctx.drawImage(image, rect.x + (rect.w - w) / 2, rect.y + (rect.h - h) * BIAS_Y, w, h);
 }
 
 function drawContain(
@@ -168,7 +178,7 @@ export function drawPlacement(
     ctx.clip();
     drawCover(ctx, artwork, { x: FEED_AVATAR.x, y: FEED_AVATAR.y, w: FEED_AVATAR.size, h: FEED_AVATAR.size });
     ctx.restore();
-    ctx.strokeStyle = "#fcaf17";
+    ctx.strokeStyle = PALETTE.amber;
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(FEED_AVATAR.x + FEED_AVATAR.size / 2, FEED_AVATAR.y + FEED_AVATAR.size / 2, FEED_AVATAR.size / 2, 0, Math.PI * 2);

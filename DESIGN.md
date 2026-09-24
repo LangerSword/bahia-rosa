@@ -1,4 +1,4 @@
-# DESIGN.md — LATE EDITION
+# DESIGN.md — NIGHT DESK
 
 The design-system contract for this project. Every component cites a token from here; a value that
 appears in code but not here is drift, and one of them gets fixed.
