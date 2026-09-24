@@ -61,13 +61,27 @@ export async function loadSegmenter(onNote?: (stage: string) => void): Promise<I
   return segmenterPromise;
 }
 
+/** A component this fraction of the largest one is part of the group rather than a speckle. */
+const GROUP_SHARE = 0.18;
+/**
+ * The noise floor, as a fraction of the frame rather than a fixed pixel count — the mask arrives at the
+ * model's own resolution, so an absolute number would mean something different at every size. 0.4 % of a
+ * 256×256 mask is about a face at the back of a group; anything smaller is speckle.
+ */
+const NOISE_SHARE = 0.004;
+
 /**
  * Turn the model's per-pixel classes into a clean person mask.
  *
- * Pure, and therefore testable without a browser or a model: a synthetic class map goes in, a mask
- * with one connected component and no holes comes out. Speckle (a chair classed as hair) is dropped,
- * holes (a dark shirt reading as background) are filled, and the largest component is the subject —
- * because there is one person in the frame, and a mask with two islands is a mask with a mistake.
+ * Pure, and therefore testable without a browser or a model: a synthetic class map goes in, a mask comes
+ * out. Speckle (a chair classed as hair) is dropped and holes (a dark shirt reading as background) are
+ * filled — but *everyone in the frame is kept*, which is the correction that matters here.
+ *
+ * The old rule was "the largest connected component wins", written for a portrait. On a group photo it
+ * is exactly wrong: it keeps whoever happens to be biggest and throws the friends away, which is how a
+ * group of four became one person and then a failure. A component survives when it is either a good
+ * fraction of the largest (so a group survives) or comfortably bigger than noise (so one small figure in
+ * a large frame is not lost either).
  */
 export function cleanMask(
   classes: Uint8Array | Uint8ClampedArray,
@@ -80,14 +94,13 @@ export function cleanMask(
     binary[i] = classes[i] === BACKGROUND ? 0 : 1;
   }
 
-  // Largest connected component (4-way), iterative so a 2560px frame cannot blow the stack.
-  // The queue is written at `tail` and read at `head`, both bumped after use — writing at `tail + 1`
-  // and reading at `head` is an off-by-one that silently makes every component one pixel wide, which
-  // is how the first speckle becomes "the subject".
+  // Largest components (plural) — the queue is written at `tail` and read at `head`, both bumped after
+  // use. Writing at `tail + 1` and reading at `head` is an off-by-one that silently makes every
+  // component one pixel wide, which is how a speckle once became "the subject".
   const label = new Int32Array(pixels).fill(-1);
   const queue = new Int32Array(pixels);
-  let bestLabel = -1;
-  let bestSize = 0;
+  const sizes: number[] = [];
+  let largest = 0;
   let nextLabel = 0;
   for (let start = 0; start < pixels; start += 1) {
     if (binary[start] === 0 || label[start] !== -1) continue;
@@ -124,16 +137,18 @@ export function cleanMask(
         tail += 1;
       }
     }
-    if (size > bestSize) {
-      bestSize = size;
-      bestLabel = nextLabel;
-    }
+    sizes.push(size);
+    if (size > largest) largest = size;
     nextLabel += 1;
   }
 
+  // Everybody who is part of the picture, not just the tallest person in it.
+  const noiseFloor = Math.max(24, Math.round(pixels * NOISE_SHARE));
+  const keep = sizes.map((size) => size >= Math.max(noiseFloor, largest * GROUP_SHARE));
   const solid = new Uint8Array(pixels);
-  if (bestLabel >= 0) {
-    for (let i = 0; i < pixels; i += 1) solid[i] = label[i] === bestLabel ? 1 : 0;
+  for (let i = 0; i < pixels; i += 1) {
+    const component = label[i];
+    if (component >= 0 && keep[component]) solid[i] = 1;
   }
 
   // Fill the holes: flood the background inwards from the border. Anything the flood cannot reach is

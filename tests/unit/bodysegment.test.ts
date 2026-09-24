@@ -97,4 +97,44 @@ describe("cleanMask", () => {
 
     expect(box).toEqual({ x: 20, y: 10, width: 25, height: 37 });
   });
+
+  it("keeps a whole group, and the box spans all of them", () => {
+    // The case that produced the failure: four people, each their own connected component. The old rule
+    // ("largest component wins") kept whoever was biggest and dropped the friends, which then produced a
+    // mask and a box that the compositor could not use.
+    const width = 64;
+    const height = 48;
+    const map = blank(width, height);
+    fill(map, width, 4, 12, 10, 36, CLOTHES);
+    fill(map, width, 18, 14, 24, 38, HAIR);
+    fill(map, width, 32, 11, 38, 35, CLOTHES);
+    fill(map, width, 46, 15, 52, 39, HAIR);
+
+    const { alpha, box, share } = cleanMask(map, width, height);
+
+    // Everyone is in the mask — four people, not the tallest one.
+    for (const x of [6, 20, 34, 48]) expect(alpha[25 * width + x], `column ${x} was dropped`).toBe(255);
+    // And the box spans the group, so the crop that gets painted holds them all.
+    expect(box.x).toBe(4);
+    expect(box.x + box.width).toBe(53);
+    expect(box.y).toBe(11);
+    expect(box.y + box.height).toBe(40);
+    // Four 7×25 figures in a 64×48 map: the share is the group's area, exactly — not "more than some
+    // number", because the next person to read this should be able to check it with a calculator.
+    expect(share).toBeCloseTo((4 * 7 * 25) / (64 * 48), 3);
+  });
+
+  it("still drops speckle standing next to a group", () => {
+    const width = 64;
+    const height = 48;
+    const map = blank(width, height);
+    fill(map, width, 4, 12, 10, 36, CLOTHES);
+    fill(map, width, 18, 14, 24, 38, HAIR);
+    fill(map, width, 2, 2, 3, 3, HAIR); // four pixels of "hair" on the wall
+
+    const { alpha } = cleanMask(map, width, height);
+
+    expect(alpha[2 * width + 2]).toBe(0);
+    expect(alpha[25 * width + 6]).toBe(255);
+  });
 });

@@ -74,6 +74,8 @@ export function App() {
   const [viaEditor, setViaEditor] = useState(false);
   /** Fast, or fine for a slower render with truer colour. */
   const [quality, setQuality] = useState<"fast" | "fine">("fast");
+  /** A press that could not read the photo reports itself here, where the photo was chosen. */
+  const [pressError, setPressError] = useState<string | null>(null);
 
   const onSaved = useCallback((dataUrl: string) => {
     setSaved(dataUrl);
@@ -108,6 +110,7 @@ export function App() {
       // Capture the run: if the visitor leaves before this finishes, the result is dropped.
       const token = runToken.current;
       setStages([]);
+      setPressError(null);
       setStage("converting");
       const url = URL.createObjectURL(file);
       try {
@@ -136,12 +139,23 @@ export function App() {
         setSource(url); // kept for the before/after comparison; revoked on reset
         setMeta(null);
         setStage("printed");
-      } catch {
-        if (token !== runToken.current) return;
+      } catch (failure) {
+        if (token !== runToken.current) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        // A failure here used to send the visitor to the desk screen — ComfyUI on a machine that does not
+        // exist for anyone on the deployed site — which is how a group photo ended up staring at "no
+        // print desk is running". The desk is an opt-in this page was pointed at: with none, the press
+        // reports itself where the photo was chosen, with the reason attached.
         URL.revokeObjectURL(url);
-        // A file this browser cannot decode still takes the desk path, which reports the problem.
-        setPendingPhoto(file);
-        setStage("printing");
+        if (deskRoot()) {
+          setPendingPhoto(file);
+          setStage("printing");
+          return;
+        }
+        setPressError(failure instanceof Error ? failure.message : "the press could not read that photo");
+        setStage("gate");
       }
     },
     [scene, look, quality],
@@ -471,6 +485,16 @@ export function App() {
                 ))}
               </div>
             </section>
+            {pressError ? (
+              <p
+                data-testid="press-error"
+                role="status"
+                className="measure mt-6 text-xs"
+                style={{ color: "var(--color-danger)" }}
+              >
+                that photo could not be pressed — {pressError}. another one, or a smaller file, will work.
+              </p>
+            ) : null}
             <PlateGate
               onPhoto={(file) => {
                 // The press decides the print: the desk keeps its own defaults, and the visitor's only

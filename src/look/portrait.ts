@@ -94,25 +94,46 @@ export async function portraitFromImage(
   if (!wholeFrame) {
     onStage?.("finding you in the frame");
     // The segmentation model first, because it is the difference between a cut-out and a recolour: it
-    // reads a face in shadow, a subject at night, and hair against a busy wall. One 16MB download,
-    // cached by the browser, no key, nothing uploaded.
-    const cut = await bodyCut(photo.canvas, workW, workH, onStage);
-    if (cut && cut.share > 0.012 && cut.share < 0.985) {
-      mask = cut.alpha;
-      box = cut.box;
-      share = cut.share;
-      cutSource = "model";
-    } else {
-      // The classic find, for the case where the model could not load. Good on a plain background, and
-      // reported honestly when it is what did the work.
-      const keep = await faceBox(image);
-      const subject = subjectMask(frame.data, workW, workH, { keep });
-      if (subject.share > 0.012 && subject.share < 0.985) {
-        mask = subject.mask;
-        box = subject.box;
-        share = subject.share;
-        cutSource = "classic";
+    // reads a face in shadow, a subject at night, and hair against a busy wall — and, for a group, it
+    // reads all of them. One 16MB download, cached by the browser, no key, nothing uploaded.
+    //
+    // Wrapped, and the box validated: a group photo is the case that produces degenerate masks (a mask
+    // that spans everything, or a box with no area in it), and a press that throws on someone's photo
+    // is worse than a press that paints the whole frame.
+    try {
+      const cut = await bodyCut(photo.canvas, workW, workH, onStage);
+      const usable =
+        cut !== null &&
+        cut.share > 0.012 &&
+        cut.share < 0.985 &&
+        cut.box.width >= 2 &&
+        cut.box.height >= 2 &&
+        Number.isFinite(cut.box.x) &&
+        Number.isFinite(cut.box.y);
+      if (cut && usable) {
+        mask = cut.alpha;
+        box = cut.box;
+        share = cut.share;
+        cutSource = "model";
+      } else {
+        // The classic find, for the case where the model could not load. Good on a plain background, and
+        // reported honestly when it is what did the work.
+        const keep = await faceBox(image);
+        const subject = subjectMask(frame.data, workW, workH, { keep });
+        if (subject.share > 0.012 && subject.share < 0.985) {
+          mask = subject.mask;
+          box = subject.box;
+          share = subject.share;
+          cutSource = "classic";
+        }
       }
+    } catch {
+      // A cut that cannot be computed is not a failed press: the whole frame is painted instead, and the
+      // line under the frame says so.
+      mask = null;
+      box = { x: 0, y: 0, width: workW, height: workH };
+      share = 0;
+      cutSource = "none";
     }
   }
 
@@ -223,7 +244,17 @@ export async function portraitFromImage(
     width: outW,
     height: outH,
   });
-  const target = mask ? placed : { x: 0, y: 0, width: outW, height: outH };
+  // A rectangle the compositor will refuse (zero, negative, or not a number) is the last way a group
+  // photo can fail here, so the target is validated before anything is drawn into it.
+  const placeable =
+    Number.isFinite(placed.x) &&
+    Number.isFinite(placed.y) &&
+    Number.isFinite(placed.width) &&
+    Number.isFinite(placed.height) &&
+    placed.width >= 1 &&
+    placed.height >= 1;
+  if (mask && !placeable) onStage?.("that frame could not be placed whole — painting it instead");
+  const target = mask && placeable ? placed : { x: 0, y: 0, width: outW, height: outH };
 
   if (mask) {
     onStage?.("placing you in it");
