@@ -44,7 +44,7 @@ test("a photo is pressed into a plate, then the fork offers it raw or in the edi
   // which is precisely the regression that let a recolour pass for a cut-out.
   // The line speaks about whoever the cut kept, and reports the finish from the result — never a claim.
   const report = (await page.getByTestId("cut-line").textContent()) ?? "";
-  expect(report).toMatch(/^(you|the .+ of you), /);
+  expect(report).toMatch(/^(you|the group|the .+ of you), /);
   expect(report).toMatch(/· (fast|fine) · \d+px wide/);
 
     // And the third door: straight into the city, with no editor in the way at all.

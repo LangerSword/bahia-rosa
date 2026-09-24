@@ -85,7 +85,7 @@ test("a screenshot pasted from the clipboard is pressed", async ({ page }) => {
   // The report is a line about how the frame sees them, not a percentage — so the assertion is that it
   // speaks about a person (or a group) and names the finish, rather than matching a phrase that will change.
   const line = (await page.getByTestId("cut-line").textContent()) ?? "";
-  expect(line).toMatch(/^(you|the .+ of you), /);
+  expect(line).toMatch(/^(you|the group|the .+ of you), /);
   expect(line).toMatch(/· (fast|fine) · \d+px wide/);
 });
 

@@ -137,4 +137,29 @@ describe("cleanMask", () => {
     expect(alpha[2 * width + 2]).toBe(0);
     expect(alpha[25 * width + 6]).toBe(255);
   });
+
+  it("keeps everybody it saw in `everyone`, even the person the plate declines to paint", () => {
+    // This is the ghost, as a unit test. The cut keeps people above a share of the largest, so somebody
+    // small and far back can be dropped from `alpha` — and if the ground of "as it is" is cleared with
+    // `alpha`, that dropped person stays in the room behind, at full size, as a copy of themselves. The
+    // ground needs everybody the model saw, which is what `everyone` is for.
+    const width = 64;
+    const height = 64;
+    const map = blank(width, height);
+    fill(map, width, 8, 8, 47, 55, CLOTHES); // the person at the lens: 40×48 = 1920 pixels
+    fill(map, width, 55, 10, 61, 16, HAIR); // somebody at the back: 7×7 = 49 pixels
+
+    const { alpha, everyone, subjects } = cleanMask(map, width, height);
+
+    // The small figure is below a share of the largest (0.18 × 1920 = 346), so the painted mask drops them…
+    expect(subjects).toBe(1);
+    expect(alpha[13 * width + 58]).toBe(0);
+    // …and `everyone` still has them, so the room can be cleared where they stood.
+    expect(everyone[13 * width + 58]).toBe(255);
+    // The speckle floor still applies to `everyone`: four pixels on a wall are not a person.
+    const speckle = blank(width, height);
+    fill(speckle, width, 8, 8, 47, 55, CLOTHES);
+    fill(speckle, width, 2, 2, 3, 3, HAIR);
+    expect(cleanMask(speckle, width, height).everyone[2 * width + 2]).toBe(0);
+  });
 });

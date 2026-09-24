@@ -23,6 +23,15 @@ import { FilesetResolver, ImageSegmenter, type MPMask } from "@mediapipe/tasks-v
 export interface BodyCut {
   /** 0..255 per pixel at the frame's own size: 255 is the person. */
   alpha: Uint8ClampedArray;
+  /**
+   * Everybody the model saw, before the "is this person big enough to keep" test — speckle removed, but
+   * nobody dropped for being small or partly hidden.
+   *
+   * The surfaces never draw this. It exists for one job: taking people out of a ground that is the
+   * visitor's own photograph. A person the plate declines to paint must still be removed from the room
+   * behind them, or the frame shows them twice — once painted, once as a copy in the background.
+   */
+  everyone: Uint8ClampedArray;
   box: { x: number; y: number; width: number; height: number };
   /** Fraction of the frame the person covers, 0..1. */
   share: number;
@@ -92,7 +101,13 @@ export function cleanMask(
   classes: Uint8Array | Uint8ClampedArray,
   width: number,
   height: number,
-): { alpha: Uint8ClampedArray; box: BodyCut["box"]; share: number; subjects: number } {
+): {
+  alpha: Uint8ClampedArray;
+  everyone: Uint8ClampedArray;
+  box: BodyCut["box"];
+  share: number;
+  subjects: number;
+} {
   const pixels = width * height;
   const binary = new Uint8Array(pixels);
   for (let i = 0; i < Math.min(pixels, classes.length); i += 1) {
@@ -150,71 +165,94 @@ export function cleanMask(
   // Everybody who is part of the picture, not just the tallest person in it.
   const noiseFloor = Math.max(24, Math.round(pixels * NOISE_SHARE));
   const keep = sizes.map((size) => size >= Math.max(noiseFloor, largest * GROUP_SHARE));
+  // And everybody the model saw at all — speckle removed, but nobody dropped for being small. The ground
+  // needs this one: a person the plate refuses to paint must still be taken out of the room behind them, or
+  // they stay in the background as a full-size copy of themselves and the frame contains them twice.
+  const keepAnyone = sizes.map((size) => size >= noiseFloor);
   // How many people the cut kept, so the report can say "the four of you" instead of a percentage.
   let subjects = 0;
   for (const kept of keep) if (kept) subjects += 1;
   const solid = new Uint8Array(pixels);
+  const solidAll = new Uint8Array(pixels);
   for (let i = 0; i < pixels; i += 1) {
     const component = label[i];
-    if (component >= 0 && keep[component]) solid[i] = 1;
+    if (component < 0) continue;
+    if (keep[component]) solid[i] = 1;
+    if (keepAnyone[component]) solidAll[i] = 1;
   }
 
-  // Fill the holes: flood the background inwards from the border. Anything the flood cannot reach is
-  // inside the subject — a dark shirt, the shadow under a chin — and belongs to them.
-  const outside = new Uint8Array(pixels);
-  const floodQueue = new Int32Array(pixels);
-  let head = 0;
-  let tail = 0;
-  const push = (index: number): void => {
-    if (solid[index] === 0 && outside[index] === 0) {
-      outside[index] = 1;
-      floodQueue[tail] = index;
-      tail += 1;
+  /**
+   * Fill the holes, then read the mask out.
+   *
+   * Flood the background inwards from the border: anything the flood cannot reach is inside a person — a
+   * dark shirt, the shadow under a chin — and belongs to them. Run once for the people the cut keeps and
+   * once for everybody it saw, because the flood has to be computed against the set it is filling.
+   */
+  const alphaFrom = (seed: Uint8Array) => {
+    const outside = new Uint8Array(pixels);
+    const floodQueue = new Int32Array(pixels);
+    let head = 0;
+    let tail = 0;
+    const push = (index: number): void => {
+      if (seed[index] === 0 && outside[index] === 0) {
+        outside[index] = 1;
+        floodQueue[tail] = index;
+        tail += 1;
+      }
+    };
+    for (let x = 0; x < width; x += 1) {
+      push(x);
+      push((height - 1) * width + x);
     }
+    for (let y = 0; y < height; y += 1) {
+      push(y * width);
+      push(y * width + width - 1);
+    }
+    while (head < tail) {
+      const index = floodQueue[head];
+      head += 1;
+      const x = index % width;
+      const y = (index - x) / width;
+      if (x > 0) push(index - 1);
+      if (x < width - 1) push(index + 1);
+      if (y > 0) push(index - width);
+      if (y < height - 1) push(index + width);
+    }
+
+    const alpha = new Uint8ClampedArray(pixels);
+    let count = 0;
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+    for (let i = 0; i < pixels; i += 1) {
+      if (seed[i] === 1 || outside[i] === 0) {
+        alpha[i] = 255;
+        count += 1;
+        const x = i % width;
+        const y = (i - x) / width;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+    return { alpha, count, minX, minY, maxX, maxY };
   };
-  for (let x = 0; x < width; x += 1) {
-    push(x);
-    push((height - 1) * width + x);
-  }
-  for (let y = 0; y < height; y += 1) {
-    push(y * width);
-    push(y * width + width - 1);
-  }
-  while (head < tail) {
-    const index = floodQueue[head];
-    head += 1;
-    const x = index % width;
-    const y = (index - x) / width;
-    if (x > 0) push(index - 1);
-    if (x < width - 1) push(index + 1);
-    if (y > 0) push(index - width);
-    if (y < height - 1) push(index + width);
-  }
 
-  const alpha = new Uint8ClampedArray(pixels);
-  let count = 0;
-  let minX = width;
-  let minY = height;
-  let maxX = -1;
-  let maxY = -1;
-  for (let i = 0; i < pixels; i += 1) {
-    if (solid[i] === 1 || outside[i] === 0) {
-      alpha[i] = 255;
-      count += 1;
-      const x = i % width;
-      const y = (i - x) / width;
-      if (x < minX) minX = x;
-      if (y < minY) minY = y;
-      if (x > maxX) maxX = x;
-      if (y > maxY) maxY = y;
-    }
-  }
+  const kept = alphaFrom(solid);
+  const everybody = alphaFrom(solidAll);
 
   const box =
-    maxX < 0
+    kept.maxX < 0
       ? { x: 0, y: 0, width, height }
-      : { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
-  return { alpha, box, share: count / pixels, subjects };
+      : {
+          x: kept.minX,
+          y: kept.minY,
+          width: kept.maxX - kept.minX + 1,
+          height: kept.maxY - kept.minY + 1,
+        };
+  return { alpha: kept.alpha, everyone: everybody.alpha, box, share: kept.count / pixels, subjects };
 }
 
 /**
@@ -414,9 +452,42 @@ export async function bodyCut(
     const frame = canvas.getContext("2d")?.getImageData(0, 0, width, height).data;
     if (frame) alpha = refineEdges(alpha, frame, width, height);
 
+    // Everybody the model saw, at the working size, for the ground's sake — the clear needs this one and
+    // never the mask above, because a person the plate declines to paint must still come out of the room
+    // behind them. Resampled the same way; not edge-refined, because the clear thresholds it and a soft rim
+    // is exactly what stops the fill from leaving a hard edge where somebody was standing.
+    const everyoneCanvas = document.createElement("canvas");
+    everyoneCanvas.width = maskWidth;
+    everyoneCanvas.height = maskHeight;
+    const everyoneCtx = everyoneCanvas.getContext("2d");
+    if (!everyoneCtx) return null;
+    const everyoneImage = everyoneCtx.createImageData(maskWidth, maskHeight);
+    for (let i = 0; i < cleaned.everyone.length; i += 1) {
+      everyoneImage.data[i * 4 + 3] = cleaned.everyone[i];
+    }
+    everyoneCtx.putImageData(everyoneImage, 0, 0);
+    const everyoneScaled = document.createElement("canvas");
+    everyoneScaled.width = width;
+    everyoneScaled.height = height;
+    const everyoneScaledCtx = everyoneScaled.getContext("2d");
+    if (!everyoneScaledCtx) return null;
+    everyoneScaledCtx.imageSmoothingEnabled = true;
+    everyoneScaledCtx.imageSmoothingQuality = "high";
+    everyoneScaledCtx.drawImage(everyoneCanvas, 0, 0, maskWidth, maskHeight, 0, 0, width, height);
+    const everyoneData = everyoneScaledCtx.getImageData(0, 0, width, height).data;
+    const everyone = new Uint8ClampedArray(width * height);
+    for (let i = 0; i < everyone.length; i += 1) everyone[i] = everyoneData[i * 4 + 3];
+
     let count = 0;
     for (let i = 0; i < alpha.length; i += 1) if (alpha[i] > 127) count += 1;
-    return { alpha, box: cleaned.box, share: count / (width * height), subjects: cleaned.subjects, source: "model" };
+    return {
+      alpha,
+      everyone,
+      box: cleaned.box,
+      share: count / (width * height),
+      subjects: cleaned.subjects,
+      source: "model",
+    };
   } catch {
     return null;
   }

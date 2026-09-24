@@ -300,16 +300,15 @@ export function App() {
    * to know how the frame sees them, not what percentage of it they occupy. So the number is spent on
    * choosing a phrase instead of being printed.
    */
-  const who =
-    cut?.subjects && cut.subjects > 1
-      ? cut.subjects === 2
-        ? "the two of you"
-        : cut.subjects === 3
-          ? "the three of you"
-          : cut.subjects === 4
-            ? "the four of you"
-            : "all of you"
-      : "you";
+  /**
+   * How the frame sees them, in words.
+   *
+   * One region is read as "you". More than one is read as "the group" and *not* as a number: people who
+   * stand close together merge into a single region, so the count of regions is a floor and never a count —
+   * saying "the two of you" over four merged people is worse than saying nothing, because it is wrong in a
+   * way the visitor can see.
+   */
+  const who = cut?.cutSource === "model" && cut.subjects > 1 ? "the group" : "you";
   const presence =
     cut?.cutSource === "model"
       ? cut.share > 0.45

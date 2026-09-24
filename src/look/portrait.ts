@@ -72,22 +72,49 @@ function canvasOf(width: number, height: number): { canvas: HTMLCanvasElement; c
 }
 
 /**
+ * Where a ground pixel came from in the mask.
+ *
+ * "As it is" draws the visitor's photograph into the ground with a *cover* fit, which crops it: the mask
+ * has to be mapped through the same transform, or the room is cleared in the wrong place and a ghost of the
+ * person survives in the background — which is exactly what a wrong mapping looks like from the outside.
+ * Pure, so the arithmetic can be tested without a canvas.
+ */
+export function groundPixelToMask(
+  x: number,
+  y: number,
+  cover: number,
+  coverX: number,
+  coverY: number,
+  maskWidth: number,
+  maskHeight: number,
+): number {
+  const mx = Math.round((x - coverX) / cover);
+  const my = Math.round((y - coverY) / cover);
+  const clampedX = Math.min(maskWidth - 1, Math.max(0, mx));
+  const clampedY = Math.min(maskHeight - 1, Math.max(0, my));
+  return clampedY * maskWidth + clampedX;
+}
+
+/**
  * Where the person was, the room comes back.
  *
  * "As it is" keeps the visitor's own room as the ground — which means the ground must not *contain* them.
- * Blurring them was the first attempt and it was wrong: a blurred person is still a second person, which is
- * exactly the doubling the visitor saw. So the mask's area is filled by diffusion — the room's own colours
- * pushed inward from the edge of the silhouette, a few dozen passes — and then softened, so the fill reads
- * as the wall behind them rather than as a hole. Nothing is invented: it is the same room, smeared over the
- * place where somebody was standing.
+ * Blurring them was the first attempt and it was wrong: a blurred person is still a second person. So the
+ * mask's area is filled by diffusion — the room's own colours pushed inward from the edge of the silhouette,
+ * a few dozen passes — and then softened, so the fill reads as the wall behind them rather than as a hole.
+ * Nothing is invented: it is the same room, smeared over the place where somebody was standing.
  *
- * Done after the cut, because it needs the mask — and the mask is only known once the model has answered.
+ * The mask arrives at the working resolution and the ground is a cropped copy of it, so the caller passes
+ * the cover transform it drew with. Getting that wrong is a ghost, not a crash.
  */
 function clearWherePersonWas(
   ground: HTMLCanvasElement,
   mask: Uint8ClampedArray,
   maskWidth: number,
   maskHeight: number,
+  cover: number,
+  coverX: number,
+  coverY: number,
 ): void {
   const ctx = ground.getContext("2d");
   if (!ctx) return;
@@ -98,10 +125,9 @@ function clearWherePersonWas(
   const hole = new Uint8Array(width * height);
   let holeCount = 0;
   for (let y = 0; y < height; y += 1) {
-    const my = Math.min(maskHeight - 1, Math.round((y * maskHeight) / height));
     for (let x = 0; x < width; x += 1) {
-      const mx = Math.min(maskWidth - 1, Math.round((x * maskWidth) / width));
-      if ((mask[my * maskWidth + mx] ?? 0) > 96) {
+      const index = groundPixelToMask(x, y, cover, coverX, coverY, maskWidth, maskHeight);
+      if ((mask[index] ?? 0) > 96) {
         hole[y * width + x] = 1;
         holeCount += 1;
       }
@@ -216,6 +242,14 @@ export async function portraitFromImage(
   const outW = Math.round(outLong * supersample);
   const outH = Math.round(((outLong * 9) / 16) * supersample);
   const grade = gradeFor(look ?? "dusk");
+  // The cover transform for the "as it is" ground, computed before the work that uses it: the ground is the
+  // visitor's photograph drawn with a cover fit, and the mask has to be mapped through the same numbers or
+  // the room is cleared in the wrong place. Kept here, where the draw and the clear can both see them.
+  const bgW = Math.min(outW, 1280);
+  const bgH = Math.max(1, Math.round((bgW * outH) / outW));
+  const cover = Math.max(bgW / workW, bgH / workH);
+  const coverX = (bgW - workW * cover) / 2;
+  const coverY = (bgH - workH * cover) / 2;
   const sceneWork: Promise<{ canvas: HTMLCanvasElement; width: number; height: number } | null> = (async () => {
     try {
       const plateSrc = sceneSrc(scene);
@@ -224,19 +258,10 @@ export async function portraitFromImage(
         // size (a ground is a backdrop, not the subject), then graded to the hour and held back a step — a
         // touch darker, a touch less saturated, with a soft vignette — so that the person painted over it
         // at their own resolution reads as the subject rather than as one more thing in the room.
-        const bgW = Math.min(outW, 1280);
-        const bgH = Math.max(1, Math.round((bgW * outH) / outW));
         const bg = canvasOf(bgW, bgH);
-        const cover = Math.max(bgW / workW, bgH / workH);
         bg.ctx.imageSmoothingEnabled = true;
         bg.ctx.imageSmoothingQuality = "high";
-        bg.ctx.drawImage(
-          photo.canvas,
-          (bgW - workW * cover) / 2,
-          (bgH - workH * cover) / 2,
-          workW * cover,
-          workH * cover,
-        );
+        bg.ctx.drawImage(photo.canvas, coverX, coverY, workW * cover, workH * cover);
 
         const paintedFrame = styliseImageData(bg.ctx.getImageData(0, 0, bgW, bgH).data, bgW, bgH, {
           ...paintOptions,
@@ -287,6 +312,10 @@ export async function portraitFromImage(
   })();
 
   let mask: Uint8ClampedArray | null = null;
+  // Everybody the cut saw, kept apart from `mask`: the ground of "as it is" is the visitor's own photograph,
+  // and it has to be cleared of *everybody* in it — including anyone the plate decides not to paint, who
+  // would otherwise stand in the background as a full-size copy of themselves.
+  let everyoneMask: Uint8ClampedArray | null = null;
   let box = { x: 0, y: 0, width: workW, height: workH };
   let share = 0;
   let subjects = 1;
@@ -312,6 +341,7 @@ export async function portraitFromImage(
         Number.isFinite(cut.box.y);
       if (cut && usable) {
         mask = cut.alpha;
+        everyoneMask = cut.everyone;
         box = cut.box;
         share = cut.share;
         subjects = cut.subjects;
@@ -323,6 +353,8 @@ export async function portraitFromImage(
         const subject = subjectMask(frame.data, workW, workH, { keep });
         if (subject.share > 0.012 && subject.share < 0.985) {
           mask = subject.mask;
+          // The classic find has no notion of a person it dropped, so its mask is everybody it saw.
+          everyoneMask = subject.mask;
           box = subject.box;
           share = subject.share;
           cutSource = "classic";
@@ -436,8 +468,9 @@ export async function portraitFromImage(
   const ground = canvasOf(outW, outH);
   const gradedScene = await sceneWork;
   if (gradedScene && !sceneSrc(scene) && mask) {
-    // "As it is" keeps the visitor's own room as the ground, so the room has to be *cleared* of them.
-    clearWherePersonWas(gradedScene.canvas, mask, workW, workH);
+    // "As it is" keeps the visitor's own room as the ground, so the room has to be *cleared* of them — of
+    // everybody the cut saw, through the same cover transform the ground was drawn with.
+    clearWherePersonWas(gradedScene.canvas, everyoneMask ?? mask, workW, workH, cover, coverX, coverY);
   }
   if (gradedScene) {
     ground.ctx.imageSmoothingEnabled = true;
