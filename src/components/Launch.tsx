@@ -142,8 +142,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
             <span style={{ color: "var(--color-faint)" }}>~ </span>the city runs it
           </h2>
           <p className="measure mt-2 text-xs" style={{ color: "var(--color-muted)" }}>
-            Your frame is tonight&rsquo;s poster. Pick the surface, set the words on it, take it with you
-            — every download is full resolution, drawn by the same code that draws the preview.
+            pick a surface. set the words. take it.
           </p>
         </div>
         <button type="button" data-testid="back-to-editor" onClick={onBack} className="btn-quiet">

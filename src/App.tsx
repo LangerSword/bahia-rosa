@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { EditorSurface, type ToolGating } from "./components/EditorSurface";
 import { Launch } from "./components/Launch";
@@ -105,6 +105,8 @@ export function App() {
    */
   const press = useCallback(
     async (file: File) => {
+      // Capture the run: if the visitor leaves before this finishes, the result is dropped.
+      const token = runToken.current;
       setStages([]);
       setStage("converting");
       const url = URL.createObjectURL(file);
@@ -119,6 +121,10 @@ export function App() {
           seed: 1 + (file.size % 997),
           onStage: (label) => setStages((seen) => (seen.includes(label) ? seen : [...seen, label])),
         });
+        if (token !== runToken.current) {
+          URL.revokeObjectURL(url);
+          return;
+        }
         setCut({
           cutOut: result.cutOut,
           share: result.share,
@@ -130,6 +136,7 @@ export function App() {
         setMeta(null);
         setStage("printed");
       } catch {
+        if (token !== runToken.current) return;
         URL.revokeObjectURL(url);
         // A file this browser cannot decode still takes the desk path, which reports the problem.
         setPendingPhoto(file);
@@ -148,7 +155,21 @@ export function App() {
     setStage("city");
   }, []);
 
+  /**
+   * Back to the start, from anywhere — including *during* a press.
+   *
+   * Two things this has to get right, and did not:
+   *
+   *   1. A press still running must not land after the visitor has walked away. The press carries this
+   *      token; the reset bumps it, and a result from an older token is dropped instead of pulling them
+   *      forward into a stage they left.
+   *   2. The intake does not exist at click time — the gate stage renders it — so the browser has
+   *      nothing to scroll to when it follows `#intake`, and the first click did nothing at all. The
+   *      scroll happens here instead, after React has rendered the stage.
+   */
+  const runToken = useRef(0);
   const reset = useCallback(() => {
+    runToken.current += 1;
     setPlate(null);
     setPendingPhoto(null);
     setSaved(null);
@@ -156,7 +177,13 @@ export function App() {
     setStage("gate");
     if (source) URL.revokeObjectURL(source);
     setSource(null);
-  }, [source]);
+    window.setTimeout(() => {
+      const node = document.getElementById("intake");
+      if (!node) return;
+      node.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+      node.focus({ preventScroll: true });
+    }, 0);
+  }, [source, reduce]);
   // ?demo=launch — the tour without the model. The deployed build has no GPU, so a visitor (or a
   // judge) who cannot run the desk still gets to see the payoff: the city's own plate, launched into
   // the city. Same components, same exporter; only the artwork's provenance changes.
@@ -275,12 +302,7 @@ export function App() {
           <div className="city-scrim" aria-hidden="true" />
           <div className="relative px-10 py-20">
             <h1 className="display mt-5 text-5xl">Bahía Rosa</h1>
-            <p className="deck mt-7">
-              Bring one photo. It becomes a painted frame in the city&rsquo;s own light — flat colour,
-              ink over the lines, violet in the shadows and gold where the sun lands — then the editor
-              turns it into tonight&rsquo;s poster and{" "}
-              <strong>the city runs it: the billboard, the venue display, the feed, the postcard home</strong>.
-            </p>
+            <p className="deck mt-7">One photo. The city paints it, then runs it.</p>
 
             <div className="mt-9 flex flex-wrap items-center gap-3">
               <a
@@ -291,21 +313,12 @@ export function App() {
               >
                 Bring a photo
               </a>
-              <a
-                href="?demo=launch"
-                className="lift rule border px-6 py-3 text-xs tracking-[0.2em] text-[color:var(--color-paper)] uppercase"
-              >
-                See the payoff first
-              </a>
-              <span className="kicker" style={{ color: "var(--color-muted)" }}>
-                no account · no upload · nothing leaves the page
+              <span className="text-xs" style={{ color: "var(--color-faint)" }}>
+                no account · no upload
               </span>
             </div>
 
-            <p className="mt-10 text-xs" style={{ color: "var(--color-faint)" }}>
-              One photo in. A plate, a fork — keep it or edit it — and then the city runs it.
-            </p>
-          </div>
+            </div>
         </motion.section>
 
         <div className="mt-8">
@@ -396,9 +409,7 @@ export function App() {
                 <span style={{ color: "var(--color-faint)" }}>~ </span>the finish
               </h2>
               <p className="measure mt-2 text-xs" id="finish-note" style={{ color: "var(--color-muted)" }}>
-                Fast gets you a frame in a few seconds. Fine renders it at a larger size and keeps more of
-                your photograph&rsquo;s own colour instead of pulling it to the palette — it takes roughly
-                three times as long, and it is the one to use for a print.
+                fast: seconds. fine: bigger, truer colour, slower.
               </p>
               <div
                 className="mt-4 flex flex-wrap gap-3"
@@ -507,13 +518,8 @@ export function App() {
             <h2 className="display mt-3 text-4xl">
               There you are, in {SCENES[cut?.scene ?? scene].label.toLowerCase()}
             </h2>
-            <p
-              className="mt-3 max-w-[62ch] text-sm leading-relaxed text-[color:var(--color-muted)]"
-              data-testid="cut-line"
-            >
-              {cutLine} Nothing was uploaded, there is no key in the path, and there is{" "}
-              <strong>no text on the plate</strong> — text is only ever burned into the city placements
-              later, and those download separately.
+            <p className="measure mt-3 text-xs" style={{ color: "var(--color-muted)" }} data-testid="cut-line">
+              {cutLine}
             </p>
 
             <div className="mt-7 grid gap-7 lg:grid-cols-[minmax(0,1fr)_320px]">

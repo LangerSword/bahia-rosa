@@ -122,8 +122,7 @@ export function PlateGate({ onPhoto }: PlateGateProps) {
           }}
         />
         <p className="measure text-xs" style={{ color: "var(--color-faint)" }}>
-          or drop one onto this box. Shoulders up, face the light — the press finds the person itself.
-          jpg, png or webp, up to 12MB.
+          or drop one here · jpg, png or webp · up to 12MB
         </p>
       </div>
 
@@ -139,10 +138,8 @@ export function PlateGate({ onPhoto }: PlateGateProps) {
       ) : null}
 
       <div data-testid="desk-absent" className="mt-6">
-        <p className="measure text-xs" style={{ color: "var(--color-muted)" }}>
-          Your photo is read in this page, and stays in this page: the person in it is cut out by a
-          segmentation model running in this page, and the frame is composited here too — then it is
-          downloadable with no text on it. No account, no key, no upload, and nothing to install.
+        <p className="measure text-xs" style={{ color: "var(--color-faint)" }}>
+          read in this page · cut in this page · stays in this page. no account, no key, nothing to install.
         </p>
         {remote ? (
           <p className="measure mt-3 text-xs" style={{ color: "var(--color-flag)" }}>
@@ -156,11 +153,6 @@ export function PlateGate({ onPhoto }: PlateGateProps) {
         ) : null}
       </div>
 
-      <p className="mt-6 text-xs">
-        <a href="?demo=launch" className="fx-link" style={{ color: "var(--color-muted)" }}>
-          see the payoff first →
-        </a>
-      </p>
-    </section>
+      </section>
   );
 }

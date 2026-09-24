@@ -68,11 +68,9 @@ export async function portraitFromImage(
   const plate = SCENES[scene] ?? SCENES.beach;
 
   // The finish decides the sizes. Fine prints bigger, paints the subject's crop at a higher minimum
-  // resolution, and composites at 1.5× before scaling down — the extra samples are what take the
-  // jagged edge off a cut-out and let the subject's own colours survive the move into the scene.
-  const outLong = Math.round(maxSize ?? (fine ? 2200 : 1600));
+  const outLong = Math.round(maxSize ?? (fine ? 1900 : 1600));
   const paintEdge = fine ? 1200 : MIN_PAINT_EDGE;
-  const supersample = fine ? 1.5 : 1;
+  const supersample = fine ? 1.25 : 1;
   const paintOptions = fine ? { ...style, ...FINE } : style;
 
   // A working size that does not depend on what came in: a 500px photograph and a 6000px one both get
@@ -129,8 +127,22 @@ export async function portraitFromImage(
 
   const shortEdge = Math.min(cropW, cropH);
   const upscale = shortEdge > 0 ? Math.max(1, paintEdge / shortEdge) : 1;
-  const paintW = Math.round(cropW * upscale);
-  const paintH = Math.round(cropH * upscale);
+  let paintW = Math.round(cropW * upscale);
+  let paintH = Math.round(cropH * upscale);
+
+  // And a ceiling on the painted size itself. A tall crop scaled to a 1200px *short* edge can be 2000px
+  // long, and the paint is per pixel: past roughly 1500px the extra detail is invisible and the extra
+  // seconds are not. This is the difference between a fine frame that takes ten seconds and one that
+  // looks broken.
+  {
+    const longest = Math.max(paintW, paintH);
+    const ceiling = fine ? 1500 : 1100;
+    if (longest > ceiling) {
+      const shrink = ceiling / longest;
+      paintW = Math.max(1, Math.round(paintW * shrink));
+      paintH = Math.max(1, Math.round(paintH * shrink));
+    }
+  }
 
   let toPaint = crop.ctx.getImageData(0, 0, cropW, cropH).data;
   if (upscale > 1.01) {
@@ -179,17 +191,23 @@ export async function portraitFromImage(
   const grade = gradeFor(look ?? "dusk");
   try {
     const sceneImage = await loadImage(sceneSrc(scene));
-    // Grade the plate itself. This is what makes "neon" or "night" a change to the world rather than a
-    // tint on the person — the sky, the water and the wet asphalt all move together. Done at output
-    // size: grading a 1344px plate is cheap, and the crop throws the extra pixels away anyway.
-    const scaled = canvasOf(outW, outH);
-    const sceneScale = Math.max(outW / sceneImage.width, outH / sceneImage.height);
+    // Grade the plate at a bounded size and scale the result up into the frame. The grade is a
+    // per-pixel tone curve, so its output at 1280px is indistinguishable from its output at 3300px —
+    // and the difference in work is the difference between this pass being free and being the slowest
+    // thing in the press.
+    const gradeW = Math.min(outW, 1280);
+    const gradeH = Math.max(1, Math.round((gradeW * outH) / outW));
+    const small = canvasOf(gradeW, gradeH);
+    const sceneScale = Math.max(gradeW / sceneImage.width, gradeH / sceneImage.height);
     const drawW = sceneImage.width * sceneScale;
     const drawH = sceneImage.height * sceneScale;
-    scaled.ctx.drawImage(sceneImage, (outW - drawW) / 2, (outH - drawH) / 2, drawW, drawH);
-    const raw = scaled.ctx.getImageData(0, 0, outW, outH);
+    small.ctx.drawImage(sceneImage, (gradeW - drawW) / 2, (gradeH - drawH) / 2, drawW, drawH);
+    const raw = small.ctx.getImageData(0, 0, gradeW, gradeH);
     raw.data.set(gradePixels(raw.data, grade));
-    out.ctx.putImageData(raw, 0, 0);
+    small.ctx.putImageData(raw, 0, 0);
+    out.ctx.imageSmoothingEnabled = true;
+    out.ctx.imageSmoothingQuality = "high";
+    out.ctx.drawImage(small.canvas, 0, 0, gradeW, gradeH, 0, 0, outW, outH);
   } catch {
     // No scene plate (offline, or a build shipped without the images): a dark ground keeps the subject
     // placed rather than lost.
