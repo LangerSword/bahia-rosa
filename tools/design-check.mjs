@@ -76,11 +76,18 @@ for (const viewport of viewports) {
         (getComputedStyle(node).textTransform === "uppercase" || parseFloat(getComputedStyle(node).letterSpacing) > 1),
     ).length;
 
-    // Panels: any visible element still painting a gradient as its background.
-    const gradients = all.filter((node) => {
+    // Panels: any visible element still painting a gradient as its background. The effects layer is
+    // excluded by design (the roll, the scroll hairline), so whatever is left here should be named.
+    const gradientNodes = all.filter((node) => {
       const style = getComputedStyle(node);
       return visible(node) && style.backgroundImage.includes("gradient") && !node.className?.toString().includes("fx-");
-    }).length;
+    });
+    const gradients = gradientNodes.length;
+    const gradientNames = gradientNodes.map((node) => {
+      const id = node.getAttribute("data-testid");
+      const cls = node.className?.toString().split(" ").filter(Boolean).slice(0, 2).join(".");
+      return `${node.tagName.toLowerCase()}${id ? `[${id}]` : ""}${cls ? `.${cls}` : ""}`;
+    });
 
     const families = [...new Set(all.filter(visible).map((node) => getComputedStyle(node).fontFamily))];
     const heading = document.querySelector("h1.display");
@@ -108,6 +115,7 @@ for (const viewport of viewports) {
       overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       kickers,
       gradients,
+      gradientNames,
       families,
       bodyFamily: body.fontFamily,
       headingSize: heading ? getComputedStyle(heading).fontSize : null,
@@ -128,7 +136,7 @@ for (const viewport of viewports) {
   await page.screenshot({ path: `${outDir}/revamp-${viewport.name}.png`, fullPage: true });
   report.push({ viewport: viewport.name, ...measured, consoleErrors: errors });
   console.log(
-    `${viewport.name}px  overflow ${measured.overflowX}px · kickers-as-caps ${measured.kickers} · gradients ${measured.gradients} · families ${measured.families.length} · accents ${measured.accents.length} · hero ${measured.hero.canvas ? "webgl" : measured.hero.image ? "image" : "NOTHING"} · errors ${errors.length}`,
+    `${viewport.name}px  overflow ${measured.overflowX}px · kickers-as-caps ${measured.kickers} · gradients ${measured.gradients}${measured.gradientNames.length ? ` (${measured.gradientNames.join(", ")})` : ""} · families ${measured.families.length} · accents ${measured.accents.length} · hero ${measured.hero.canvas ? "webgl" : measured.hero.image ? "image" : "NOTHING"} · errors ${errors.length}`,
   );
   await page.close();
 }
