@@ -62,33 +62,51 @@ export function strictClasses(soft: Uint8ClampedArray, threshold = 216): Uint8Ar
 
 const asset = (path: string): string => `${import.meta.env.BASE_URL}${path}`;
 
-let segmenterPromise: Promise<ImageSegmenter | null> | null = null;
+const segmenters = new Map<string, Promise<ImageSegmenter | null>>();
 
 /**
- * The model, loaded once per page and kept. The first press pays for it (16MB, and the browser caches
- * it), every press after that is inference only.
+ * Which model reads the frame.
+ *
+ *   - `multi` — the six-class selfie segmenter (16.4MB): it separates hair from skin from clothes, which is
+ *     why it can put an edge on a hairline instead of on a 256px grid. It is also the entire cost of a press:
+ *     measured, everything after "loading the segmenter" was one twelve-second block, and that block *is* the
+ *     model.
+ *   - `binary` — the single-class selfie segmenter (249KB, the same runtime and licence): person or not, no
+ *     hair detail, and it answers in well under a second. The finish called "fast" gets this one, because a
+ *     finish whose job is to be quick cannot spend its budget on the model — and the report line says which
+ *     finish ran, so the trade is visible rather than implied.
+ *
+ * Both are loaded once per page and kept; the browser caches the assets either way.
  */
-export async function loadSegmenter(onNote?: (stage: string) => void): Promise<ImageSegmenter | null> {
-  if (!segmenterPromise) {
-    segmenterPromise = (async () => {
+export async function loadSegmenter(
+  onNote?: (stage: string) => void,
+  model: "multi" | "binary" = "multi",
+): Promise<ImageSegmenter | null> {
+  const held = segmenters.get(model);
+  if (held) return held;
+  const segmenterPromise = (async () => {
       try {
-        onNote?.("loading the segmenter");
+        onNote?.(model === "multi" ? "loading the segmenter" : "loading the quick finder");
         const vision = await FilesetResolver.forVisionTasks(asset("mediapipe/wasm"));
         return await ImageSegmenter.createFromOptions(vision, {
-          baseOptions: { modelAssetPath: asset("models/selfie_multiclass.tflite"), delegate: "GPU" },
+          baseOptions: {
+            modelAssetPath: asset(model === "multi" ? "models/selfie_multiclass.tflite" : "models/selfie_segmenter.tflite"),
+            delegate: "GPU",
+          },
           runningMode: "IMAGE",
           outputCategoryMask: true,
           // The per-class probabilities as well as the winning class. The winning class alone gives a
           // mask with one answer per pixel — a hard 256px edge — while the probabilities say *how much*
-          // person a pixel is, which is the difference between a cut-out and a paper cut-out.
-          outputConfidenceMasks: true,
+          // person a pixel is, which is the difference between a cut-out and a paper cut-out. The binary
+          // model answers with one mask; there is nothing to ask it twice about.
+          outputConfidenceMasks: model === "multi",
         });
       } catch {
         // A dead asset or an older browser is not a dead press: the classic cut takes over.
         return null;
       }
-    })();
-  }
+  })();
+  segmenters.set(model, segmenterPromise);
   return segmenterPromise;
 }
 
@@ -407,8 +425,14 @@ export async function bodyCut(
   width: number,
   height: number,
   onNote?: (stage: string) => void,
+  /**
+   * How many passes of edge refinement the mask gets. Three is the measured optimum (see
+   * `tests/unit/accuracy.test.ts`); one is what a finish called "fast" can afford, and the report line says
+   * which finish ran.
+   */
+  options: { edgePasses?: number; model?: "multi" | "binary" } = {},
 ): Promise<BodyCut | null> {
-  const segmenter = await loadSegmenter(onNote);
+  const segmenter = await loadSegmenter(onNote, options.model ?? (options.edgePasses === 1 ? "binary" : "multi"));
   if (!segmenter) return null;
   try {
     const result = segmenter.segment(canvas);
@@ -477,7 +501,7 @@ export async function bodyCut(
     // And then the edge is moved onto the photograph's own edges, at the working resolution where they
     // actually exist. This is the accuracy: a mask that follows the hairline instead of a 256px grid.
     const frame = canvas.getContext("2d")?.getImageData(0, 0, width, height).data;
-    if (frame) alpha = refineEdges(alpha, frame, width, height);
+    if (frame) alpha = refineEdges(alpha, frame, width, height, { iterations: options.edgePasses ?? 3 });
 
     // Everybody the model saw, at the working size, for the ground's sake — the clear needs this one and
     // never the mask above, because a person the plate declines to paint must still come out of the room

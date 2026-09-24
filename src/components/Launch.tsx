@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PlacementCanvas } from "./PlacementCanvas";
 import { composePlacement, downloadBlob, isDefaultLayer, placementFilename } from "../world/compose";
-import { PLACEMENTS, type Placement, type PlacementCopy } from "../world/placements";
+import { FRAME, PLACEMENTS, type Placement, type PlacementCopy } from "../world/placements";
 import type { Fit } from "../lib/payoff";
 
 /**
@@ -167,6 +167,33 @@ export function Launch({
                 {error}
               </span>
             ) : null}
+          </div>
+
+          {/*
+            * The frame on its own — no billboard, no feed, no words.
+            *
+            * The four surfaces are the city's; somebody who came here to edit their picture and keep it may
+            * want the picture. It is composed the same way (so an arrangement made in the editing phase is in
+            * it) and downloaded as a plain PNG: whatever they did to the frame in the editor, and nothing
+            * around it.
+            */}
+          <div className="rule mt-6 border-t pt-5" data-testid="plain-print">
+            <h3 className="text-xs" style={{ color: "var(--color-muted)" }}>
+              the frame on its own
+            </h3>
+            <p className="measure mt-2 text-xs" style={{ color: "var(--color-faint)" }}>
+              no surface, no mount, no words — the picture you made, at its own size, with anything you did to
+              it in the editor.
+            </p>
+            <button
+              type="button"
+              data-testid="download-plain"
+              onClick={() => void save(FRAME)}
+              disabled={busy !== null}
+              className="btn mt-4"
+            >
+              {busy === FRAME.id ? "rendering…" : "Download the frame"}
+            </button>
           </div>
         </div>
 

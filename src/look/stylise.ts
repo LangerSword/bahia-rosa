@@ -50,6 +50,12 @@ export interface StyliseOptions {
   exposure?: number;
   /** Changes the grain and the lattice jitter, so the same photo can be printed differently. */
   seed?: number;
+  /**
+   * How many rounds the palette is refined for. The cost multiplies out as pixels × colours × rounds, so
+   * this is the largest single lever on the press's time — and the last rounds move the palette least. Set
+   * lower for a finish whose job is to be quick, never to zero: one round is a palette, no rounds is a sieve.
+   */
+  iterations?: number;
 }
 
 const DEFAULTS: Required<StyliseOptions> = {
@@ -63,6 +69,7 @@ const DEFAULTS: Required<StyliseOptions> = {
   smooth: 0.55,
   exposure: 0.75,
   seed: 1,
+  iterations: 8,
 };
 
 /* ---------- small numeric helpers ---------- */
@@ -557,6 +564,7 @@ export function quantise(
   height: number,
   k: number,
   seed = 1,
+  rounds = 8,
 ): [number, number, number][] {
   const samples: [number, number, number][] = [];
   const step = Math.max(1, Math.floor(Math.sqrt((width * height) / 4096)));
@@ -580,7 +588,7 @@ export function quantise(
     centroids.push([pick[0], pick[1], pick[2]]);
   }
 
-  for (let iteration = 0; iteration < 8; iteration += 1) {
+  for (let iteration = 0; iteration < rounds; iteration += 1) {
     const sums = centroids.map(() => [0, 0, 0, 0]);
     for (const [L, A, B] of lab) {
       let best = 0;
@@ -716,7 +724,7 @@ export function flattenRegions(labels: Uint16Array, smooth: Float32Array, width:
  * The whole look, over one ImageData-shaped buffer. Pure: it reads the input and writes a new buffer.
  */
 export function styliseImageData(source: Uint8ClampedArray, width: number, height: number, options: StyliseOptions = {}): Uint8ClampedArray {
-  const { colours, palette, ink, finish, light, tone, paper, smooth: smoothStrength, exposure, seed } = {
+  const { colours, palette, ink, finish, light, tone, paper, smooth: smoothStrength, exposure, seed, iterations } = {
     ...DEFAULTS,
     ...options,
   };
@@ -739,7 +747,7 @@ export function styliseImageData(source: Uint8ClampedArray, width: number, heigh
   const edges = edgeMap(gray, width, height);
 
   // 2. Label every pixel by its nearest centroid, then average each connected region into one colour.
-  const centroids = quantise(smoothed, width, height, colours, seed);
+  const centroids = quantise(smoothed, width, height, colours, seed, iterations);
   // The same perceptual space for the assignment as for the clusters: a pixel goes to the colour it *looks*
   // nearest to. Assignment in RGB while clustering in Oklab would hand back the colours of one space and
   // the decisions of another, which is worse than either.
@@ -923,10 +931,20 @@ export function styliseImage(
  * more of the photograph's own colour, at a larger size. The unit test measures the gap between them,
  * because "it looked the same to me" is the failure mode this has to avoid.
  */
+/**
+ * The quick finish, and it is quick by every lever at once.
+ *
+ * The 249KB single-class finder instead of the 16.4MB six-class one (see `loadSegmenter`), one edge pass
+ * instead of three, three palette rounds instead of eight, a lighter smoothing pass, and a 1024px frame
+ * instead of 1900. The report line prints the finish *and* the width, so a visitor who needs the detail can
+ * see which finish they got and ask for the other one.
+ */
 export const FAST: StyliseOptions = {
   colours: 8,
   palette: 0.68,
   paper: 0.34,
+  iterations: 3,
+  smooth: 0.3,
 };
 
 export const FINE: StyliseOptions = {
@@ -939,6 +957,7 @@ export const FINE: StyliseOptions = {
   paper: 0.16,
   smooth: 0.4,
   exposure: 0.6,
+  iterations: 6,
 };
 
 /** Named presets, so the intake can offer a look instead of a wall of numbers. */

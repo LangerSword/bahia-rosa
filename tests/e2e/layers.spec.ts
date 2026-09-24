@@ -82,6 +82,22 @@ test("the subject is a layer: drag it, size it, cut it, let it run off the edge"
   expect(reset?.scale).toBe(1);
   expect(reset?.cropBottom).toBe(0);
   expect(reset?.overflow).toBe(false);
+
+  // 6. The outline: their actual box in the frame, drawn from the same geometry the exporter uses — and
+  //    its corners size them.
+  const outline = page.getByTestId("layer-outline");
+  await expect(outline).toBeVisible();
+  const wasBox = await outline.boundingBox();
+  const corner = await page.getByTestId("layer-handle-se").boundingBox();
+  if (!wasBox || !corner) throw new Error("the outline has no box to drag");
+  await page.mouse.move(corner.x + corner.width / 2, corner.y + corner.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(corner.x + corner.width / 2 + 70, corner.y + corner.height / 2 + 50, { steps: 6 });
+  await page.mouse.up();
+  // Outward from the centre is bigger, and the arrangement says so.
+  expect((await stored()).layer?.scale).toBeGreaterThan(1.05);
+  const isBox = await outline.boundingBox();
+  expect(isBox && wasBox && isBox.width > wasBox.width).toBe(true);
 });
 
 test("the city has no arrangement of its own — and it prints the one that was made", async ({ page }) => {
@@ -104,4 +120,11 @@ test("the city has no arrangement of its own — and it prints the one that was 
   await expect(page.getByTestId("layer-scale")).toHaveCount(0);
   await expect(page.getByTestId("layer-crop-bottom")).toHaveCount(0);
   await expect(page.getByTestId("arrangement-note")).toContainText("arranged in the editing phase");
+
+  // And the picture on its own: no surface, no mount, no words — the frame they made, downloadable.
+  const [plain] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByTestId("download-plain").click(),
+  ]);
+  expect(plain.suggestedFilename()).toMatch(/\.png$/);
 });

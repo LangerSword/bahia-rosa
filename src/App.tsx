@@ -793,6 +793,19 @@ export function App() {
             className="editor-shell panel rule mt-10 border p-8"
             data-testid="editor-shell"
           >
+            <div className="rule mb-5 flex items-center justify-between border-b pb-4">
+              <div>
+                <h2 className="display text-3xl">{plan.title}</h2>
+              </div>
+              <button
+                type="button"
+                data-testid="start-over"
+                onClick={reset}
+                className="lift rule border px-4 py-2 text-xs tracking-[0.2em] text-[color:var(--color-body)] uppercase hover:text-[color:var(--color-gold)]"
+              >
+                Start over
+              </button>
+            </div>
             {scene !== "asis" && !edited && plate?.kind === "photo" ? (
               /*
                * The arrangement, in the phase where the picture is made. It used to sit beside the four
@@ -817,19 +830,7 @@ export function App() {
                 }}
               />
             ) : null}
-            <div className="rule mb-5 flex items-center justify-between border-b pb-4">
-              <div>
-                <h2 className="display text-3xl">{plan.title}</h2>
-              </div>
-              <button
-                type="button"
-                data-testid="start-over"
-                onClick={reset}
-                className="lift rule border px-4 py-2 text-xs tracking-[0.2em] text-[color:var(--color-body)] uppercase hover:text-[color:var(--color-gold)]"
-              >
-                Start over
-              </button>
-            </div>
+
             <p className="mb-5 max-w-[62ch] text-sm leading-relaxed text-[color:var(--color-muted)]">
               Brief: {plan.brief}.
               {meta?.location ? <span> Printed at the {meta.location}.</span> : null}

@@ -17,7 +17,17 @@
 import { chromium } from "playwright";
 
 const url = process.argv[2] ?? "http://localhost:4186";
-const mode = process.argv[3] === "fine" ? "fine" : "fast";
+const asked = process.argv[3] ?? "fast";
+const mode = asked === "fine" ? "fine" : asked === "asis" ? "asis" : "fast";
+
+/** The door this run takes: "as it is" has no finish control — it prints fine by definition. */
+const enter = async (page) => {
+  if (mode === "asis") {
+    await page.getByTestId("scene-asis").click();
+    return;
+  }
+  await page.getByTestId(`finish-${mode}`).click();
+};
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
@@ -28,7 +38,7 @@ page.on("console", (message) => {
 page.on("pageerror", (error) => problems.push(String(error)));
 
 await page.goto(url, { waitUntil: "networkidle" });
-await page.getByTestId(`finish-${mode}`).click();
+await enter(page);
 
 const seen = [];
 const started = Date.now();
@@ -40,10 +50,13 @@ const poll = setInterval(() => {
     .locator('[data-testid="converting"] li')
     .allTextContents()
     .then((lines) => {
-      const last = lines.at(-1);
-      if (last && seen.at(-1)?.line !== last) {
-        seen.push({ line: last, at: ((Date.now() - started) / 1000).toFixed(1) });
+      for (const line of lines) {
+        if (line && !seen.some((entry) => entry.line === line)) {
+          seen.push({ line, at: ((Date.now() - started) / 1000).toFixed(1) });
+        }
       }
+      const last = lines.at(-1);
+      if (last) seen.at(-1).at = seen.at(-1).at ?? ((Date.now() - started) / 1000).toFixed(1);
     })
     .catch(() => undefined);
 }, 250);
@@ -62,10 +75,29 @@ if (problems.length) console.log(`  console errors: ${problems.join(" | ")}`);
 // "the first one takes a while".
 await page.getByTestId("take-to-city").waitFor({ timeout: 60_000 });
 await page.goto(url, { waitUntil: "networkidle" });
-await page.getByTestId(`finish-${mode}`).click();
+await enter(page);
 const warmStarted = Date.now();
+const warmSeen = [];
+const warmPoll = setInterval(() => {
+  void page
+    .locator('[data-testid="converting"] li')
+    .allTextContents()
+    .then((lines) => {
+      for (const line of lines) {
+        if (line && !warmSeen.some((entry) => entry.line === line)) {
+          warmSeen.push({ line, at: ((Date.now() - warmStarted) / 1000).toFixed(1) });
+        }
+      }
+      const last = lines.at(-1);
+      if (last && warmSeen.length) warmSeen.at(-1).at = warmSeen.at(-1).at ?? ((Date.now() - warmStarted) / 1000).toFixed(1);
+    })
+    .catch(() => undefined);
+}, 250);
 await page.getByTestId("photo-input").setInputFiles("public/art/demo/s1-marisol-keyart.jpg");
 await page.getByTestId("printed-fork").waitFor({ timeout: 600_000 });
+clearInterval(warmPoll);
 console.log(`${mode}: ${((Date.now() - warmStarted) / 1000).toFixed(1)}s (warm — model already cached)`);
+console.log("  stage timeline (warm):");
+for (const entry of warmSeen) console.log(`    +${entry.at}s  ${entry.line}`);
 
 await browser.close();

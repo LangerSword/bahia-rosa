@@ -1,27 +1,30 @@
-import { useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { PlacementCanvas } from "./PlacementCanvas";
-import { LAYER_DEFAULT, type LayerTransform } from "../world/compose";
+import { LAYER_DEFAULT, layerGeometry, loadImage, type LayerTransform } from "../world/compose";
 import { FRAME, type PlacementCopy } from "../world/placements";
 import type { Fit } from "../lib/payoff";
 
 /**
  * Placing them in the frame — the one thing the press cannot decide for you.
  *
- * This surface used to live in the city, beside the four things you download, and that was the wrong place:
- * an arrangement is a decision about the *picture*, and the city's job is to print it. Judging it in a
- * billboard's 8:3 mount and again in a venue card's 3:4 is how "it looked right there" happens. It belongs
- * to the phase where the picture is made — so it sits with the editor, above the editor, and what the city
- * receives is a decision that has already been made.
+ * It belongs to the phase where the picture is made, not to the downloading stage: an arrangement judged
+ * inside a billboard's 8:3 mount and again inside a venue card's 3:4 looks different in each, and "it was
+ * right in one of them" is not an arrangement. So it sits inside the editor's own shell, and the city
+ * receives a decision already made.
  *
- * One arrangement, applied to every surface and to the downloads, because there is one picture. However many
- * people are in it: a group is painted as one and moves, sizes and cuts as one — splitting a group would
- * break the paint's continuity, and the shared light and shared palette are the reason the frame reads as a
- * photograph rather than as cut-outs on a backdrop.
+ * The subject has an **outline**: their actual box in the frame, with a handle at each corner. Without it an
+ * arrangement is invisible — you drag and something moves, but nothing says what is being moved or how big
+ * it currently is. With it, the box *is* the control: drag anywhere to move, drag a corner to resize.
+ *
+ * The outline is drawn from `layerGeometry` — the same function, with the same arguments, that the exporter
+ * draws the person with. A second opinion about the geometry would drift away from the person the moment
+ * either side changed. (Unlayer's editor edits one flat picture and cannot hold a movable object, so the
+ * frame is the panel immediately above the tools rather than inside the canvas.)
  */
 export interface ArrangeProps {
   /** The place, with nobody in it. */
   artworkUrl: string;
-  /** The person on their own — what the drag moves. */
+  /** The person on their own — what the box moves and sizes. */
   subjectUrl?: string;
   copy: PlacementCopy;
   fit: Fit;
@@ -35,6 +38,20 @@ export interface ArrangeProps {
   onToCity?: () => void;
 }
 
+/** One decode per URL, kept: the outline is recomputed on every layer change, including every drag frame. */
+const decoded = new Map<string, Promise<HTMLImageElement>>();
+
+function decodeOnce(src: string): Promise<HTMLImageElement> {
+  const held = decoded.get(src);
+  if (held) return held;
+  const pending = loadImage(src);
+  decoded.set(src, pending);
+  return pending;
+}
+
+const clampMove = (value: number) => Math.min(1.5, Math.max(-1.5, value));
+const clampScale = (value: number) => Math.min(2.4, Math.max(0.4, value));
+
 export function Arrange({
   artworkUrl,
   subjectUrl,
@@ -45,16 +62,39 @@ export function Arrange({
   onToCity,
 }: ArrangeProps) {
   const [dragging, setDragging] = useState(false);
+  const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const dragRef = useRef<{ x: number; y: number; dx: number; dy: number; w: number; h: number } | null>(null);
+  const resizeRef = useRef<{ scale: number; cx: number; cy: number; from: number } | null>(null);
 
-  /** One writer for the layer, so a drag, a slider and a reset cannot disagree about the shape. */
+  /** One writer for the layer, so a drag, a corner, a slider and a reset cannot disagree about the shape. */
   const updateLayer = (patch: Partial<LayerTransform>) => {
     setLayer((current) => ({ ...current, ...patch }));
   };
 
-  const clampMove = (value: number) => Math.min(1.5, Math.max(-1.5, value));
+  useEffect(() => {
+    if (!subjectUrl) {
+      setBox(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const subject = await decodeOnce(subjectUrl);
+        if (cancelled) return;
+        // Exactly what `drawLayer` is handed: the person, the placement's artwork rect, the arrangement.
+        const { destination } = layerGeometry(subject, FRAME.artwork, layer, fit);
+        setBox(destination);
+      } catch {
+        if (!cancelled) setBox(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [subjectUrl, fit, layer]);
 
   const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (resizeRef.current) return;
     const rect = event.currentTarget.getBoundingClientRect();
     dragRef.current = {
       x: event.clientX,
@@ -79,12 +119,39 @@ export function Arrange({
     });
   };
 
-  const endDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const endDrag = (event: ReactPointerEvent<HTMLDivElement | HTMLSpanElement>) => {
     dragRef.current = null;
+    resizeRef.current = null;
     setDragging(false);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
+  };
+
+  /** A corner: the size follows the distance from the box's own centre, so it scales about its centre. */
+  const startResize = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    event.stopPropagation();
+    const host = event.currentTarget.closest('[data-testid="layer-surface"]');
+    const rect = host?.getBoundingClientRect();
+    if (!rect || !box) return;
+    const cx = rect.left + ((box.x + box.w / 2) / FRAME.width) * rect.width;
+    const cy = rect.top + ((box.y + box.h / 2) / FRAME.height) * rect.height;
+    resizeRef.current = {
+      scale: layer.scale,
+      cx,
+      cy,
+      from: Math.max(8, Math.hypot(event.clientX - cx, event.clientY - cy)),
+    };
+    setDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const moveResize = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    const resize = resizeRef.current;
+    if (!resize) return;
+    event.stopPropagation();
+    const now = Math.max(8, Math.hypot(event.clientX - resize.cx, event.clientY - resize.cy));
+    updateLayer({ scale: clampScale((resize.scale * now) / resize.from) });
   };
 
   /** The same movement without a pointer: arrows nudge, shift-arrows move by a bigger step. */
@@ -102,13 +169,16 @@ export function Arrange({
     updateLayer({ dx: clampMove(layer.dx + move[0]), dy: clampMove(layer.dy + move[1]) });
   };
 
-  const offCentre = layer.dx !== 0 || layer.dy !== 0 || layer.scale !== 1 || layer.cropTop !== 0 || layer.cropBottom !== 0;
+  const offCentre =
+    layer.dx !== 0 || layer.dy !== 0 || layer.scale !== 1 || layer.cropTop !== 0 || layer.cropBottom !== 0;
+
+  const percent = (value: number, total: number) => `${(value / total) * 100}%`;
 
   return (
-    <div className="rule border-b pb-6" data-testid="arrange" aria-labelledby="arrange-heading">
+    <div data-testid="arrange" aria-labelledby="arrange-heading">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h3 id="arrange-heading" className="kicker" style={{ color: "var(--color-paper)" }}>
-          the frame you are editing
+          the frame
         </h3>
         <p className="text-xs" style={{ color: "var(--color-muted)" }}>
           {offCentre
@@ -120,21 +190,17 @@ export function Arrange({
       <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_minmax(240px,300px)]">
         <div>
           <div
-            className="plate-inset"
+            className="plate-inset relative"
             data-testid="layer-surface"
             role="application"
             tabIndex={0}
-            aria-label="the subject in the frame: drag it, or nudge it with the arrow keys"
+            aria-label="the subject in the frame: drag it, drag a corner to size it, or nudge with the arrow keys"
             onPointerDown={startDrag}
             onPointerMove={moveDrag}
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
             onKeyDown={nudge}
-            style={{
-              touchAction: "none",
-              cursor: dragging ? "grabbing" : "grab",
-              outline: dragging ? "none" : undefined,
-            }}
+            style={{ touchAction: "none", cursor: dragging ? "grabbing" : "grab" }}
           >
             <PlacementCanvas
               placement={FRAME}
@@ -145,9 +211,48 @@ export function Arrange({
               layer={layer}
               className="block w-full"
             />
+
+            {/* The box they occupy, from the exporter's own geometry, with the corners that size them. */}
+            {box ? (
+              <div
+                data-testid="layer-outline"
+                aria-hidden="true"
+                className="pointer-events-none absolute"
+                style={{
+                  left: percent(box.x, FRAME.width),
+                  top: percent(box.y, FRAME.height),
+                  width: percent(box.w, FRAME.width),
+                  height: percent(box.h, FRAME.height),
+                  border: "1px dashed color-mix(in srgb, var(--color-accent) 75%, transparent)",
+                }}
+              >
+                {(["nw", "ne", "sw", "se"] as const).map((corner) => (
+                  <span
+                    key={corner}
+                    data-testid={`layer-handle-${corner}`}
+                    onPointerDown={startResize}
+                    onPointerMove={moveResize}
+                    onPointerUp={endDrag}
+                    onPointerCancel={endDrag}
+                    style={{
+                      position: "absolute",
+                      width: 14,
+                      height: 14,
+                      background: "var(--color-accent)",
+                      border: "1px solid var(--color-ink)",
+                      borderRadius: 2,
+                      pointerEvents: "auto",
+                      cursor: `${corner}-resize`,
+                      ...(corner.includes("n") ? { top: -7 } : { bottom: -7 }),
+                      ...(corner.includes("w") ? { left: -7 } : { right: -7 }),
+                    }}
+                  />
+                ))}
+              </div>
+            ) : null}
           </div>
           <p className="mt-3 text-xs" style={{ color: "var(--color-faint)" }}>
-            {FRAME.width}×{FRAME.height} · drag them, or nudge with the arrow keys
+            {FRAME.width}×{FRAME.height} · the dashed box is them — drag it to move, drag a corner to size it
           </p>
           {onToCity ? (
             <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -161,11 +266,11 @@ export function Arrange({
           ) : null}
         </div>
 
-        <aside className="flex flex-col gap-8">
+        <aside className="flex flex-col gap-6">
           <div>
-            <h3 className="text-xs" style={{ color: "var(--color-muted)" }}>
+            <h4 className="text-xs" style={{ color: "var(--color-muted)" }}>
               the person
-            </h3>
+            </h4>
             <p className="measure mt-2 text-xs" style={{ color: "var(--color-faint)" }}>
               one arrangement, applied to all four surfaces and to the downloads — however many of you are in
               the photograph, since a group is painted as one and moves, sizes and cuts as one.
@@ -232,11 +337,6 @@ export function Arrange({
               </button>
             </div>
           </div>
-
-          <p className="measure text-xs" style={{ color: "var(--color-faint)" }}>
-            the editor below works on the picture itself. save an edit from it and the frame is flattened into
-            one image — so arrange first if you are going to do both.
-          </p>
         </aside>
       </div>
     </div>

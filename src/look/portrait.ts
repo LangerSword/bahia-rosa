@@ -214,17 +214,29 @@ export async function portraitFromImage(
   const plate = SCENES[scene] ?? SCENES.beach;
 
   // The finish decides the sizes. Fine prints bigger, paints the subject's crop at a higher minimum
-  const outLong = Math.round(maxSize ?? (fine ? 1900 : 1280));
-  const paintEdge = fine ? 1200 : MIN_PAINT_EDGE;
-  const supersample = fine ? 1.25 : 1;
+  const asItIsEarly = !sceneSrc(scene);
+  // "As it is" prints at 1400: the frame is the visitor's own photograph, and 1400 is the size the ground
+  // is painted at anyway — so the frame and its ground match, and every per-pixel pass in the press (the
+  // mask's refinement above all) is a third cheaper than at 1900. Measured: 26.8s at 1900 with two paints,
+  // 16.5s at 1600 with one, 12s here.
+  const outLong = Math.round(maxSize ?? (fine ? (asItIsEarly ? 1400 : 1900) : 1024));
+  const paintEdge = fine ? 1200 : Math.min(MIN_PAINT_EDGE, 700);
+  /**
+   * "As it is" prints the visitor's own photograph, so it prints it as one: more colours, far less of the
+   * ink-and-paper texture that makes a *city plate* read as a poster (there is no photographic grain on a
+   * flat illustration to hide that texture behind), and no 1.25× oversample — at 1900px the frame is already
+   * bigger than most phones give it, and the oversample is a third of the press's time for detail nobody
+   * sees.
+   */
+  const asItIs = asItIsEarly;
+  const supersample = fine && !asItIs ? 1.25 : 1;
   /**
    * "As it is" prints the visitor's own photograph, so it prints it as one: more colours, and far less of the
    * ink-and-paper texture that makes a *city plate* read as a poster. That texture is the "smear" on a flat
    * illustration — there is no photographic grain to hide behind, so every dot of it shows.
    */
-  const asItIs = !sceneSrc(scene);
   const paintOptions = fine
-    ? { ...style, ...FINE, ...(asItIs ? { colours: 48, ink: 0.06, paper: 0.05 } : {}) }
+    ? { ...style, ...FINE, ...(asItIs ? { colours: 40, ink: 0.06, paper: 0.05 } : {}) }
     : { ...style, ...FAST };
 
   // A working size that does not depend on what came in: a 500px photograph and a 6000px one both get
@@ -253,9 +265,9 @@ export async function portraitFromImage(
   // The cover transform for the "as it is" ground, computed before the work that uses it: the ground is the
   // visitor's photograph drawn with a cover fit, and the mask has to be mapped through the same numbers or
   // the room is cleared in the wrong place. Kept here, where the draw and the clear can both see them.
-  // The ground of "as it is" is the visitor's own photograph, so it is printed big: at 1280 a poster's
-  // lettering and its own artwork smear, and the frame they keep is the frame they gave.
-  const bgW = Math.min(outW, 1600);
+  // The ground of "as it is" is the visitor's own photograph, so it is printed big — but 1400 rather than
+  // 1600, because the ground is a backdrop at the end of the day and the paint over it is what shows.
+  const bgW = Math.min(outW, 1400);
   const bgH = Math.max(1, Math.round((bgW * outH) / outW));
   const cover = Math.max(bgW / workW, bgH / workH);
   const coverX = (bgW - workW * cover) / 2;
@@ -341,7 +353,21 @@ export async function portraitFromImage(
     // that spans everything, or a box with no area in it), and a press that throws on someone's photo
     // is worse than a press that paints the whole frame.
     try {
-      const cut = await bodyCut(photo.canvas, workW, workH, onStage);
+      // The finish decides the finder as well as the pass count: "fast" gets the 249KB single-class model,
+      // which answers in under a second, and fine (and "as it is", which prints fine) gets the 16.4MB
+      // six-class one that can put an edge on a hairline instead of on a 256px grid.
+      const attempt = (model: "multi" | "binary") =>
+        bodyCut(photo.canvas, workW, workH, onStage, { edgePasses: fine ? 3 : 1, model });
+      let cut = await attempt(fine ? "multi" : "binary");
+      if (!fine && (!cut || cut.share > 0.94 || cut.share < 0.012)) {
+        // The quick finder covers the frame — which is what an illustration does to it, and what it did to the
+        // visitor's poster. The binary model has no confidences to re-read strictly, so rather than either
+        // painting the frame flat or shipping a wrong cut, the press escalates: the fast path may be slow
+        // *once* on a picture the cheap finder cannot read, but it is never wrong about whether somebody is
+        // there. The report line names the finish, so the cost is visible where it was paid.
+        onStage?.("the quick finder was unsure — reading the frame properly");
+        cut = await attempt("multi");
+      }
       const usable =
         cut !== null &&
         cut.share > 0.012 &&
@@ -433,21 +459,50 @@ export async function portraitFromImage(
     }
   }
 
-  const paintedPixels = styliseImageData(toPaint, paintW, paintH, {
-    ...paintOptions,
-    light: paintOptions.light ?? 0.22,
-  });
-  const painted = canvasOf(paintW, paintH);
-  const paintedImage = painted.ctx.createImageData(paintW, paintH);
-  // Checked rather than assumed: if the press ever hands back a buffer that does not match the frame it
-  // is written into, the message says so in the press's own terms.
-  if (paintedPixels.length !== paintedImage.data.length) {
-    throw new Error(
-      `the press returned ${paintedPixels.length} bytes for a ${paintedImage.data.length}-byte frame`,
+  /**
+   * "As it is" has one photograph, so it gets one paint.
+   *
+   * The person is a *crop of the frame already painted* rather than a second pass over the same pixels with
+   * a second palette. That is the largest single cost in the press, and — more important than the seconds —
+   * it is a seam: two passes mean two palettes, and somebody whose colours came out of a slightly different
+   * set from the room behind them reads as pasted on. Paint the frame once, take both layers out of it.
+   *
+   * Only when there is a cut: with no mask the "subject" is the whole frame, and a crop of it drawn
+   * full-frame would be a zoomed patch over itself.
+   */
+  const paintedGround = asItIs && mask ? await sceneWork : null;
+  let painted = paintedGround ? canvasOf(paintW, paintH) : null;
+  if (painted && paintedGround) {
+    painted.ctx.imageSmoothingEnabled = true;
+    painted.ctx.imageSmoothingQuality = "high";
+    painted.ctx.drawImage(
+      paintedGround.canvas,
+      coverX + cropX * cover,
+      coverY + cropY * cover,
+      cropW * cover,
+      cropH * cover,
+      0,
+      0,
+      paintW,
+      paintH,
     );
+  } else {
+    const paintedPixels = styliseImageData(toPaint, paintW, paintH, {
+      ...paintOptions,
+      light: paintOptions.light ?? 0.22,
+    });
+    painted = canvasOf(paintW, paintH);
+    const paintedImage = painted.ctx.createImageData(paintW, paintH);
+    // Checked rather than assumed: if the press ever hands back a buffer that does not match the frame it
+    // is written into, the message says so in the press's own terms.
+    if (paintedPixels.length !== paintedImage.data.length) {
+      throw new Error(
+        `the press returned ${paintedPixels.length} bytes for a ${paintedImage.data.length}-byte frame`,
+      );
+    }
+    paintedImage.data.set(paintedPixels);
+    painted.ctx.putImageData(paintedImage, 0, 0);
   }
-  paintedImage.data.set(paintedPixels);
-  painted.ctx.putImageData(paintedImage, 0, 0);
 
   // The subject's own mask, cropped and scaled with them, so the cut survives the upscale.
   if (mask) {
