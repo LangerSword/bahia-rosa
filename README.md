@@ -68,7 +68,7 @@ address. Put a tunnel in front of it and the deployed site prints for real:
 
 ```bash
 bash tools/desk/tunnel.sh start    # free: a Cloudflare tunnel from this machine, prints the URL
-#   → https://langersword.github.io/late-edition/?desk=<that url>   (remembered in localStorage)
+#   → https://langersword.github.io/bahia-rosa/?desk=<that url>   (remembered in localStorage)
 bash tools/desk/aws.sh up          # or rent the GPU: g5.xlarge, ~$1.21/hr, stops itself when idle
 ```
 

@@ -85,7 +85,7 @@ test("the launch stage draws every surface and exports the postcard at spec size
   expect(download.suggestedFilename()).toContain("postcard");
 
   // The copy on it is the user's copy, not a default: retype the handle and the file still exports.
-  await page.getByTestId("copy-handle").fill("@late-edition");
+  await page.getByTestId("copy-handle").fill("@bahia-rosa");
   const [second] = await Promise.all([page.waitForEvent("download"), page.getByTestId("download-postcard").click()]);
   await second.saveAs(resolve(SHOTS, "postcard-export-2.png"));
   expect(pngSize(readFileSync(resolve(SHOTS, "postcard-export-2.png")))).toEqual({ width: 1500, height: 1000 });

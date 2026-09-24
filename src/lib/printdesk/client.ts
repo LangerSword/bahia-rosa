@@ -196,6 +196,11 @@ async function uploadPhoto(baseUrl: string, file: File): Promise<string> {
  *
  * Nothing here is a secret: the front door is what decides who may print, and how often.
  */
+/**
+ * The key keeps its original name on purpose. It is not branding — it is where a visitor's remembered
+ * desk address lives, and renaming it would silently forget the desk of anyone who had already pointed
+ * this page at one. Rename it only with a migration that reads the old key first.
+ */
 const STORAGE_KEY = "late-edition.desk";
 const ENV_ROOT = ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_PRINT_DESK_URL ?? "")
   .trim()
