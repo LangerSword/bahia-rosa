@@ -932,19 +932,24 @@ export function styliseImage(
  * because "it looked the same to me" is the failure mode this has to avoid.
  */
 /**
- * The quick finish, and it is quick by every lever at once.
+ * The quick finish — quick where it costs nothing, and not one inch further.
  *
- * The 249KB single-class finder instead of the 16.4MB six-class one (see `loadSegmenter`), one edge pass
- * instead of three, three palette rounds instead of eight, a lighter smoothing pass, and a 1024px frame
- * instead of 1900. The report line prints the finish *and* the width, so a visitor who needs the detail can
- * see which finish they got and ask for the other one.
+ * A first attempt at this traded the frame's *look* for seconds: a 1024px frame instead of 1280, a quarter of
+ * the smoothing, the 249KB single-class finder instead of the 16.4MB six-class one. The visitor's answer was
+ * "the fast mode is literally fucked" — which is the correct review of that trade. Speed may not cost the
+ * picture.
+ *
+ * What is left is what costs almost nothing: six palette rounds rather than eight (the last rounds move the
+ * palette least) and two passes of edge refinement rather than three (the default three is the measured
+ * optimum, and the third pass is a hair of the first two). The resolution, the smoothing and the finder are
+ * the same as fine's — the difference between the finishes is now the palette, the edge pass and the size of
+ * the frame the *city* prints, not the quality of the cut-out.
  */
 export const FAST: StyliseOptions = {
   colours: 8,
   palette: 0.68,
   paper: 0.34,
-  iterations: 3,
-  smooth: 0.3,
+  iterations: 6,
 };
 
 export const FINE: StyliseOptions = {

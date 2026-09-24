@@ -219,8 +219,8 @@ export async function portraitFromImage(
   // is painted at anyway — so the frame and its ground match, and every per-pixel pass in the press (the
   // mask's refinement above all) is a third cheaper than at 1900. Measured: 26.8s at 1900 with two paints,
   // 16.5s at 1600 with one, 12s here.
-  const outLong = Math.round(maxSize ?? (fine ? (asItIsEarly ? 1400 : 1900) : 1024));
-  const paintEdge = fine ? 1200 : Math.min(MIN_PAINT_EDGE, 700);
+  const outLong = Math.round(maxSize ?? (fine ? (asItIsEarly ? 1400 : 1900) : 1280));
+  const paintEdge = fine ? 1200 : MIN_PAINT_EDGE;
   /**
    * "As it is" prints the visitor's own photograph, so it prints it as one: more colours, far less of the
    * ink-and-paper texture that makes a *city plate* read as a poster (there is no photographic grain on a
@@ -356,18 +356,14 @@ export async function portraitFromImage(
       // The finish decides the finder as well as the pass count: "fast" gets the 249KB single-class model,
       // which answers in under a second, and fine (and "as it is", which prints fine) gets the 16.4MB
       // six-class one that can put an edge on a hairline instead of on a 256px grid.
-      const attempt = (model: "multi" | "binary") =>
-        bodyCut(photo.canvas, workW, workH, onStage, { edgePasses: fine ? 3 : 1, model });
-      let cut = await attempt(fine ? "multi" : "binary");
-      if (!fine && (!cut || cut.share > 0.94 || cut.share < 0.012)) {
-        // The quick finder covers the frame — which is what an illustration does to it, and what it did to the
-        // visitor's poster. The binary model has no confidences to re-read strictly, so rather than either
-        // painting the frame flat or shipping a wrong cut, the press escalates: the fast path may be slow
-        // *once* on a picture the cheap finder cannot read, but it is never wrong about whether somebody is
-        // there. The report line names the finish, so the cost is visible where it was paid.
-        onStage?.("the quick finder was unsure — reading the frame properly");
-        cut = await attempt("multi");
-      }
+      // The same finder for both finishes. A cheaper one was tried for "fast" (see `loadSegmenter`) and the
+      // cut-out it produced is exactly what the visitor called fucked: a single-class model has no hair, no
+      // skin, no clothes, so its edge is a blob's edge. Speed comes from the palette rounds, the edge passes
+      // and the frame size — never from the quality of the cut.
+      const cut = await bodyCut(photo.canvas, workW, workH, onStage, {
+        edgePasses: fine ? 3 : 2,
+        model: "multi",
+      });
       const usable =
         cut !== null &&
         cut.share > 0.012 &&
@@ -470,23 +466,18 @@ export async function portraitFromImage(
    * Only when there is a cut: with no mask the "subject" is the whole frame, and a crop of it drawn
    * full-frame would be a zoomed patch over itself.
    */
-  const paintedGround = asItIs && mask ? await sceneWork : null;
-  let painted = paintedGround ? canvasOf(paintW, paintH) : null;
-  if (painted && paintedGround) {
-    painted.ctx.imageSmoothingEnabled = true;
-    painted.ctx.imageSmoothingQuality = "high";
-    painted.ctx.drawImage(
-      paintedGround.canvas,
-      coverX + cropX * cover,
-      coverY + cropY * cover,
-      cropW * cover,
-      cropH * cover,
-      0,
-      0,
-      paintW,
-      paintH,
-    );
-  } else {
+  /**
+   * "As it is" prints the visitor's photograph and nothing else: no cut, no separation, no second layer.
+   *
+   * The ground *is* the picture here — the whole photograph, repainted and graded to the hour — and painting a
+   * second copy of the frame to lay over it would print the same photograph twice. The visitor said this
+   * plainly: "take the entire photo, apply whatever daytime colour we have chosen, and redraw it as it is".
+   * That is what happens now; `wholeFrame` means the cut never even runs, which is also why "as it is" no
+   * longer pays for the 16.4MB model.
+   */
+  const paintSubject = !asItIs;
+  let painted = paintSubject ? canvasOf(paintW, paintH) : null;
+  if (painted) {
     const paintedPixels = styliseImageData(toPaint, paintW, paintH, {
       ...paintOptions,
       light: paintOptions.light ?? 0.22,
@@ -519,10 +510,12 @@ export async function portraitFromImage(
     bigMask.ctx.imageSmoothingQuality = "high";
     bigMask.ctx.drawImage(cropMask.canvas, 0, 0, cropW, cropH, 0, 0, paintW, paintH);
 
-    painted.ctx.save();
-    painted.ctx.globalCompositeOperation = "destination-in";
-    painted.ctx.drawImage(bigMask.canvas, 0, 0);
-    painted.ctx.restore();
+    if (painted) {
+      painted.ctx.save();
+      painted.ctx.globalCompositeOperation = "destination-in";
+      painted.ctx.drawImage(bigMask.canvas, 0, 0);
+      painted.ctx.restore();
+    }
   }
 
   // The scene: a real plate, graded to the hour the visitor chose, cropped to the output's aspect.
@@ -601,7 +594,7 @@ export async function portraitFromImage(
     subject.ctx.restore();
   }
 
-  subject.ctx.drawImage(painted.canvas, target.x, target.y, target.width, target.height);
+  if (painted) subject.ctx.drawImage(painted.canvas, target.x, target.y, target.width, target.height);
 
   if (mask && sceneSrc(scene)) {
     // The warm rim light is how a person is *matched to a place they were not photographed in*. In "as it
@@ -620,7 +613,7 @@ export async function portraitFromImage(
     subject.ctx.save();
     subject.ctx.globalCompositeOperation = "screen";
     subject.ctx.fillStyle = rim;
-    subject.ctx.drawImage(painted.canvas, target.x, target.y, target.width, target.height);
+    if (painted) subject.ctx.drawImage(painted.canvas, target.x, target.y, target.width, target.height);
     subject.ctx.restore();
   }
 

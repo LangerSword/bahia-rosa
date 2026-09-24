@@ -192,8 +192,11 @@ export function App() {
           ...preset,
           scene,
           look,
-          // "As it is" is the visitor's own photograph, printed as it is: the frame they keep is the frame
-          // they gave, so it is printed at the fine finish whatever finish they chose for a city plate.
+          // "As it is" is the visitor's own photograph, printed as it is: no cut, no separation, no layers —
+          // the whole frame, repainted and graded. It prints at the fine finish whatever finish was chosen
+          // for a city plate, because the frame they keep is the frame they gave, and it pays for no model:
+          // `wholeFrame` means the segmentation never runs.
+          wholeFrame: scene === "asis",
           fine: quality === "fine" || scene === "asis",
           seed: 1 + (file.size % 997),
           onStage: (label) => setStages((seen) => (seen.includes(label) ? seen : [...seen, label])),
@@ -384,7 +387,9 @@ export function App() {
    */
   const who = cut?.cutSource === "model" && cut.subjects > 1 ? "the group" : "you";
   const presence =
-    cut?.cutSource === "model"
+    scene === "asis"
+      ? "the whole frame, printed as it is"
+      : cut?.cutSource === "model"
       ? cut.share > 0.45
         ? `${who}, filling the frame`
         : cut.share > 0.22

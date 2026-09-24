@@ -58,13 +58,13 @@ export function Launch({
 
   /** What every surface draws: the arrangement made in the editing phase, or the press's own framing. */
   const arranged = arranging ? layer : undefined;
-  const arrangedLine = !subjectUrl
-    ? "one picture — an edit is flattened, so this is the frame as it was saved"
-    : arranging
-      ? isDefaultLayer(layer)
+  const arrangedLine = !arranging
+    ? "your own room: the whole frame, printed as it is"
+    : !subjectUrl
+      ? "one picture — an edit is flattened, so this is the frame as it was saved"
+      : isDefaultLayer(layer)
         ? "the press's own framing — arrange them in the editing phase if you want them moved"
-        : "arranged in the editing phase · the same arrangement on all four"
-      : "your own room: they stand where they stood";
+        : "arranged in the editing phase · the same arrangement on all four";
 
   const selected = useMemo<Placement>(
     () => PLACEMENTS.find((placement) => placement.id === placementId) ?? PLACEMENTS[0],
