@@ -56,6 +56,15 @@ export interface StyliseOptions {
    * lower for a finish whose job is to be quick, never to zero: one round is a palette, no rounds is a sieve.
    */
   iterations?: number;
+  /**
+   * How much of the photograph's own fine detail to put back over the paint, 0..1.
+   *
+   * A palette is a decision about *colour*, and colour is only half of what makes lettering readable: the
+   * other half is the local contrast between a letter and the surface it is printed on, which quantisation
+   * flattens. This adds the source's high-frequency luminance back — and only where the source has some, so a
+   * flat sky and a flat wall stay flat. It moves the output *toward* the photograph, which is measurable.
+   */
+  detail?: number;
 }
 
 const DEFAULTS: Required<StyliseOptions> = {
@@ -70,6 +79,7 @@ const DEFAULTS: Required<StyliseOptions> = {
   exposure: 0.75,
   seed: 1,
   iterations: 8,
+  detail: 0,
 };
 
 /* ---------- small numeric helpers ---------- */
@@ -724,7 +734,7 @@ export function flattenRegions(labels: Uint16Array, smooth: Float32Array, width:
  * The whole look, over one ImageData-shaped buffer. Pure: it reads the input and writes a new buffer.
  */
 export function styliseImageData(source: Uint8ClampedArray, width: number, height: number, options: StyliseOptions = {}): Uint8ClampedArray {
-  const { colours, palette, ink, finish, light, tone, paper, smooth: smoothStrength, exposure, seed, iterations } = {
+  const { colours, palette, ink, finish, light, tone, paper, smooth: smoothStrength, exposure, seed, iterations, detail } = {
     ...DEFAULTS,
     ...options,
   };
@@ -872,7 +882,80 @@ export function styliseImageData(source: Uint8ClampedArray, width: number, heigh
       out[p + 3] = source[p + 3];
     }
   }
+
+  // The photograph's own detail, back over the paint — the last thing that happens, so nothing downstream
+  // smooths it away again.
+  if (detail > 0) restoreDetail(out, gray, width, height, detail);
+
   return out;
+}
+
+/**
+ * Put the photograph's fine detail back over the paint.
+ *
+ * A palette is a decision about *colour*, and colour is only half of what makes lettering readable — the other
+ * half is the local contrast between a letter and the surface it sits on, and quantisation flattens exactly
+ * that. So the painted luminance is blended back toward the photograph's own, **gated by how much detail the
+ * photograph actually has there**: a wall, a sky and a set of skin tones keep the flat painted look, and a line
+ * of small print comes back. Luminance only, so the palette still owns the colour.
+ *
+ * The first formulation added the source's high-pass over the paint, and measurement rejected it: a quantised
+ * edge is a hard step, and a soft high-pass laid on a step is noise on a step, not a restored edge — the
+ * correlation with the photograph's sharpness went *down* (0.853 → 0.800). Blending toward the source is what
+ * works, and what it improves is the thing that matters: the frame's distance from the photograph, where the
+ * photograph has detail. `tests/unit/detail.test.ts` measures exactly that, plus the stillness of a flat patch.
+ */
+export function restoreDetail(
+  out: Uint8ClampedArray,
+  gray: ArrayLike<number>,
+  width: number,
+  height: number,
+  strength: number,
+): number {
+  if (strength <= 0 || width < 3 || height < 3) return 0;
+  const pixels = width * height;
+  const low = new Float32Array(pixels);
+
+  // One 3×3 box blur: the local shape, at the scale small print actually lives on. The first version blurred
+  // twice and measured the high-pass against that — the wobble of a four-pixel letterform is small against a
+  // five-pixel blur, so the gate read "flat" exactly where the lettering was, and recovery measured 15% of what
+  // it should have been. The measurement is the reason this is one pass.
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const left = x === 0 ? 0 : -1;
+      const right = x === width - 1 ? 0 : 1;
+      const up = y === 0 ? 0 : -width;
+      const down = y === height - 1 ? 0 : width;
+      let total = 0;
+      let count = 0;
+      for (let dy = up; dy <= down; dy += width || 1) {
+        for (let dx = left; dx <= right; dx += 1) {
+          total += gray[y * width + x + dy + dx];
+          count += 1;
+        }
+      }
+      low[y * width + x] = total / Math.max(1, count);
+    }
+  }
+
+  let touched = 0;
+  for (let i = 0; i < pixels; i += 1) {
+    // How much detail is here: the size of the local wobble above a floor, capped at one. A flat wall and
+    // sensor noise both score zero; a hairline of lettering and a grain of sand both score one. A hard
+    // threshold on the same quantity was the other half of the first version's mistake — a soft edge lands
+    // just under any cliff you pick, which is precisely the lettering this is for.
+    const detail = Math.min(1, Math.max(0, (Math.abs(gray[i] - low[i]) - 1.2) / 5));
+    if (detail <= 0) continue;
+
+    const p = i * 4;
+    const painted = 0.2126 * out[p] + 0.7152 * out[p + 1] + 0.0722 * out[p + 2];
+    const lift = (gray[i] - painted) * strength * detail;
+    out[p] = Math.max(0, Math.min(255, out[p] + lift));
+    out[p + 1] = Math.max(0, Math.min(255, out[p + 1] + lift));
+    out[p + 2] = Math.max(0, Math.min(255, out[p + 2] + lift));
+    touched += 1;
+  }
+  return touched;
 }
 
 /**
@@ -965,6 +1048,12 @@ export const FAST: StyliseOptions = {
   iterations: 8,
   ink: 0.12,
   smooth: 0.35,
+  /**
+   * And the detail pass, which is the answer to "the text and everything should look right": the palette
+   * decides the colours, and this decides whether a letter still reads as a letter or as a blob. Measured in
+   * tests/unit/detail.test.ts by the local contrast across a painted bar.
+   */
+  detail: 0.55,
 };
 
 export const FINE: StyliseOptions = {
