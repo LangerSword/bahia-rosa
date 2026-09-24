@@ -946,15 +946,25 @@ export function styliseImage(
  * the frame the *city* prints, not the quality of the cut-out.
  */
 export const FAST: StyliseOptions = {
-  // The palette is *not* where "fast" saves: sixteen colours over eight rounds — the same rounds as fine — so the
-  // colour is all there (97.2% within ΔE 0.05 against fine's 99.9%, and the difference between twelve and sixteen
-  // is a tenth of a second). What fast spends less on is *detail*: a 1280px frame instead of 1900, one pass of
-  // edge refinement instead of three, and a smaller paint edge for the crop. Same palette quality, less of it.
+  /**
+   * The quick finish, tuned to the complaint rather than to a theory of quality.
+   *
+   * "less details in lines and sketching, but at least the text and everything should look right." The line
+   * work is the `ink` pass, and at 0.34 it drew bold dark contours over everything — a sketch laid on top of
+   * a photograph. At 0.12 it is a hint of an edge instead. The grain (`paper`) comes down with it, because
+   * grain over small lettering is what turns a label into a smudge, and the smoothing comes down too: less
+   * smoothing is both cleaner *and* cheaper, because the pass is the work.
+   *
+   * The palette is not where this finish saves — sixteen colours over eight rounds, the same rounds as fine.
+   * What it spends less on is detail, and what it spends the savings on is the *subject's* resolution: the
+   * crop is painted at fine's 1200px edge, so the lettering on a jacket and the small print on a sign survive.
+   */
   colours: 16,
   palette: 0.6,
-  paper: 0.34,
+  paper: 0.22,
   iterations: 8,
-  smooth: 0.45,
+  ink: 0.12,
+  smooth: 0.35,
 };
 
 export const FINE: StyliseOptions = {

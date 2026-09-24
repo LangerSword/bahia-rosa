@@ -69,9 +69,17 @@ paint, not a diffusion — so its own look lives in `src/look/stylise.ts` as two
 | | fast | fine |
 |---|---|---|
 | palette | 16 colours, eight rounds | 32 colours, eight rounds |
-| smoothing | 0.45 | 0.4 (of the default 0.55) |
+| smoothing | 0.35 | 0.4 (of the default 0.55) |
+| ink (line work) | 0.12 — a hint of an edge | 0.16 |
+| grain (`paper`) | 0.22 | 0.16 |
+| the subject's crop | painted at 1200px | painted at 1200px |
 | frame (in `portrait.ts`) | 1280×720 | 1900×1080 |
 | edge passes | 1 | 3 |
+
+**Fast saves on detail, never on colour or on lettering.** Neither finish draws heavy line work — the `ink`
+pass is a hint of an edge in both — and both paint the subject's crop at the same 1200px edge, because that is
+where the lettering on a jacket and the small print on a sign live. What fast spends less on is the frame it
+composes into (1280 against 1900), the passes of edge refinement (one against three) and the grain.
 
 **Fast does not save on the palette.** Both finishes refine the same number of rounds (eight); what fast
 spends less on is detail — a 1280px frame instead of 1900, one pass of edge refinement instead of three, and a

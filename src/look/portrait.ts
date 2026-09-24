@@ -59,9 +59,6 @@ export interface PortraitResult {
   scene: SceneId;
 }
 
-/** The smallest edge the subject's crop is painted at, before the paint stops seeing detail. */
-const MIN_PAINT_EDGE = 900;
-
 function canvasOf(width: number, height: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(width));
@@ -220,7 +217,10 @@ export async function portraitFromImage(
   // mask's refinement above all) is a third cheaper than at 1900. Measured: 26.8s at 1900 with two paints,
   // 16.5s at 1600 with one, 12s here.
   const outLong = Math.round(maxSize ?? (fine ? (asItIsEarly ? 1400 : 1900) : 1280));
-  const paintEdge = fine ? 1200 : MIN_PAINT_EDGE;
+  // Both finishes paint the subject's crop at the same edge: this is where lettering and small detail live, and
+  // "fast" may draw less *around* the person, never less *of* them. It pays for it with the lighter passes in
+  // its preset and the smaller frame it composes into.
+  const paintEdge = 1200;
   /**
    * "As it is" prints the visitor's own photograph, so it prints it as one: more colours, far less of the
    * ink-and-paper texture that makes a *city plate* read as a poster (there is no photographic grain on a
@@ -608,7 +608,7 @@ export async function portraitFromImage(
       fromRight ? target.x : target.x + target.width,
       target.y + target.height,
     );
-    rim.addColorStop(0, "rgba(255, 214, 150, 0.24)");
+    rim.addColorStop(0, "rgba(255, 214, 150, 0.14)");
     rim.addColorStop(1, "rgba(255, 122, 61, 0)");
     subject.ctx.save();
     subject.ctx.globalCompositeOperation = "screen";
