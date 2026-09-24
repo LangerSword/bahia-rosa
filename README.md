@@ -111,6 +111,18 @@ The editor's own chrome is theirs, including **Flatten layers**, which stays dis
 one layer to flatten (add text, a sticker or a shape and it enables). The tool rail has no layers tool; the
 measurement is in [`docs/editor-contract.md`](docs/editor-contract.md).
 
+## On a phone
+
+The whole flow works on a phone: choose a place, press, compare, arrange, crop, download — no sideways
+scroll at any stage, and the drag surfaces sized for a fingertip rather than a cursor (the handles grow
+under a coarse pointer, and the frame and its cut lines carry `touch-action: none`, so a press-and-drag is
+a drag and not a scroll). `tests/e2e/mobile.spec.ts` walks 390×844 with **real touch events** and asserts
+all three.
+
+The one deliberate exception is Unlayer's editor, a 1024×700 desktop surface by contract
+(`docs/editor-contract.md`): on a phone it keeps that size inside a scroller of its own rather than pushing
+the page — and the arrangement above it — sideways.
+
 ## Design
 
 The chrome is measured from the studio's own site rather than guessed at, and the contract every component

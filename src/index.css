@@ -459,8 +459,23 @@ body {
   will-change: transform;
 }
 
-/* The editor needs >=1024x700 of real estate (see docs/editor-contract.md). */
+/*
+ * The editor needs >=1024x700 of real estate (see docs/editor-contract.md) — but the arrangement, the copy and
+ * the downloads live in this shell too, and they are not desktop-only. So the shell is phone-width, and the
+ * *editor* keeps its 1024 inside a scroller of its own. Before this, a phone got a 958px-wide frame inside a
+ * 390px viewport, which pushed the whole page sideways.
+ */
 .editor-shell {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.editor-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.editor-scroll > [data-testid^="editor-surface-"] {
   min-width: 1024px;
 }
 
@@ -477,4 +492,44 @@ body {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* ---------------------------------------------------------------- touch ---- */
+
+/*
+ * Phones are not small desktops: a cut line you drag with a cursor can be 14px, and the same line under a
+ * fingertip cannot. `--hit` is the size of the corner handles and `--hit-line` the thickness of a cut line's
+ * grab area; both grow under a coarse pointer — the only reliable signal that the primary input is a finger
+ * rather than a mouse, and one a touchscreen laptop also answers honestly (it has both, and reports both).
+ */
+:root {
+  --hit: 14px;
+  --hit-line: 22px;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --hit: 30px;
+    --hit-line: 40px;
+  }
+}
+
+html {
+  /* iOS inflates text in landscape without this, and the design's type is already deliberate. */
+  -webkit-text-size-adjust: 100%;
+}
+
+/*
+ * The drag surfaces: a press-and-drag must be a drag, and nothing else. No tap highlight flashing grey over
+ * the frame, no long-press callout offering to save the canvas, no text selection swallowing the gesture.
+ * The canvas is the one place where a browser's own touch handling is never what the visitor meant.
+ */
+[data-testid="layer-surface"],
+[data-testid="layer-surface"] *,
+[data-testid="crop-layer"],
+[data-testid="crop-layer"] * {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+  touch-action: none;
 }

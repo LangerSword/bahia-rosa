@@ -795,7 +795,7 @@ export function App() {
             initial={reduce ? undefined : { opacity: 0, y: 14 }}
             animate={reduce ? undefined : { opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: EASE }}
-            className="editor-shell panel rule mt-10 border p-8"
+            className="editor-shell panel rule mt-10 border p-4 sm:p-8"
             data-testid="editor-shell"
           >
             <div className="rule mb-5 flex items-center justify-between border-b pb-4">

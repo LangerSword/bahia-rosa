@@ -84,3 +84,10 @@ when passed through React options.
   text-to-image only (no reference image → no likeness); its reference-image model
   (`@cf/black-forest-labs/flux-2-klein-4b`) is exactly the model this project now runs **locally**
   instead. See `docs/print-desk.md`.
+
+## On a narrow screen
+
+The 1024×700 minimum is the editor's own, and it is honoured — but it is wrapped in a scroller, so the
+*page* never inherits it. Before that wrapper existed, a phone got a 958px-wide frame inside a 390px
+viewport: the editor-shell carries the arrangement and the downloads too, and a min-width on it pushed all
+of them sideways. The shell is phone-width; the editor keeps its own inside `.editor-scroll`.

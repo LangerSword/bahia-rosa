@@ -332,9 +332,12 @@ export function Arrange({
       </div>
 
       <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_minmax(240px,300px)]">
-        <div>
+        {/* min-w-0 on both columns: without it a grid item refuses to shrink below its content's intrinsic
+            width, and a canvas's intrinsic width is its attribute — so on a phone the frame was 958px wide
+            inside a 390px viewport, and everything after it was pushed sideways. */}
+        <div className="min-w-0">
           <div
-            className="plate-inset relative"
+            className="plate-inset relative max-w-full"
             data-testid="layer-surface"
             role="application"
             tabIndex={0}
@@ -384,15 +387,21 @@ export function Arrange({
                     onPointerCancel={endDrag}
                     style={{
                       position: "absolute",
-                      width: 14,
-                      height: 14,
+                      // Finger-sized under a coarse pointer, cursor-sized otherwise (see index.css).
+                      width: "var(--hit, 14px)",
+                      height: "var(--hit, 14px)",
                       background: "var(--color-accent)",
                       border: "1px solid var(--color-ink)",
                       borderRadius: 2,
                       pointerEvents: "auto",
+                      touchAction: "none",
                       cursor: `${corner}-resize`,
-                      ...(corner.includes("n") ? { top: -7 } : { bottom: -7 }),
-                      ...(corner.includes("w") ? { left: -7 } : { right: -7 }),
+                      ...(corner.includes("n")
+                        ? { top: "calc(var(--hit, 14px) / -2)" }
+                        : { bottom: "calc(var(--hit, 14px) / -2)" }),
+                      ...(corner.includes("w")
+                        ? { left: "calc(var(--hit, 14px) / -2)" }
+                        : { right: "calc(var(--hit, 14px) / -2)" }),
                     }}
                   />
                 ))}
@@ -430,10 +439,11 @@ export function Arrange({
                       position: "absolute",
                       left: percent(vertical ? line : along, FRAME.width),
                       top: percent(vertical ? along : line, FRAME.height),
-                      width: vertical ? 22 : percent(span, FRAME.width),
-                      height: vertical ? percent(span, FRAME.height) : 22,
+                      width: vertical ? "var(--hit-line, 22px)" : percent(span, FRAME.width),
+                      height: vertical ? percent(span, FRAME.height) : "var(--hit-line, 22px)",
                       transform: vertical ? "translateX(-50%)" : "translateY(-50%)",
                       pointerEvents: "auto",
+                      touchAction: "none",
                       cursor: vertical ? "ew-resize" : "ns-resize",
                       display: "flex",
                       alignItems: "center",
@@ -469,7 +479,7 @@ export function Arrange({
           ) : null}
         </div>
 
-        <aside className="flex flex-col gap-6">
+        <aside className="flex min-w-0 flex-col gap-6">
           <div>
             <h4 className="text-xs" style={{ color: "var(--color-muted)" }}>
               the person

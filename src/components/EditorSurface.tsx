@@ -54,18 +54,23 @@ export function EditorSurface({ surfaceId, image, gating, onSaved, onCancelled, 
   };
 
   return (
-    <div data-testid={`editor-surface-${surfaceId}`}>
-      <ImageEditor
-        key={surfaceId}
-        ref={ref}
-        image={image}
-        minHeight="720px"
-        options={options as never}
-        onSave={handleSave}
-        onCancel={() => onCancelled?.()}
-        onLoadError={() => onLoadFailed?.()}
-        onError={(error: Error) => console.error("Image Editor failed:", error)}
-      />
+    // On a phone this is a desktop surface inside a scroller rather than a page that scrolls sideways: Unlayer's
+    // editor is a 1024×700 contract (docs/editor-contract.md), and the arrangement above it is not, so the two
+    // must not share a width. The wrapper takes the phone's width and lets the editor keep its own.
+    <div className="editor-scroll">
+      <div data-testid={`editor-surface-${surfaceId}`}>
+        <ImageEditor
+          key={surfaceId}
+          ref={ref}
+          image={image}
+          minHeight="720px"
+          options={options as never}
+          onSave={handleSave}
+          onCancel={() => onCancelled?.()}
+          onLoadError={() => onLoadFailed?.()}
+          onError={(error: Error) => console.error("Image Editor failed:", error)}
+        />
+      </div>
     </div>
   );
 }
