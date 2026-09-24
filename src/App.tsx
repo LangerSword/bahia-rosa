@@ -57,6 +57,24 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 
 export function App() {
   const [stage, setStage] = useState<Stage>("gate");
+
+  /** The editor is open where there is room for it, and shut on a phone until the visitor asks for it. */
+  const [editorOpen, setEditorOpen] = useState(
+    typeof window === "undefined" || !window.matchMedia("(max-width: 640px)").matches,
+  );
+
+  /**
+   * Straight to the city with the press's own plate and the arrangement applied on the way out — the path a
+   * phone takes, because the city's four downloads are the product and the editor is a desktop tool.
+   */
+  const toCity = () => {
+    if (!image) return;
+    setSaved(image);
+    setEdited(false);
+    setViaEditor(false);
+    setStage("city");
+  };
+
   const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
   const [choice, setChoice] = useState<PrintChoice>({ surface: "debut", quality: false });
   const [plate, setPlate] = useState<PlateSource | null>(null);
@@ -294,8 +312,7 @@ export function App() {
    *      scroll happens here instead, after React has rendered the stage.
    */
   const runToken = useRef(0);
-  const reset = useCallback(() => {
-    runToken.current += 1;
+  const reset = useCallback(() => {    runToken.current += 1;
     setPlate(null);
     setPendingPhoto(null);
     setSaved(null);
@@ -507,8 +524,8 @@ export function App() {
               >
                 Bring a photo
               </a>
-              <span className="text-xs" style={{ color: "var(--color-faint)" }}>
-                no account · no upload
+              <span className="text-xs" style={{ color: "var(--color-muted)" }}>
+                no account · no upload · nothing leaves this page
               </span>
             </div>
 
@@ -826,14 +843,28 @@ export function App() {
                 fit={payoff.fit}
                 layer={payoff.layer}
                 setLayer={payoff.setLayer}
-                onToCity={() => {
-                  // The press's own plate, unedited: the arrangement applies to it on the way out.
-                  setSaved(image);
-                  setEdited(false);
-                  setViaEditor(false);
-                  setStage("city");
-                }}
+                onToCity={toCity}
               />
+            ) : null}
+
+            {!edited ? (
+              /*
+               * On a phone the way out of this phase was 668px of scrolling below the fold, under an editor
+               * that is a 1024px desktop surface. The arrangement and the city are the product; the editor is
+               * optional and desktop-shaped. So the door rides with the visitor.
+               */
+              <div
+                className="sticky bottom-3 z-10 mb-5 flex items-center gap-3 rounded-[2px] border p-2 sm:hidden"
+                style={{
+                  background: "color-mix(in srgb, var(--color-ink) 86%, transparent)",
+                  borderColor: "var(--color-rule)",
+                  backdropFilter: "blur(8px)",
+                }}
+              >
+                <button type="button" data-testid="phone-to-city" onClick={toCity} className="btn w-full">
+                  Take it into the city
+                </button>
+              </div>
             ) : null}
 
             <p className="mb-5 max-w-[62ch] text-sm leading-relaxed text-[color:var(--color-muted)]">
@@ -871,7 +902,24 @@ export function App() {
                 ) : null}
               </div>
             ) : null}
-            <EditorSurface surfaceId={plan.surfaceId} image={arrangedPlate ?? image} gating={plan.gating} onSaved={onSaved} />
+            <details
+              data-testid="editor-disclosure"
+              open={editorOpen}
+              onToggle={(event) =>
+                setEditorOpen((event.currentTarget as HTMLDetailsElement).open)
+              }
+              className="rule border-t pt-4"
+            >
+              <summary className="lift cursor-pointer text-xs tracking-[0.2em] uppercase" style={{ color: "var(--color-body)" }}>
+                the editor — text, stickers, filters
+                <span className="ml-2 normal-case tracking-normal" style={{ color: "var(--color-muted)" }}>
+                  (a desktop tool; it is cramped on a phone — the arrangement and the city below are not)
+                </span>
+              </summary>
+              <div className="mt-4">
+                <EditorSurface surfaceId={plan.surfaceId} image={arrangedPlate ?? image} gating={plan.gating} onSaved={onSaved} />
+              </div>
+            </details>
           </motion.section>
         ) : null}
 
