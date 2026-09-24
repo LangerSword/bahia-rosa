@@ -88,6 +88,40 @@ export async function portraitFromImage(
   photo.ctx.drawImage(image, 0, 0, workW, workH);
   const frame = photo.ctx.getImageData(0, 0, workW, workH);
 
+  // Two pieces of colour work that do not depend on each other, started together: the city's plate is
+  // fetched, decoded and graded (network, then a per-pixel tone curve at a bounded size) while the subject
+  // is found, refined and painted (pure array maths). Overlapping them takes the press from the sum of the
+  // two to the slower of the two — which is the "find the edges, then process the colour in parallel" half
+  // of this press, done with the concurrency the platform actually has: the paint is synchronous and the
+  // plate is I/O, so one overlaps the other without a worker.
+  const outW = Math.round(outLong * supersample);
+  const outH = Math.round(((outLong * 9) / 16) * supersample);
+  const grade = gradeFor(look ?? "dusk");
+  const sceneWork: Promise<{ canvas: HTMLCanvasElement; width: number; height: number } | null> = (async () => {
+    try {
+      const sceneImage = await loadImage(sceneSrc(scene));
+      // Grade the plate at a bounded size and scale the result up into the frame. The grade is a per-pixel
+      // tone curve, so its output at 1280px is indistinguishable from its output at 3300px — and the
+      // difference in work is the difference between this pass being free and being the slowest thing in
+      // the press.
+      const gradeW = Math.min(outW, 1280);
+      const gradeH = Math.max(1, Math.round((gradeW * outH) / outW));
+      const small = canvasOf(gradeW, gradeH);
+      const sceneScale = Math.max(gradeW / sceneImage.width, gradeH / sceneImage.height);
+      const drawW = sceneImage.width * sceneScale;
+      const drawH = sceneImage.height * sceneScale;
+      small.ctx.drawImage(sceneImage, (gradeW - drawW) / 2, (gradeH - drawH) / 2, drawW, drawH);
+      const raw = small.ctx.getImageData(0, 0, gradeW, gradeH);
+      raw.data.set(gradePixels(raw.data, grade));
+      small.ctx.putImageData(raw, 0, 0);
+      return { canvas: small.canvas, width: gradeW, height: gradeH };
+    } catch {
+      // No scene plate (offline, or a build shipped without the images): a dark ground keeps the subject
+      // placed rather than lost.
+      return null;
+    }
+  })();
+
   let mask: Uint8ClampedArray | null = null;
   let box = { x: 0, y: 0, width: workW, height: workH };
   let share = 0;
@@ -222,32 +256,23 @@ export async function portraitFromImage(
 
   // The scene: a real plate, graded to the hour the visitor chose, cropped to the output's aspect.
   onStage?.(`setting the frame in ${plate.label.toLowerCase()}`);
-  const outW = Math.round(outLong * supersample);
-  const outH = Math.round(((outLong * 9) / 16) * supersample);
   const out = canvasOf(outW, outH);
-  const grade = gradeFor(look ?? "dusk");
-  try {
-    const sceneImage = await loadImage(sceneSrc(scene));
-    // Grade the plate at a bounded size and scale the result up into the frame. The grade is a
-    // per-pixel tone curve, so its output at 1280px is indistinguishable from its output at 3300px —
-    // and the difference in work is the difference between this pass being free and being the slowest
-    // thing in the press.
-    const gradeW = Math.min(outW, 1280);
-    const gradeH = Math.max(1, Math.round((gradeW * outH) / outW));
-    const small = canvasOf(gradeW, gradeH);
-    const sceneScale = Math.max(gradeW / sceneImage.width, gradeH / sceneImage.height);
-    const drawW = sceneImage.width * sceneScale;
-    const drawH = sceneImage.height * sceneScale;
-    small.ctx.drawImage(sceneImage, (gradeW - drawW) / 2, (gradeH - drawH) / 2, drawW, drawH);
-    const raw = small.ctx.getImageData(0, 0, gradeW, gradeH);
-    raw.data.set(gradePixels(raw.data, grade));
-    small.ctx.putImageData(raw, 0, 0);
+  const gradedScene = await sceneWork;
+  if (gradedScene) {
     out.ctx.imageSmoothingEnabled = true;
     out.ctx.imageSmoothingQuality = "high";
-    out.ctx.drawImage(small.canvas, 0, 0, gradeW, gradeH, 0, 0, outW, outH);
-  } catch {
-    // No scene plate (offline, or a build shipped without the images): a dark ground keeps the subject
-    // placed rather than lost.
+    out.ctx.drawImage(
+      gradedScene.canvas,
+      0,
+      0,
+      gradedScene.width,
+      gradedScene.height,
+      0,
+      0,
+      outW,
+      outH,
+    );
+  } else {
     out.ctx.fillStyle = "#0b0a12";
     out.ctx.fillRect(0, 0, outW, outH);
   }

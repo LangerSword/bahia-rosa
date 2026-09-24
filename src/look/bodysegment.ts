@@ -50,7 +50,10 @@ export async function loadSegmenter(onNote?: (stage: string) => void): Promise<I
           baseOptions: { modelAssetPath: asset("models/selfie_multiclass.tflite"), delegate: "GPU" },
           runningMode: "IMAGE",
           outputCategoryMask: true,
-          outputConfidenceMasks: false,
+          // The per-class probabilities as well as the winning class. The winning class alone gives a
+          // mask with one answer per pixel — a hard 256px edge — while the probabilities say *how much*
+          // person a pixel is, which is the difference between a cut-out and a paper cut-out.
+          outputConfidenceMasks: true,
         });
       } catch {
         // A dead asset or an older browser is not a dead press: the classic cut takes over.
@@ -210,6 +213,130 @@ export function cleanMask(
 }
 
 /**
+ * The soft mask: how much person the model thinks each pixel is.
+ *
+ * `1 − P(background)` is the model's own answer to the question the press is asking, and unlike the
+ * winning class it is continuous — so the edge of the subject is a ramp rather than a cliff. The ramp is
+ * then re-thresholded between two values instead of at one: a pixel is fully person above `ceiling`,
+ * fully background below `floor`, and proportional in between. One hard threshold at 0.5 would throw away
+ * exactly the information this function exists to keep.
+ */
+export function softAlphaFromConfidence(
+  background: Float32Array | Uint8Array | ArrayLike<number>,
+  width: number,
+  height: number,
+  floor = 0.42,
+  ceiling = 0.58,
+): Uint8ClampedArray {
+  const pixels = width * height;
+  const alpha = new Uint8ClampedArray(pixels);
+  const span = Math.max(1e-6, ceiling - floor);
+  for (let i = 0; i < pixels; i += 1) {
+    const person = 1 - (background[i] ?? 1);
+    alpha[i] = Math.round(255 * Math.min(1, Math.max(0, (person - floor) / span)));
+  }
+  return alpha;
+}
+
+/** A separable box blur of a single-channel float buffer, edge-clamped. O(n), whatever the radius. */
+function boxBlur(source: Float32Array, width: number, height: number, radius: number): Float32Array {
+  const horizontal = new Float32Array(source.length);
+  const window = radius * 2 + 1;
+  for (let y = 0; y < height; y += 1) {
+    const row = y * width;
+    let sum = 0;
+    for (let x = -radius; x <= radius; x += 1) sum += source[row + Math.min(width - 1, Math.max(0, x))];
+    for (let x = 0; x < width; x += 1) {
+      horizontal[row + x] = sum / window;
+      const out = row + Math.min(width - 1, Math.max(0, x - radius));
+      const into = row + Math.min(width - 1, Math.max(0, x + radius + 1));
+      sum += source[into] - source[out];
+    }
+  }
+  const vertical = new Float32Array(source.length);
+  for (let x = 0; x < width; x += 1) {
+    let sum = 0;
+    for (let y = -radius; y <= radius; y += 1) sum += horizontal[Math.min(height - 1, Math.max(0, y)) * width + x];
+    for (let y = 0; y < height; y += 1) {
+      vertical[y * width + x] = sum / window;
+      const out = Math.min(height - 1, Math.max(0, y - radius)) * width + x;
+      const into = Math.min(height - 1, Math.max(0, y + radius + 1)) * width + x;
+      sum += horizontal[into] - horizontal[out];
+    }
+  }
+  return vertical;
+}
+
+/**
+ * Snap the mask's edge to the photograph's own edges.
+ *
+ * The model answers at 256×256. Scaled to a working frame of 1280px that is a five-pixel step at every
+ * boundary, and a soft ramp smooths the step without moving it — hair against a wall still gets a
+ * five-pixel-wide smear where the truth is one pixel. This is a guided filter with the photograph's
+ * luminance as the guide: inside the filter's window the mask is fitted to the image, so where the image
+ * has an edge the mask takes it, and where the image is flat the mask is averaged.
+ *
+ * It is the "find the edges first, then paint" half of the press: the edge decides where the paint stops.
+ */
+export function refineEdges(
+  alpha: Uint8ClampedArray,
+  rgba: ArrayLike<number>,
+  width: number,
+  height: number,
+  options: { radius?: number; iterations?: number; strength?: number; epsilon?: number } = {},
+): Uint8ClampedArray {
+  // Tuned against the measurement in tests/unit/accuracy.test.ts, not by feel: radius 5 and three passes
+  // take a mask that is a five-pixel ramp in the wrong place and move it onto the photograph's edge, while
+  // a timid window (radius 2, one pass) barely moves it at all. Full strength is safe here because the
+  // filter is edge-preserving by construction — it is the *guide* that decides, and the guide is the photo.
+  const { radius = 5, iterations = 3, strength = 1, epsilon = 0.0004 } = options;
+  const pixels = width * height;
+  if (!pixels || alpha.length < pixels) return alpha;
+
+  // The guide: the photograph's own luminance, 0..1.
+  const guide = new Float32Array(pixels);
+  for (let i = 0, p = 0; i < pixels; i += 1, p += 4) {
+    guide[i] = (0.299 * (rgba[p] ?? 0) + 0.587 * (rgba[p + 1] ?? 0) + 0.114 * (rgba[p + 2] ?? 0)) / 255;
+  }
+
+  let mask = new Float32Array(pixels);
+  for (let i = 0; i < pixels; i += 1) mask[i] = (alpha[i] ?? 0) / 255;
+
+  for (let iteration = 0; iteration < iterations; iteration += 1) {
+    const guideMean = boxBlur(guide, width, height, radius);
+    const maskMean = boxBlur(mask, width, height, radius);
+    const guideSquared = new Float32Array(pixels);
+    const guideMask = new Float32Array(pixels);
+    for (let i = 0; i < pixels; i += 1) {
+      guideSquared[i] = guide[i] * guide[i];
+      guideMask[i] = guide[i] * mask[i];
+    }
+    const meanGuideSquared = boxBlur(guideSquared, width, height, radius);
+    const meanGuideMask = boxBlur(guideMask, width, height, radius);
+    const a = new Float32Array(pixels);
+    const b = new Float32Array(pixels);
+    for (let i = 0; i < pixels; i += 1) {
+      const variance = meanGuideSquared[i] - guideMean[i] * guideMean[i];
+      const covariance = meanGuideMask[i] - guideMean[i] * maskMean[i];
+      const slope = covariance / (variance + epsilon);
+      a[i] = slope;
+      b[i] = maskMean[i] - slope * guideMean[i];
+    }
+    const meanA = boxBlur(a, width, height, radius);
+    const meanB = boxBlur(b, width, height, radius);
+    for (let i = 0; i < pixels; i += 1) {
+      const filtered = meanA[i] * guide[i] + meanB[i];
+      const kept = mask[i] * (1 - strength) + filtered * strength;
+      mask[i] = Math.min(1, Math.max(0, kept));
+    }
+  }
+
+  const out = new Uint8ClampedArray(alpha.length);
+  for (let i = 0; i < pixels; i += 1) out[i] = Math.round(mask[i] * 255);
+  return out;
+}
+
+/**
  * Cut the person out of a frame the browser already has in memory.
  *
  * Returns null when the model is unavailable, so the caller can fall back deliberately rather than
@@ -230,8 +357,28 @@ export async function bodyCut(
     const classes = mask.getAsUint8Array();
     const maskWidth = mask.width;
     const maskHeight = mask.height;
+
+    // The probabilities, for the edge: how much person each pixel is, rather than which class won.
+    let soft: Uint8ClampedArray | null = null;
+    const confidences = result.confidenceMasks;
+    if (confidences && confidences.length > BACKGROUND) {
+      const background = confidences[BACKGROUND].getAsFloat32Array();
+      soft = softAlphaFromConfidence(background, maskWidth, maskHeight);
+      for (const confidence of confidences) confidence.close();
+    }
+
+    // The winning class still decides *which regions* count — speckle out, holes filled, everyone in the
+    // frame kept — and the probabilities decide how each surviving pixel's edge falls.
     const cleaned = cleanMask(classes, maskWidth, maskHeight);
     mask.close();
+
+    const combined = new Uint8ClampedArray(maskWidth * maskHeight);
+    for (let i = 0; i < combined.length; i += 1) {
+      if (cleaned.alpha[i] === 0) continue; // dropped as speckle, or outside the subject
+      // A pixel the model called background but which the flood could not reach is inside the subject —
+      // a dark shirt, the shadow under a chin — and stays solid whatever its probability says.
+      combined[i] = classes[i] === BACKGROUND ? 255 : (soft?.[i] ?? 255);
+    }
 
     // Resample the mask up to the working size through a canvas, which gives the edges a little
     // softness for free — a hard 256px mask scaled to 1600px looks like a paper cut-out.
@@ -241,7 +388,7 @@ export async function bodyCut(
     const maskCtx = maskCanvas.getContext("2d");
     if (!maskCtx) return null;
     const maskImage = maskCtx.createImageData(maskWidth, maskHeight);
-    for (let i = 0; i < cleaned.alpha.length; i += 1) maskImage.data[i * 4 + 3] = cleaned.alpha[i];
+    for (let i = 0; i < combined.length; i += 1) maskImage.data[i * 4 + 3] = combined[i];
     maskCtx.putImageData(maskImage, 0, 0);
 
     const scaled = document.createElement("canvas");
@@ -254,12 +401,16 @@ export async function bodyCut(
     scaledCtx.drawImage(maskCanvas, 0, 0, maskWidth, maskHeight, 0, 0, width, height);
     const alphaData = scaledCtx.getImageData(0, 0, width, height).data;
 
-    const alpha = new Uint8ClampedArray(width * height);
+    let alpha: Uint8ClampedArray = new Uint8ClampedArray(width * height);
+    for (let i = 0; i < alpha.length; i += 1) alpha[i] = alphaData[i * 4 + 3];
+
+    // And then the edge is moved onto the photograph's own edges, at the working resolution where they
+    // actually exist. This is the accuracy: a mask that follows the hairline instead of a 256px grid.
+    const frame = canvas.getContext("2d")?.getImageData(0, 0, width, height).data;
+    if (frame) alpha = refineEdges(alpha, frame, width, height);
+
     let count = 0;
-    for (let i = 0; i < alpha.length; i += 1) {
-      alpha[i] = alphaData[i * 4 + 3];
-      if (alpha[i] > 127) count += 1;
-    }
+    for (let i = 0; i < alpha.length; i += 1) if (alpha[i] > 127) count += 1;
     return { alpha, box: cleaned.box, share: count / (width * height), source: "model" };
   } catch {
     return null;
