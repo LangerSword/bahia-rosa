@@ -44,8 +44,27 @@ const measure = (options: Parameters<typeof styliseImageData>[3]): number =>
   distinct(styliseImageData(photoFrame(SIZE), SIZE, SIZE, { ...LOOKS.golden.options, finish: 0, paper: 0, ...options }));
 
 describe("the finish", () => {
-  it("fine keeps more of the photograph's own colour than fast", () => {
-    expect(measure({ ...FINE })).toBeGreaterThan(measure({ ...FAST }));
+  it("fine stays closer to the photograph than fast", () => {
+    // Fidelity, not a colour count. A hard palette pull leaves a wide spread of *slightly* wrong colours
+    // — which inflates a count while looking less like the photograph. Distance from the input is the
+    // honest measure of "truer colour", so that is what is measured.
+    const frame = photoFrame(SIZE);
+    const fidelity = (options: Parameters<typeof styliseImageData>[3]): number => {
+      const rendered = styliseImageData(frame, SIZE, SIZE, { ...LOOKS.golden.options, finish: 0, paper: 0, ...options });
+      let total = 0;
+      for (let i = 0; i < rendered.length; i += 4) {
+        total +=
+          Math.abs(rendered[i] - frame[i]) +
+          Math.abs(rendered[i + 1] - frame[i + 1]) +
+          Math.abs(rendered[i + 2] - frame[i + 2]);
+      }
+      return total / (rendered.length / 4) / 3;
+    };
+    const fast = fidelity({ ...FAST });
+    const fine = fidelity({ ...FINE });
+    expect(fine, `fine is ${fine.toFixed(1)}/255 from the photograph, fast is ${fast.toFixed(1)}`).toBeLessThan(
+      fast,
+    );
   });
 
   it("the two finishes differ enough to see, not just in the count of colours", () => {
