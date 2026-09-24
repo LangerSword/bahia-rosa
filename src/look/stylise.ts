@@ -626,13 +626,25 @@ export function quantise(
   return centroids.map(([L, A, B]) => oklabToSrgb(L, A, B));
 }
 
+/**
+ * The city anchors, in Oklab, converted once.
+ *
+ * The first version converted them inside `nearestAnchor`, which is called for **every pixel** — so a
+ * sixteen-anchor palette cost sixteen cube-root conversions per pixel on top of the pixel's own, and a
+ * 1280×720 press did that forty-five million times across its layers. The conversions are constants.
+ */
+const ANCHORS_LAB: readonly (readonly [number, number, number])[] = CITY_PALETTE.map((anchor) =>
+  srgbToOklab(anchor[0], anchor[1], anchor[2]),
+);
+
 /** The nearest city anchor, and how far away it was — matched by eye, not by RGB. */
 export function nearestAnchor(r: number, g: number, b: number): { anchor: readonly [number, number, number]; distance: number } {
   const [L, A, B] = srgbToOklab(r, g, b);
   let best = CITY_PALETTE[0];
   let bestDistance = Infinity;
-  for (const anchor of CITY_PALETTE) {
-    const [aL, aA, aB] = srgbToOklab(anchor[0], anchor[1], anchor[2]);
+  for (let i = 0; i < CITY_PALETTE.length; i += 1) {
+    const anchor = CITY_PALETTE[i];
+    const [aL, aA, aB] = ANCHORS_LAB[i];
     const d = distanceLab(L, A, B, [aL, aA, aB]);
     if (d < bestDistance) {
       bestDistance = d;
@@ -1053,7 +1065,7 @@ export const FAST: StyliseOptions = {
    * decides the colours, and this decides whether a letter still reads as a letter or as a blob. Measured in
    * tests/unit/detail.test.ts by the local contrast across a painted bar.
    */
-  detail: 0.55,
+  detail: 0.85,
 };
 
 export const FINE: StyliseOptions = {

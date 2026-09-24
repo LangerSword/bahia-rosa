@@ -210,6 +210,20 @@ export async function portraitFromImage(
   const { scene = "beach", wholeFrame = false, maxSize, look, fine = false, onStage, ...style } = options;
   const plate = SCENES[scene] ?? SCENES.beach;
 
+  /**
+   * A stopwatch, because "fast is slow" and "fast is slow *where*" are different questions and only one of
+   * them can be answered by guessing. Each mark writes one line to the console; tools/press-time.mjs collects
+   * them and prints the timeline. Cost: five `performance.now()` calls.
+   */
+  const T0 = performance.now();
+  const mark = (name: string): void => {
+    try {
+      console.info(`[press] ${name} ${(performance.now() - T0).toFixed(0)}ms`);
+    } catch {
+      /* no console, no timeline */
+    }
+  };
+
   // The finish decides the sizes. Fine prints bigger, paints the subject's crop at a higher minimum
   const asItIsEarly = !sceneSrc(scene);
   // "As it is" prints at 1400: the frame is the visitor's own photograph, and 1400 is the size the ground
@@ -252,6 +266,7 @@ export async function portraitFromImage(
   const photo = canvasOf(workW, workH);
   photo.ctx.drawImage(image, 0, 0, workW, workH);
   const frame = photo.ctx.getImageData(0, 0, workW, workH);
+  mark("photo read");
 
   // Two pieces of colour work that do not depend on each other, started together: the city's plate is
   // fetched, decoded and graded (network, then a per-pixel tone curve at a bounded size) while the subject
@@ -345,6 +360,7 @@ export async function portraitFromImage(
   let cutSource: PortraitResult["cutSource"] = "none";
   if (!wholeFrame) {
     onStage?.("finding you in the frame");
+  mark("segmenter call");
     // The segmentation model first, because it is the difference between a cut-out and a recolour: it
     // reads a face in shadow, a subject at night, and hair against a busy wall — and, for a group, it
     // reads all of them. One 16MB download, cached by the browser, no key, nothing uploaded.
@@ -405,6 +421,7 @@ export async function portraitFromImage(
 
   // Paint the subject from their own crop, at their own resolution.
   onStage?.(fine ? "painting you in the city's light (fine: bigger, truer colour)" : "painting you in the city's light");
+  mark("you found");
   const margin = Math.round(Math.max(box.width, box.height) * 0.14);
   const cropX = Math.max(0, box.x - margin);
   const cropY = Math.max(0, box.y - margin);
@@ -520,12 +537,14 @@ export async function portraitFromImage(
 
   // The scene: a real plate, graded to the hour the visitor chose, cropped to the output's aspect.
   onStage?.(`setting the frame in ${plate.label.toLowerCase()}`);
+  mark("you painted");
   // The two layers the whole product is actually about: the **ground** (the place, with nobody in it) and
   // the **subject** (the person, painted, on nothing). They stay apart all the way to the surface, which is
   // what lets the person be moved over their own background instead of the whole picture moving together —
   // and it is why the ground must never contain a second copy of them.
   const ground = canvasOf(outW, outH);
   const gradedScene = await sceneWork;
+  mark("ground ready");
   if (gradedScene && !sceneSrc(scene) && mask) {
     // "As it is" keeps the visitor's own room as the ground, so the room has to be *cleared* of them — of
     // everybody the cut saw, through the same cover transform the ground was drawn with.
@@ -632,11 +651,15 @@ export async function portraitFromImage(
     smooth: 0,
     exposure: 0.35,
     seed: style.seed ?? 1,
+    // And the detail setting, which the paint used — without it this pass snapped the restored lettering
+    // straight back onto the palette and undid the thing it had just been paid for.
+    detail: style.detail ?? paintOptions.detail ?? 0,
   };
   // The unifying pass: subject and place, one palette, one grain — run on *each layer*, so the two things
   // that leave here are graded like the plate they flatten into. The plate itself is then the two of them
   // drawn in order, which is why the download and the arrangement cannot drift apart.
   onStage?.(fine ? "grading the whole frame (fine)" : "grading the whole frame");
+  mark("composed");
   const gradeLayer = (layer: { canvas: HTMLCanvasElement }): HTMLCanvasElement => {
     const small = canvasOf(finalW, finalH);
     small.ctx.imageSmoothingEnabled = true;

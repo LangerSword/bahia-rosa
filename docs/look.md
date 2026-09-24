@@ -70,12 +70,17 @@ paint, not a diffusion — so its own look lives in `src/look/stylise.ts` as two
 |---|---|---|
 | palette | 16 colours, eight rounds | 32 colours, eight rounds |
 | smoothing | 0.35 | 0.4 (of the default 0.55) |
-| detail (the photograph put back where it has detail) | 0.55 | 0 |
+| detail (the photograph put back where it has detail) | 0.85 | 0 |
 | ink (line work) | 0.12 — a hint of an edge | 0.16 |
 | grain (`paper`) | 0.22 | 0.16 |
 | the subject's crop | painted at 1200px | painted at 1200px |
 | frame (in `portrait.ts`) | 1280×720 | 1900×1080 |
 | edge passes | 1 | 3 |
+
+The anchors' Oklab values are converted **once**, not once per pixel per anchor: the first version
+converted all sixteen inside the per-pixel loop, and a 1280×720 press did that forty-five million
+times across its layers. Measured: fast 12.7s → 9.5s warm from that hoist alone, with the detail
+setting going *up* in the same change.
 
 **Fast saves on detail, never on colour or on lettering.** Neither finish draws heavy line work — the `ink`
 pass is a hint of an edge in both — and both paint the subject's crop at the same 1200px edge, because that is
