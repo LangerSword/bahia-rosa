@@ -89,7 +89,7 @@ test("a screenshot pasted from the clipboard is pressed", async ({ page }) => {
   expect(line).toMatch(/· (fast|fine) · \d+px wide/);
 });
 
-test("a photo dropped on the city is pressed — a drop works wherever the visitor is", async ({ page }) => {
+test("a photo dropped on the city asks first, because it would replace what is there", async ({ page }) => {
   test.setTimeout(300_000);
   await page.goto("/");
   await expect(page.getByTestId("choose-photo")).toBeVisible();
@@ -97,12 +97,25 @@ test("a photo dropped on the city is pressed — a drop works wherever the visit
   await expect(page.getByTestId("printed-fork")).toBeVisible({ timeout: 150_000 });
 
   // Into the city, which is where someone with an arrangement in front of them tries to drop the next
-  // photograph — and where the drop used to do nothing at all, because it was only enabled on two stages.
+  // photograph. The drop works from anywhere on the page — but by then the file most likely to be in their
+  // hand is the plate they just downloaded, and pressing that would run the whole transformation over their
+  // own output. So the drop asks.
   await page.getByTestId("take-to-city").click();
   await expect(page.getByTestId("launch")).toBeVisible();
+  const frame = await page.getByTestId("launch").innerText();
 
   await dropFile(page, "another-one.jpg", "image/jpeg");
-  // A new press, and the fork again: dropping is a way to start over with a different photograph.
+  await expect(page.getByTestId("drop-confirm")).toBeVisible();
+  // Saying no keeps everything exactly where it was.
+  await page.getByTestId("drop-confirm-no").click();
+  await expect(page.getByTestId("drop-confirm")).toHaveCount(0);
+  await expect(page.getByTestId("launch")).toBeVisible();
+  expect(await page.getByTestId("launch").innerText()).toBe(frame);
+
+  // Saying yes is a new press, and it lands at the fork like every other press.
+  await dropFile(page, "another-one.jpg", "image/jpeg");
+  await expect(page.getByTestId("drop-confirm")).toBeVisible();
+  await page.getByTestId("drop-confirm-yes").click();
   await expect(page.getByTestId("printed-fork")).toBeVisible({ timeout: 150_000 });
 });
 

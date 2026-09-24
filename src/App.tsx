@@ -396,7 +396,12 @@ export function App() {
           sensible thing to want — which is every stage except the editor, where a drop belongs to the
           editor's own canvas. Being picky about the stage is what made a drop do nothing at all on the city,
           which is exactly where someone with an arrangement in front of them tries it. */}
-      <PhotoDrop enabled={stage !== "editing"} onPhoto={takePhoto} onProblem={setIntakeProblem} />
+      <PhotoDrop
+        enabled={stage !== "editing"}
+        hasWork={Boolean(plate || cut || saved || stage !== "gate")}
+        onPhoto={takePhoto}
+        onProblem={setIntakeProblem}
+      />
 
       <main className="mx-auto max-w-[1280px] px-8">
         <motion.section
