@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { EditorSurface, type ToolGating } from "./components/EditorSurface";
 import { Launch } from "./components/Launch";
 import { PlateGate, type PrintChoice } from "./components/PlateGate";
+import { PhotoDrop } from "./components/PhotoDrop";
 import { PrintDesk } from "./components/PrintDesk";
 import { loadImage } from "./world/compose";
 import { LOOKS } from "./look/stylise";
@@ -76,6 +77,8 @@ export function App() {
   const [quality, setQuality] = useState<"fast" | "fine">("fast");
   /** A press that could not read the photo reports itself here, where the photo was chosen. */
   const [pressError, setPressError] = useState<string | null>(null);
+  /** And so does a drop or a paste that carried no photo, or more than one. */
+  const [intakeProblem, setIntakeProblem] = useState<string | null>(null);
 
   const onSaved = useCallback((dataUrl: string) => {
     setSaved(dataUrl);
@@ -159,6 +162,30 @@ export function App() {
       }
     },
     [scene, look, quality],
+  );
+
+  /**
+   * One door for every way a photograph arrives: the picker, a drop anywhere on the page, a paste.
+   *
+   * Three entrances and one behaviour, because the alternative is three subtly different behaviours —
+   * which is how a paste ends up not saving the payoff that a click does.
+   */
+  const takePhoto = useCallback(
+    (file: File) => {
+      setIntakeProblem(null);
+      setPressError(null);
+      // The press decides the print: the desk keeps its own defaults, and the visitor's only choices are
+      // the place and the hour, which live on the sections above.
+      setChoice({ surface: "debut", quality: false });
+      if (deskRoot()) {
+        // This page was pointed at a desk on purpose (?desk=…), so print there, with the model.
+        setPendingPhoto(file);
+        setStage("printing");
+        return;
+      }
+      void press(file);
+    },
+    [press],
   );
 
   const useFallback = useCallback(() => {
@@ -322,6 +349,13 @@ export function App() {
           </nav>
         </div>
       </header>
+
+      {/* A photo from anywhere: dropped on the page, or pasted. Live where a new photo means something. */}
+      <PhotoDrop
+        enabled={stage === "gate" || stage === "printed"}
+        onPhoto={takePhoto}
+        onProblem={setIntakeProblem}
+      />
 
       <main className="mx-auto max-w-[1280px] px-8">
         <motion.section
@@ -495,20 +529,17 @@ export function App() {
                 that photo could not be pressed — {pressError}. another one, or a smaller file, will work.
               </p>
             ) : null}
-            <PlateGate
-              onPhoto={(file) => {
-                // The press decides the print: the desk keeps its own defaults, and the visitor's only
-                // choices are the place and the hour, which live on the section above.
-                setChoice({ surface: "debut", quality: false });
-                if (deskRoot()) {
-                  // This page was pointed at a desk on purpose (?desk=…), so print there, with the model.
-                  setPendingPhoto(file);
-                  setStage("printing");
-                  return;
-                }
-                void press(file);
-              }}
-            />
+            {intakeProblem ? (
+              <p
+                data-testid="intake-problem"
+                role="status"
+                className="measure mt-3 text-xs"
+                style={{ color: "var(--color-danger)" }}
+              >
+                {intakeProblem}
+              </p>
+            ) : null}
+            <PlateGate onPhoto={takePhoto} />
           </motion.div>
         ) : null}
 

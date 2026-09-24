@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { describeUploadProblem } from "../lib/plates/plates";
+import { pickPhoto } from "../lib/photo";
 import { deskAvailable, deskRoot } from "../lib/printdesk/client";
 
 /**
@@ -98,7 +99,8 @@ export function PlateGate({ onPhoto }: PlateGateProps) {
         onDrop={(event) => {
           event.preventDefault();
           setDragging(false);
-          const file = event.dataTransfer.files?.[0];
+          // The same picking rule as a drop anywhere and a paste: the first photo in whatever arrived.
+          const file = pickPhoto(event.dataTransfer.files);
           if (file) accept(file);
         }}
         className="mt-5 flex flex-col items-start gap-4"
@@ -122,7 +124,8 @@ export function PlateGate({ onPhoto }: PlateGateProps) {
           }}
         />
         <p className="measure text-xs" style={{ color: "var(--color-faint)" }}>
-          or drop one here · jpg, png or webp · up to 12MB
+          or drop one anywhere on the page · ⌘V / Ctrl+V pastes a copied screenshot · jpg, png or webp, up
+          to 12MB
         </p>
       </div>
 
