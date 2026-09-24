@@ -217,7 +217,15 @@ export async function portraitFromImage(
   const outLong = Math.round(maxSize ?? (fine ? 1900 : 1280));
   const paintEdge = fine ? 1200 : MIN_PAINT_EDGE;
   const supersample = fine ? 1.25 : 1;
-  const paintOptions = fine ? { ...style, ...FINE } : { ...style, ...FAST };
+  /**
+   * "As it is" prints the visitor's own photograph, so it prints it as one: more colours, and far less of the
+   * ink-and-paper texture that makes a *city plate* read as a poster. That texture is the "smear" on a flat
+   * illustration — there is no photographic grain to hide behind, so every dot of it shows.
+   */
+  const asItIs = !sceneSrc(scene);
+  const paintOptions = fine
+    ? { ...style, ...FINE, ...(asItIs ? { colours: 48, ink: 0.06, paper: 0.05 } : {}) }
+    : { ...style, ...FAST };
 
   // A working size that does not depend on what came in: a 500px photograph and a 6000px one both get
   // a frame with room to see detail. This is the fix for tiny images and for large ones whose subject
@@ -245,7 +253,9 @@ export async function portraitFromImage(
   // The cover transform for the "as it is" ground, computed before the work that uses it: the ground is the
   // visitor's photograph drawn with a cover fit, and the mask has to be mapped through the same numbers or
   // the room is cleared in the wrong place. Kept here, where the draw and the clear can both see them.
-  const bgW = Math.min(outW, 1280);
+  // The ground of "as it is" is the visitor's own photograph, so it is printed big: at 1280 a poster's
+  // lettering and its own artwork smear, and the frame they keep is the frame they gave.
+  const bgW = Math.min(outW, 1600);
   const bgH = Math.max(1, Math.round((bgW * outH) / outW));
   const cover = Math.max(bgW / workW, bgH / workH);
   const coverX = (bgW - workW * cover) / 2;
@@ -255,9 +265,10 @@ export async function portraitFromImage(
       const plateSrc = sceneSrc(scene);
       if (!plateSrc) {
         // "As it is": the ground is the visitor's own photograph, repainted. It is painted at a bounded
-        // size (a ground is a backdrop, not the subject), then graded to the hour and held back a step — a
-        // touch darker, a touch less saturated, with a soft vignette — so that the person painted over it
-        // at their own resolution reads as the subject rather than as one more thing in the room.
+        // size (a ground is a backdrop, not the subject), then graded to the hour with a soft vignette. It
+        // used to be held back a step as well — noticeably darker and less saturated — so the person read as
+        // the subject; on a flat background that reads instead as *pasted on*, which is what the visitor
+        // saw. The person is a layer over an *empty* room here, so nothing needs holding back.
         const bg = canvasOf(bgW, bgH);
         bg.ctx.imageSmoothingEnabled = true;
         bg.ctx.imageSmoothingQuality = "high";
@@ -277,12 +288,12 @@ export async function portraitFromImage(
           const dy = (y / bgH - 0.5) * 2;
           for (let x = 0; x < bgW; x += 1) {
             const dx = (x / bgW - 0.5) * 2;
-            const falloff = 1 - 0.22 * Math.min(1, (dx * dx + dy * dy) / 1.6);
+            const falloff = 1 - 0.12 * Math.min(1, (dx * dx + dy * dy) / 1.6);
             const p = (y * bgW + x) * 4;
             const luma = 0.2126 * hour[p] + 0.7152 * hour[p + 1] + 0.0722 * hour[p + 2];
-            graded.data[p] = (luma + (hour[p] - luma) * 0.74) * falloff;
-            graded.data[p + 1] = (luma + (hour[p + 1] - luma) * 0.74) * falloff;
-            graded.data[p + 2] = (luma + (hour[p + 2] - luma) * 0.74) * falloff;
+            graded.data[p] = (luma + (hour[p] - luma) * 0.94) * falloff;
+            graded.data[p + 1] = (luma + (hour[p + 1] - luma) * 0.94) * falloff;
+            graded.data[p + 2] = (luma + (hour[p + 2] - luma) * 0.94) * falloff;
           }
         }
         bg.ctx.putImageData(graded, 0, 0);
@@ -537,7 +548,10 @@ export async function portraitFromImage(
 
   subject.ctx.drawImage(painted.canvas, target.x, target.y, target.width, target.height);
 
-  if (mask) {
+  if (mask && sceneSrc(scene)) {
+    // The warm rim light is how a person is *matched to a place they were not photographed in*. In "as it
+    // is" they were photographed there — the light is already theirs — so the rim is a made-up edge on a
+    // photograph of somebody standing in their own room.
     onStage?.("matching the light");
     const fromRight = plate.light === "right";
     const rim = subject.ctx.createLinearGradient(

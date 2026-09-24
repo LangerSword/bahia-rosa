@@ -25,6 +25,9 @@ test("the subject is a layer: drag it, size it, cut it, let it run off the edge"
   await page.getByTestId("edit-in-editor").click();
   const arrange = page.getByTestId("arrange");
   await expect(arrange).toBeVisible();
+  // Embedded, not parked above the editor: one shell holds the frame and the editor, so it reads as one
+  // surface rather than as a section followed by a widget.
+  await expect(page.getByTestId("editor-shell").locator('[data-testid="arrange"]')).toHaveCount(1);
 
   const surface = page.getByTestId("layer-surface");
   await expect(surface).toBeVisible();

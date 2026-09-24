@@ -192,7 +192,9 @@ export function App() {
           ...preset,
           scene,
           look,
-          fine: quality === "fine",
+          // "As it is" is the visitor's own photograph, printed as it is: the frame they keep is the frame
+          // they gave, so it is printed at the fine finish whatever finish they chose for a city plate.
+          fine: quality === "fine" || scene === "asis",
           seed: 1 + (file.size % 997),
           onStage: (label) => setStages((seen) => (seen.includes(label) ? seen : [...seen, label])),
         });
@@ -361,7 +363,9 @@ export function App() {
   );
 
   /** What the finish actually produced — read from the result, so it cannot be a claim. */
-  const cutLabel = `${quality === "fine" ? "fine" : "fast"} · ${cut?.width ?? 0}px wide`;
+  // The finish in the report is the finish that *ran*, not the one the control says: "as it is" always
+  // prints at the fine finish, so the line must not claim "fast" beside a 1900px frame.
+  const cutLabel = `${quality === "fine" || scene === "asis" ? "fine" : "fast"} · ${cut?.width ?? 0}px wide`;
 
   /**
    * What the cut did, in the city's voice rather than as a readout.
@@ -782,7 +786,13 @@ export function App() {
         ) : null}
 
         {stage === "editing" && image ? (
-          <>
+          <motion.section
+            initial={reduce ? undefined : { opacity: 0, y: 14 }}
+            animate={reduce ? undefined : { opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: EASE }}
+            className="editor-shell panel rule mt-10 border p-8"
+            data-testid="editor-shell"
+          >
             {scene !== "asis" && !edited && plate?.kind === "photo" ? (
               /*
                * The arrangement, in the phase where the picture is made. It used to sit beside the four
@@ -807,12 +817,6 @@ export function App() {
                 }}
               />
             ) : null}
-          <motion.section
-            initial={reduce ? undefined : { opacity: 0, y: 14 }}
-            animate={reduce ? undefined : { opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: EASE }}
-            className="editor-shell panel rule mt-10 border p-8"
-          >
             <div className="rule mb-5 flex items-center justify-between border-b pb-4">
               <div>
                 <h2 className="display text-3xl">{plan.title}</h2>
@@ -863,7 +867,6 @@ export function App() {
             ) : null}
             <EditorSurface surfaceId={plan.surfaceId} image={arrangedPlate ?? image} gating={plan.gating} onSaved={onSaved} />
           </motion.section>
-          </>
         ) : null}
 
         {stage === "city" && saved ? (

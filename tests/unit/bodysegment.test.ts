@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanMask } from "../../src/look/bodysegment";
+import { cleanMask, strictClasses } from "../../src/look/bodysegment";
 
 /**
  * The model's classes are not a mask yet.
@@ -161,5 +161,32 @@ describe("cleanMask", () => {
     fill(speckle, width, 8, 8, 47, 55, CLOTHES);
     fill(speckle, width, 2, 2, 3, 3, HAIR);
     expect(cleanMask(speckle, width, height).everyone[2 * width + 2]).toBe(0);
+  });
+});
+
+describe("a mask that swallowed the frame — the illustration case", () => {
+  /**
+   * A poster is out of distribution for a model trained on photographs: "person" wins nearly everywhere, the
+   * mask covers the frame, and the press refuses it — which used to mean the plate was painted flat, i.e. the
+   * poster recoloured with its own artwork still in it. The confidences still separate the figure from the
+   * flat ground, so the same information is asked a harder question.
+   */
+  it("is re-read from the confidences, so a figure is still found", () => {
+    const width = 40;
+    const height = 40;
+    const soft = new Uint8ClampedArray(width * height).fill(140); // the poster's ground: person-ish, not certain
+    for (let y = 8; y < 28; y += 1) {
+      for (let x = 14; x < 26; x += 1) soft[y * width + x] = 250; // the figure: near-certain person
+    }
+
+    const classes = strictClasses(soft);
+    expect(classes[0]).toBe(0); // the ground is not a person
+    expect(classes[8 * width + 14]).toBe(1); // the figure is
+
+    const { share, subjects } = cleanMask(classes, width, height);
+    expect(subjects).toBe(1);
+    // 12×20 of 40×40 — a share the press can use, where the winning class gave it the whole frame.
+    expect(share).toBeGreaterThan(0.1);
+    expect(share).toBeLessThan(0.2);
   });
 });

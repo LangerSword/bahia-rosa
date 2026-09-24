@@ -43,6 +43,23 @@ export interface BodyCut {
 /** Class ids from the multiclass model: 0 is background; everything else is a part of the person. */
 const BACKGROUND = 0;
 
+/**
+ * A class map read from the *confidence*, not from the winning class.
+ *
+ * An illustration — a poster, a drawing, a cartoon — is out of distribution for a model trained on
+ * photographs, and the usual result is a wall: "person" wins nearly everywhere, the mask covers the frame,
+ * and the press refuses it (a mask that covers everything is not a cut). The probabilities are still there,
+ * so the same information is asked a harder question: only pixels the model is *confident* about count.
+ *
+ * Exported because it is pure arithmetic over a confidence map, and the case it exists for (a mask that
+ * swallowed the frame) is one a unit test can build exactly.
+ */
+export function strictClasses(soft: Uint8ClampedArray, threshold = 216): Uint8Array {
+  const out = new Uint8Array(soft.length);
+  for (let i = 0; i < out.length; i += 1) out[i] = soft[i] > threshold ? 1 : 0;
+  return out;
+}
+
 const asset = (path: string): string => `${import.meta.env.BASE_URL}${path}`;
 
 let segmenterPromise: Promise<ImageSegmenter | null> | null = null;
@@ -415,9 +432,19 @@ export async function bodyCut(
     const cleaned = cleanMask(classes, maskWidth, maskHeight);
     mask.close();
 
+    // A mask that covers the frame is a threshold that did not bite. Before giving up — and giving up means
+    // painting the plate flat, which on a poster looks like the poster recoloured with its own art still in
+    // it — the confidences are read strictly. Measured on the real case this exists for (a stylised key-art
+    // poster): the winning class covered essentially everything and was refused, and the strict read of the
+    // same probabilities produced a figure with a share in the normal range, so the frame got a cut, a
+    // ground cleared behind them, and a person who can be arranged.
+    const frameShare = cleaned.share;
+    const strict = soft && frameShare > 0.94 ? cleanMask(strictClasses(soft), maskWidth, maskHeight) : null;
+    const chosen = strict && strict.share > 0.008 && strict.share < frameShare ? strict : cleaned;
+
     const combined = new Uint8ClampedArray(maskWidth * maskHeight);
     for (let i = 0; i < combined.length; i += 1) {
-      if (cleaned.alpha[i] === 0) continue; // dropped as speckle, or outside the subject
+      if (chosen.alpha[i] === 0) continue; // dropped as speckle, or outside the subject
       // A pixel the model called background but which the flood could not reach is inside the subject —
       // a dark shirt, the shadow under a chin — and stays solid whatever its probability says.
       combined[i] = classes[i] === BACKGROUND ? 255 : (soft?.[i] ?? 255);
@@ -462,8 +489,8 @@ export async function bodyCut(
     const everyoneCtx = everyoneCanvas.getContext("2d");
     if (!everyoneCtx) return null;
     const everyoneImage = everyoneCtx.createImageData(maskWidth, maskHeight);
-    for (let i = 0; i < cleaned.everyone.length; i += 1) {
-      everyoneImage.data[i * 4 + 3] = cleaned.everyone[i];
+    for (let i = 0; i < chosen.everyone.length; i += 1) {
+      everyoneImage.data[i * 4 + 3] = chosen.everyone[i];
     }
     everyoneCtx.putImageData(everyoneImage, 0, 0);
     const everyoneScaled = document.createElement("canvas");
@@ -483,9 +510,9 @@ export async function bodyCut(
     return {
       alpha,
       everyone,
-      box: cleaned.box,
+      box: chosen.box,
       share: count / (width * height),
-      subjects: cleaned.subjects,
+      subjects: chosen.subjects,
       source: "model",
     };
   } catch {

@@ -105,21 +105,19 @@ export function Arrange({
   const offCentre = layer.dx !== 0 || layer.dy !== 0 || layer.scale !== 1 || layer.cropTop !== 0 || layer.cropBottom !== 0;
 
   return (
-    <section className="section" data-testid="arrange" aria-labelledby="arrange-heading">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h2 id="arrange-heading" className="display" style={{ color: "var(--color-paper)" }}>
-            <span style={{ color: "var(--color-faint)" }}>~ </span>place them
-          </h2>
-          <p className="measure mt-2 text-xs" style={{ color: "var(--color-muted)" }}>
-            {offCentre
-              ? "the city will print this arrangement — every surface, and the downloads"
-              : "where they stand in the picture · the city prints whatever you decide here"}
-          </p>
-        </div>
+    <div className="rule border-b pb-6" data-testid="arrange" aria-labelledby="arrange-heading">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h3 id="arrange-heading" className="kicker" style={{ color: "var(--color-paper)" }}>
+          the frame you are editing
+        </h3>
+        <p className="text-xs" style={{ color: "var(--color-muted)" }}>
+          {offCentre
+            ? "the city will print this arrangement — every surface, and the downloads"
+            : "where they stand · the city prints whatever you decide here"}
+        </p>
       </div>
 
-      <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_minmax(260px,320px)]">
+      <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_minmax(240px,300px)]">
         <div>
           <div
             className="plate-inset"
@@ -241,6 +239,6 @@ export function Arrange({
           </p>
         </aside>
       </div>
-    </section>
+    </div>
   );
 }
