@@ -946,15 +946,14 @@ export function styliseImage(
  * the frame the *city* prints, not the quality of the cut-out.
  */
 export const FAST: StyliseOptions = {
-  // Twelve rather than eight, and a lighter smoothing pass than the default: both are *free* at this size —
-  // the palette measured 86.9% within ΔE 0.05 at eight colours and 97.2% at sixteen, so twelve buys most of
-  // that colour for a tenth of a second, and smoothing at 0.45 instead of 0.55 keeps more of the
-  // photograph's own edges for slightly *less* work. The finish's speed comes from its rounds and its edge
-  // passes, not from what it refuses to paint.
-  colours: 12,
+  // The palette is *not* where "fast" saves: sixteen colours over eight rounds — the same rounds as fine — so the
+  // colour is all there (97.2% within ΔE 0.05 against fine's 99.9%, and the difference between twelve and sixteen
+  // is a tenth of a second). What fast spends less on is *detail*: a 1280px frame instead of 1900, one pass of
+  // edge refinement instead of three, and a smaller paint edge for the crop. Same palette quality, less of it.
+  colours: 16,
   palette: 0.6,
   paper: 0.34,
-  iterations: 6,
+  iterations: 8,
   smooth: 0.45,
 };
 

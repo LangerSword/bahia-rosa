@@ -22,7 +22,7 @@ driving the real press through the doors a visitor takes.
 | | |
 |---|---|
 | ![the fast finish](docs/samples/plate-fast.png) | ![the fine finish](docs/samples/plate-fine.png) |
-| **fast** — 1280×720, twelve colours, the quick path (~12s) | **fine** — 1900×1080, thirty-two colours, three edge passes |
+| **fast** — 1280×720, sixteen colours, one edge pass (~12s) | **fine** — 1900×1080, thirty-two colours, three edge passes |
 | ![as it is](docs/samples/plate-as-it-is.png) | ![the outline](docs/samples/frame-outline.png) |
 | **as it is** — the whole photograph repainted, no cut, no layers (~7s) | **the frame** — the subject's box, with corners that size them |
 
@@ -69,8 +69,8 @@ The rules the press keeps, each one written down because it was learned the hard
 | | fast | fine | as it is |
 |---|---|---|---|
 | frame | 1280×720 | 1900×1080 | 1400×788 |
-| palette | 12 colours, 6 rounds | 32 colours, 8 rounds | 40 colours, 5 rounds |
-| edge | two passes | three passes | — (no cut) |
+| palette | 16 colours, 8 rounds | 32 colours, 8 rounds | 40 colours, 5 rounds |
+| edge | one pass | three passes | — (no cut) |
 | finder | six-class segmenter | six-class segmenter | none |
 | warm press | **≈12s** | ≈20s | **≈8s** |
 

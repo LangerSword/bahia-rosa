@@ -3,5 +3,5 @@ colour fidelity on a photograph-like frame (within ΔE 0.05 / mean ΔE): 8c 86.9
 fine finish check: 24 colours mean ΔE 0.0119 · 32 colours mean ΔE 0.0104
 24 colours, RGB vs Oklab: 99.6% / ΔE 0.0128 vs 99.9% / ΔE 0.0119
 gamut stress frame: 38.4% in RGB · 44.3% in Oklab
-the fast look, 12 colours: 96.7% within ΔE 0.05 (mean ΔE 0.0190) · RGB 91.6% (mean ΔE 0.0223)
+the fast look, 16 colours: 97.2% within ΔE 0.05 (mean ΔE 0.0161) · RGB 99.4% (mean ΔE 0.0158)
 average accuracy: cut 100.0% · colour 99.9% · average 99.9%

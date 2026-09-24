@@ -68,12 +68,14 @@ paint, not a diffusion — so its own look lives in `src/look/stylise.ts` as two
 
 | | fast | fine |
 |---|---|---|
-| palette | 12 colours, six rounds | 32 colours, eight rounds |
+| palette | 16 colours, eight rounds | 32 colours, eight rounds |
 | smoothing | 0.45 | 0.4 (of the default 0.55) |
 | frame (in `portrait.ts`) | 1280×720 | 1900×1080 |
-| edge passes | 2 | 3 |
+| edge passes | 1 | 3 |
 
-Both work in Oklab, and both are measured rather than asserted: `tests/unit/accuracy.test.ts` writes
-`docs/accuracy.txt` on every run — 12 colours land within ΔE 0.05 on 96.7% of a photograph-like frame's
-pixels, 32 on 99.9%. "As it is" has no finish of its own and no cut: it prints the whole photograph at 1400px
+**Fast does not save on the palette.** Both finishes refine the same number of rounds (eight); what fast
+spends less on is detail — a 1280px frame instead of 1900, one pass of edge refinement instead of three, and a
+smaller paint edge. Measured, not asserted: `tests/unit/accuracy.test.ts` writes `docs/accuracy.txt` on every
+run — fast's sixteen colours land within ΔE 0.05 on 97.2% of a photograph-like frame's pixels, and fine's
+thirty-two on 99.9%. "As it is" has no finish of its own and no cut: it prints the whole photograph at 1400px
 with 40 colours.

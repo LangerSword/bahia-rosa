@@ -361,7 +361,7 @@ export async function portraitFromImage(
       // skin, no clothes, so its edge is a blob's edge. Speed comes from the palette rounds, the edge passes
       // and the frame size — never from the quality of the cut.
       const cut = await bodyCut(photo.canvas, workW, workH, onStage, {
-        edgePasses: fine ? 3 : 2,
+        edgePasses: fine ? 3 : 1,
         model: "multi",
       });
       const usable =
