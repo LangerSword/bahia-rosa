@@ -318,7 +318,7 @@ describe("the accuracy of the press", () => {
 
   it("the colour breaker lands within 5% on 95% of a realistic frame", () => {
     const { rgba, width, height } = photograph(200, 150);
-    const scores = [8, 16, 24, 32, 48].map((colours) => {
+    const scores = [8, 12, 16, 24, 32, 48].map((colours) => {
       const painted = assign(rgba, width, height, quantise(rgba, width, height, colours), "oklab");
       return {
         colours,
@@ -377,28 +377,34 @@ describe("the accuracy of the press", () => {
     expect(scoreOklab).toBeGreaterThan(scoreRgb);
   });
 
-  it("eight colours is a look, and its number is reported rather than dressed up", () => {
+  it("the fast look is reported at its own palette, not dressed up", () => {
     const { rgba, width, height } = photograph(200, 150);
-    const eight = assign(rgba, width, height, quantise(rgba, width, height, 8), "oklab");
-    const eightRgb = assign(rgba, width, height, quantiseRGB(rgba, width, height, 8), "rgb");
-    const score = withinFivePercent(rgba, eight, width, height);
+    // Twelve colours, because that is what "fast" paints with now: eight was the flat poster look, and the
+    // measurement (86.9% at eight, 97.2% at sixteen) said most of that colour was available for a tenth of a
+    // second — so the finish took it, and this line reports what it actually ships.
+    const fast = assign(rgba, width, height, quantise(rgba, width, height, 12), "oklab");
+    const fastRgb = assign(rgba, width, height, quantiseRGB(rgba, width, height, 12), "rgb");
+    const score = withinFivePercent(rgba, fast, width, height);
     note(
-      `the fast look, 8 colours: ${(score * 100).toFixed(1)}% within ΔE 0.05 (mean ΔE ${meanDeltaE(
+      `the fast look, 12 colours: ${(score * 100).toFixed(1)}% within ΔE 0.05 (mean ΔE ${meanDeltaE(
         rgba,
-        eight,
+        fast,
         width,
         height,
-      ).toFixed(4)}) · RGB ${(withinFivePercent(rgba, eightRgb, width, height) * 100).toFixed(
+      ).toFixed(4)}) · RGB ${(withinFivePercent(rgba, fastRgb, width, height) * 100).toFixed(
         1,
-      )}% (mean ΔE ${meanDeltaE(rgba, eightRgb, width, height).toFixed(4)})`,
+      )}% (mean ΔE ${meanDeltaE(rgba, fastRgb, width, height).toFixed(4)})`,
     );
-    // No 95% bar here: eight colours is the flat, poster look on purpose. And no claim that Oklab beats
-    // RGB at this size either — the measurement says the two are equivalent here (0.02863 vs 0.02857), and
-    // a test that asserted otherwise would be asserting a preference rather than a result. The advantage
-    // shows up where the fine finish works: from sixteen colours up, and on frames with real gamut in them.
-    const errorOklab = meanDeltaE(rgba, eight, width, height);
-    const errorRgb = meanDeltaE(rgba, eightRgb, width, height);
-    expect(Math.abs(errorOklab - errorRgb) / errorRgb).toBeLessThan(0.02);
+    // No 95% bar here: twelve colours is still the poster look, just a gentler one. And no claim that Oklab
+    // beats RGB at this size either — the measurement says the two are equivalent here, and a test asserting
+    // otherwise would be asserting a preference rather than a result. The advantage shows up where the fine
+    // finish works: from sixteen colours up, and on frames with real gamut in them.
+    const errorOklab = meanDeltaE(rgba, fast, width, height);
+    const errorRgb = meanDeltaE(rgba, fastRgb, width, height);
+    // At twelve colours the perceptual space *does* earn its keep — 0.0190 against RGB's 0.0223, 15% lower mean
+    // error. At eight the two measured as equivalent, which is why this line used to assert equality: the
+    // palette changed, so the assertion follows the measurement rather than the other way round.
+    expect(errorOklab).toBeLessThan(errorRgb * 0.95);
   });
 
   it("reports the average of the two accuracies the press is judged on", () => {

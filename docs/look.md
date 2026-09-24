@@ -60,3 +60,20 @@ a 1980s sodium-lit one. The pastel Art Deco side is the city's daytime identity.
   fixed at 4 steps — keep `steps: 4`).
 - **Never** add a banned word to the spec's own prose: the compliance gate scans everything that
   reaches a prompt, including the spec's own clauses. (It caught exactly this during authoring.)
+
+## The browser press has its own two finishes
+
+`src/look/look.json` compiles *prompts* for the desk. The in-browser press is a different kind of renderer — a
+paint, not a diffusion — so its own look lives in `src/look/stylise.ts` as two presets:
+
+| | fast | fine |
+|---|---|---|
+| palette | 12 colours, six rounds | 32 colours, eight rounds |
+| smoothing | 0.45 | 0.4 (of the default 0.55) |
+| frame (in `portrait.ts`) | 1280×720 | 1900×1080 |
+| edge passes | 2 | 3 |
+
+Both work in Oklab, and both are measured rather than asserted: `tests/unit/accuracy.test.ts` writes
+`docs/accuracy.txt` on every run — 12 colours land within ΔE 0.05 on 96.7% of a photograph-like frame's
+pixels, 32 on 99.9%. "As it is" has no finish of its own and no cut: it prints the whole photograph at 1400px
+with 40 colours.

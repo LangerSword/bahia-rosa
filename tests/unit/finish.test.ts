@@ -96,6 +96,9 @@ describe("the finish", () => {
     }
     expect(FINE.colours).toBeGreaterThan(FAST.colours ?? 0);
     expect(FINE.palette ?? 1).toBeLessThan(FAST.palette ?? 1);
-    expect(FAST.colours).toBeLessThan(LOOKS.golden.options.colours ?? 0);
+    // Fast is no longer the leaner *palette* — twelve colours measured 96.7% within ΔE 0.05 against eight's
+    // 86.9%, so the finish took the colour and kept its speed by printing a smaller frame and refining its
+    // edge in two passes rather than three (both of which live in the press, not in this preset). What is
+    // asserted here is only what a preset can promise: fine paints with more colours and pulls less hard.
   });
 });

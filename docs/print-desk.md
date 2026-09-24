@@ -95,8 +95,12 @@ ComfyUI: it is the configuration whose numbers we actually have.
 
 ## Hosting the desk somewhere else
 
-The deployed build cannot print — a static host has no GPU — so the app takes the desk's address at
-runtime and the desk can live anywhere that answers the contract. Two ways, in order of cost:
+**The desk is an accelerator, not a dependency.** The deployed app prints entirely in the browser — it
+always has: MediaPipe finds the subject, and the canvas compositor paints and composes the frame, on the
+visitor's own machine, with no key and no upload. What the desk adds is a *different kind of print*: a
+diffusion render (FLUX.2 [klein] on a local GPU) instead of a paint, for the plate's own register. So the app
+takes the desk's address at runtime and the desk can live anywhere that answers the contract. Two ways, in
+order of cost:
 
 ### 1. A tunnel from this machine — free
 

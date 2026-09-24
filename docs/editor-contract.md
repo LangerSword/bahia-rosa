@@ -55,6 +55,21 @@ Changing `image`, or any `options` key other than `theme` / `locale` / `translat
 recreates** the editor. Tool gating therefore lives on a remount keyed by surface id rather than on
 mid-session option patching.
 
+## The chrome has a layers button, and the rail does not
+
+**Confirmed in practice (2026-09-24).** Visitors reported a "layer button" that could not be clicked. There
+is no layers tool in the rail — Unlayer's own demo lists exactly eight (`crop`, `resize`, `filter`, `draw`,
+`text`, `shapes`, `stickers`, `frame`), and this project's gating enables the ones each surface needs. What
+the visitor was clicking is in the editor's **chrome**, beside undo and redo: a stacked-squares control named
+**"Flatten layers"**, and it is *disabled* — `disabled=true`, `opacity: 0.5`, `pointer-events: none` — while
+the document has a single layer. Add a text layer (Text → Heading) and it enables: `disabled=false`,
+`opacity: 1`, `pointer-events: auto`.
+
+`tools/editor-layers.mjs` is the probe that settles questions like this: it opens `?demo=editor`, enumerates
+every control in every frame with its disabled state, clicks what is layer-ish, and reports the DOM before and
+after. A control that cannot be clicked and a control that is *disabled* are different diagnoses, and only one
+of them is a bug.
+
 ## Typing gaps
 
 `features.imageEditor.dock` (`'left' | 'right'`) and the `corners` tool config are supported at
