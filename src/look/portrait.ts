@@ -512,18 +512,27 @@ export async function portraitFromImage(
 
   if (mask) {
     onStage?.("placing you in it");
-    const shadow = subject.ctx.createRadialGradient(
-      target.x + target.width / 2,
-      target.y + target.height,
-      0,
-      target.x + target.width / 2,
-      target.y + target.height,
-      Math.max(24, target.width * 1.3),
-    );
-    shadow.addColorStop(0, "rgba(4, 3, 10, 0.55)");
+    // Their own contact shadow. It belongs to the subject — it travels with them when the visitor moves
+    // them, which is what a shadow under somebody's feet does — but it is drawn as an ellipse that
+    // reaches zero *inside* its own bounds. The first version was a radial gradient with a radius of
+    // 1.3× the subject's width painted into a rectangle: the gradient never reached zero at the
+    // rectangle's edges, so the fill left a hard-edged slab of dark tint, and dragging the person
+    // dragged the slab with them. That was the "weird black shadow boundary".
+    const feetX = target.x + target.width / 2;
+    const feetY = target.y + target.height * 0.985;
+    const spread = Math.max(20, target.width * 0.58);
+    subject.ctx.save();
+    subject.ctx.translate(feetX, feetY);
+    subject.ctx.scale(1, 0.32);
+    const shadow = subject.ctx.createRadialGradient(0, 0, 0, 0, 0, spread);
+    shadow.addColorStop(0, "rgba(4, 3, 10, 0.42)");
+    shadow.addColorStop(0.55, "rgba(4, 3, 10, 0.2)");
     shadow.addColorStop(1, "rgba(4, 3, 10, 0)");
     subject.ctx.fillStyle = shadow;
-    subject.ctx.fillRect(target.x - target.width, target.y + target.height * 0.5, target.width * 3, target.height * 0.8);
+    subject.ctx.beginPath();
+    subject.ctx.arc(0, 0, spread, 0, Math.PI * 2);
+    subject.ctx.fill();
+    subject.ctx.restore();
   }
 
   subject.ctx.drawImage(painted.canvas, target.x, target.y, target.width, target.height);

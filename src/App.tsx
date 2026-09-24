@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { EditorSurface, type ToolGating } from "./components/EditorSurface";
+import { Arrange } from "./components/Arrange";
 import { Launch } from "./components/Launch";
 import { PlateGate, type PrintChoice } from "./components/PlateGate";
 import { PhotoDrop } from "./components/PhotoDrop";
 import { PrintDesk } from "./components/PrintDesk";
-import { loadImage } from "./world/compose";
+import { loadImage, composePlacement, isDefaultLayer } from "./world/compose";
+import { FRAME } from "./world/placements";
 import { LOOKS } from "./look/stylise";
 import { portraitFromImage, type PortraitResult } from "./look/portrait";
 import { SCENES, SCENE_IDS, type SceneId } from "./look/scenes";
@@ -15,6 +17,7 @@ import { Hero3D } from "./components/Hero3D";
 import { SceneThumb } from "./components/SceneThumb";
 import "./type.css";
 import type { PlateSource } from "./lib/plates/plates";
+import { usePayoff } from "./lib/payoff";
 import { deskRoot, printChoices } from "./lib/printdesk/client";
 
 /**
@@ -59,6 +62,14 @@ export function App() {
   const [plate, setPlate] = useState<PlateSource | null>(null);
   const [meta, setMeta] = useState<{ register: string; location: string | null; seed: number } | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  /**
+   * Whether the picture in hand came out of the editor.
+   *
+   * It matters for one thing: an edit is flattened, so the arrangement — the person as a separate layer —
+   * no longer exists in it. The arrangement surface is offered until then, and the city says what it is
+   * looking at.
+   */
+  const [edited, setEdited] = useState(false);
   /** The visitor's own photo, kept only so the plate can be shown against it. */
   const [source, setSource] = useState<string | null>(null);
   /** Which of the city's looks the press prints with. */
@@ -79,13 +90,71 @@ export function App() {
   const [pressError, setPressError] = useState<string | null>(null);
   /** And so does a drop or a paste that carried no photo, or more than one. */
   const [intakeProblem, setIntakeProblem] = useState<string | null>(null);
+  /**
+   * The payoff — the words, the surface, how it sits, and the arrangement — lives here, because two stages
+   * use it now: the editing phase sets the arrangement, the city prints it. One store, one state, no way for
+   * the two to disagree about a number.
+   */
+  const payoff = usePayoff("Bahía Rosa", meta?.location ?? null);
 
   const onSaved = useCallback((dataUrl: string) => {
     setSaved(dataUrl);
+    setEdited(true);
     setViaEditor(true);
     setStage("city");
   }, []);
   const image = plate ? (plate.kind === "photo" ? plate.objectUrl : plate.src) : null;
+  /**
+   * What the editor is handed when the visitor has arranged something.
+   *
+   * Without this the editor works on the press's own framing, and a Save — with or without an edit — hands
+   * the city a picture with the arrangement missing: a visitor would arrange, step into the editor to add
+   * one word, save, and find the person back where they started. So the arranged frame is composed here, at
+   * the plate's own size, and the editor works on it. Composed *after* the visitor stops moving them (450ms
+   * of quiet), because the editor remounts when its image changes and remounting it on every drag frame
+   * would throw away their session.
+   */
+  const [arrangedPlate, setArrangedPlate] = useState<string | null>(null);
+  useEffect(() => {
+    if (stage !== "editing" || plate?.kind !== "photo" || scene === "asis" || !image) {
+      setArrangedPlate(null);
+      return;
+    }
+    // Nothing arranged (and nothing changed about how it sits): the press's own plate already is this
+    // arrangement, so there is nothing to compose and no remount to pay for.
+    if (isDefaultLayer(payoff.layer) && payoff.fit === "contain") {
+      setArrangedPlate(null);
+      return;
+    }
+    let cancelled = false;
+    let made: string | null = null;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const blob = await composePlacement({
+            placement: FRAME,
+            artworkUrl: plate.groundUrl ?? image,
+            subjectUrl: plate.subjectUrl,
+            copy: payoff.copy,
+            fit: payoff.fit,
+            layer: payoff.layer,
+          });
+          if (cancelled) return;
+          made = URL.createObjectURL(blob);
+          setArrangedPlate(made);
+        } catch {
+          // A compose that fails leaves the editor on the press's own plate — the situation before this
+          // effect existed, and not a reason to hold up the editor.
+          if (!cancelled) setArrangedPlate(null);
+        }
+      })();
+    }, 450);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      if (made) URL.revokeObjectURL(made);
+    };
+  }, [stage, plate, image, scene, payoff.layer, payoff.fit, payoff.copy]);
   /** The download's own filename: from the photo's name where there is one, without any text burned in. */
   const frameName = `bahia-rosa-${
     plate && "name" in plate && plate.name ? String(plate.name).replace(/\.[^.]+$/, "") : "frame"
@@ -225,6 +294,7 @@ export function App() {
     setPlate(null);
     setPendingPhoto(null);
     setSaved(null);
+    setEdited(false);
     setMeta(null);
     setStage("gate");
     if (source) URL.revokeObjectURL(source);
@@ -665,6 +735,7 @@ export function App() {
                   data-testid="take-to-city"
                   onClick={() => {
                     setSaved(image);
+                    setEdited(false);
                     setViaEditor(false);
                     setStage("city");
                   }}
@@ -711,6 +782,31 @@ export function App() {
         ) : null}
 
         {stage === "editing" && image ? (
+          <>
+            {scene !== "asis" && !edited && plate?.kind === "photo" ? (
+              /*
+               * The arrangement, in the phase where the picture is made. It used to sit beside the four
+               * downloads, which asked the same question twice — once inside a billboard's 8:3 mount and
+               * again inside a venue card's 3:4 — and made an arrangement that looked right in one surface
+               * look wrong in the next. Here it is a decision about the picture, judged in the picture's own
+               * frame, and the city receives it already made.
+               */
+              <Arrange
+                artworkUrl={plate.groundUrl ?? image}
+                subjectUrl={plate.subjectUrl}
+                copy={payoff.copy}
+                fit={payoff.fit}
+                layer={payoff.layer}
+                setLayer={payoff.setLayer}
+                onToCity={() => {
+                  // The press's own plate, unedited: the arrangement applies to it on the way out.
+                  setSaved(image);
+                  setEdited(false);
+                  setViaEditor(false);
+                  setStage("city");
+                }}
+              />
+            ) : null}
           <motion.section
             initial={reduce ? undefined : { opacity: 0, y: 14 }}
             animate={reduce ? undefined : { opacity: 1, y: 0 }}
@@ -765,8 +861,9 @@ export function App() {
                 ) : null}
               </div>
             ) : null}
-            <EditorSurface surfaceId={plan.surfaceId} image={image} gating={plan.gating} onSaved={onSaved} />
+            <EditorSurface surfaceId={plan.surfaceId} image={arrangedPlate ?? image} gating={plan.gating} onSaved={onSaved} />
           </motion.section>
+          </>
         ) : null}
 
         {stage === "city" && saved ? (
@@ -777,11 +874,18 @@ export function App() {
             className="mt-10"
           >
             <Launch
-              artworkUrl={plate?.kind === "photo" ? plate.groundUrl ?? saved : saved}
-              subjectUrl={plate?.kind === "photo" ? plate.subjectUrl : undefined}
+              /* An edit is one flat picture: the layers are gone into it, so it *is* the artwork. */
+              artworkUrl={edited ? saved : plate?.kind === "photo" ? plate.groundUrl ?? saved : saved}
+              subjectUrl={edited ? undefined : plate?.kind === "photo" ? plate.subjectUrl : undefined}
               // The city's plates are arranged; "as it is" is their own room, and they stand where they stood.
-              layering={scene !== "asis"}
-              location={meta?.location ?? null}
+              arranging={scene !== "asis" && !edited}
+              copy={payoff.copy}
+              setCopy={payoff.setCopy}
+              fit={payoff.fit}
+              setFit={payoff.setFit}
+              layer={payoff.layer}
+              placementId={payoff.placementId}
+              setPlacementId={payoff.setPlacementId}
               onBack={() => setStage(viaEditor ? "editing" : "printed")}
               backLabel={viaEditor ? "Back to the editor" : "Back to your plate"}
             />

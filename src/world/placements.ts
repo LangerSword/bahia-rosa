@@ -233,6 +233,27 @@ export const PLACEMENTS: readonly Placement[] = [billboard, venue, feed, postcar
 
 export const findPlacement = (id: string): Placement | undefined => PLACEMENTS.find((p) => p.id === id);
 
+/**
+ * The plate itself, as a surface — the frame the arrangement is judged in.
+ *
+ * Not one of the four things the city prints, and deliberately not in `PLACEMENTS`: the arrangement belongs
+ * to the picture, not to a mount. Judging it inside one of the four (a billboard is 8:3, a venue card is
+ * 3:4) would let the mounts and the words make the decision look different on each surface. This is the
+ * picture at its own size, on nothing.
+ */
+export const FRAME: Placement = {
+  id: "frame",
+  label: "Your plate",
+  blurb: "the frame the press made, before the city puts it on anything",
+  width: 1440,
+  height: 810,
+  ground: { kind: "gradient", stops: ["#101018", "#0a0a0f"], angle: 0 },
+  artwork: { x: 0, y: 0, w: 1440, h: 810, fit: "contain" },
+  rules: [],
+  layers: [],
+  caption: "Your plate at the size the press made it.",
+};
+
 /** The avatar the feed draws beside the handle — a small crop of the plate, so it needs no asset. */
 export const FEED_AVATAR = { x: 56, y: 60, size: 104 };
 

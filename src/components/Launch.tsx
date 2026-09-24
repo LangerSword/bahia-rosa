@@ -1,210 +1,81 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PlacementCanvas } from "./PlacementCanvas";
-import { LAYER_DEFAULT, composePlacement, downloadBlob, placementFilename, type LayerTransform } from "../world/compose";
+import { composePlacement, downloadBlob, isDefaultLayer, placementFilename } from "../world/compose";
 import { PLACEMENTS, type Placement, type PlacementCopy } from "../world/placements";
+import type { Fit } from "../lib/payoff";
 
 /**
  * The payoff — the part of the product that justifies the editor.
  *
- * Three things changed here, all of them from the brief:
+ * The city prints. It does not arrange: the arrangement happens in the phase where the picture is made,
+ * one arrangement for all four surfaces, and what arrives here is a decision already taken. That is the
+ * whole reason there is no drag surface on this stage — a visitor arranging inside a billboard's 8:3 mount
+ * and then in a venue card's 3:4 is being asked the same question twice with two different answers.
  *
- *   1. **The details are kept.** The copy you type (handle, headline, caption) and the surface you last
- *      chose are remembered in this browser, so leaving to crop something and coming back — or closing
- *      the tab and returning — does not throw your words away. Nothing is uploaded: it is
- *      `localStorage`, on your machine, like everything else on this page.
- *   2. **It is not a separate stage.** There is no "step 3" anymore. The city is a surface you can
- *      reach straight from the fork, without going through the editor at all, and it sits in the page
- *      rather than behind a section of its own.
- *   3. **It fits the design.** The copy is set in the page's own voice, and the heading describes what
- *      you are looking at instead of announcing a stage.
- *
- * Every preview is drawn by the exporter (`PlacementCanvas` → `drawPlacement`), so a download *is* the
- * preview at full resolution, not a second rendering of it.
+ * What is left here is what the surfaces are for: the words on them, how the photograph sits, and the
+ * downloads. Every preview is drawn by the exporter (`PlacementCanvas` → `drawPlacement`), so a download
+ * *is* the preview at full resolution, not a second rendering of it.
  */
 
 export interface LaunchProps {
   artworkUrl: string;
-  /** The person on their own, if the press kept the layers apart — what the layer controls move. */
+  /** The person on their own, when the press kept the layers apart — what the arrangement moved. */
   subjectUrl?: string;
   /**
-   * Whether this ground is one you arrange. The city's own plates are: the person was painted for that
-   * place and moving them inside it is the point. "As it is" is *their* room — they stand where they stood,
-   * and offering to drag them around their own photograph only adds ways for the frame to look wrong.
+   * Whether the arrangement applies to these surfaces. The city's own plates are arranged; "as it is" is
+   * the visitor's own room, where they stand where they stood.
    */
-  layering?: boolean;
-  city?: string;
-  /** Where the plate was printed, used as the default headline. */
-  location?: string | null;
+  arranging?: boolean;
+  copy: PlacementCopy;
+  setCopy: (next: PlacementCopy | ((current: PlacementCopy) => PlacementCopy)) => void;
+  fit: Fit;
+  setFit: (fit: Fit) => void;
+  /** The arrangement, read here and set in the editing phase. */
+  layer: import("../world/compose").LayerTransform;
+  placementId: string;
+  setPlacementId: (id: string) => void;
   /** Where "back" goes — the editor if you came through it, the plate if you came from the fork. */
   onBack: () => void;
   backLabel?: string;
 }
 
-/**
- * The payoff's own memory. Versioned and namespaced so a future shape can migrate rather than guess,
- * and read defensively: a corrupted entry falls back to the defaults instead of breaking the page.
- */
-const STORE = "bahia-rosa.payoff.v1";
-
-/** How the photograph sits in a surface. Chosen, not assumed. */
-type Fit = "cover" | "contain";
-
-interface StoredPayoff {
-  copy?: Partial<PlacementCopy>;
-  placement?: string;
-  fit?: Fit;
-  /** The subject's framing — one arrangement, applied to every surface. */
-  layer?: LayerTransform;
-  /** The shape this used to have, when the arrangement was kept per surface. Read, then written as `layer`. */
-  layers?: Record<string, LayerTransform>;
-}
-
-/** A stored layer, read defensively: a corrupted or hostile entry becomes the default, never a NaN. */
-function readLayer(value: unknown): LayerTransform | null {
-  if (!value || typeof value !== "object") return null;
-  const candidate = value as Partial<LayerTransform>;
-  const number = (input: unknown, fallback: number, min: number, max: number): number =>
-    typeof input === "number" && Number.isFinite(input) ? Math.min(max, Math.max(min, input)) : fallback;
-  return {
-    dx: number(candidate.dx, 0, -1.5, 1.5),
-    dy: number(candidate.dy, 0, -1.5, 1.5),
-    scale: number(candidate.scale, 1, 0.2, 4),
-    cropTop: number(candidate.cropTop, 0, 0, 0.6),
-    cropBottom: number(candidate.cropBottom, 0, 0, 0.6),
-    overflow: candidate.overflow === true,
-  };
-}
-
-function defaults(city: string, location: string | null | undefined): { copy: PlacementCopy; placement: string; fit: Fit; layer: LayerTransform } {
-  return {
-    copy: {
-      city,
-      handle: "@you",
-      title: location ? `printed at the ${location}` : "tonight on the coast",
-      line: "made it myself, out tonight",
-    },
-    placement: PLACEMENTS[0].id,
-    // The whole photograph, by default. A surface that hides part of someone's picture should be their
-    // decision — so `cover` is offered, never assumed.
-    fit: "contain",
-    // And the subject exactly where the press put it: centred, fitted, nothing cut. Every control below
-    // starts from the honest default and only moves if the visitor moves it.
-    layer: LAYER_DEFAULT,
-  };
-}
-
-function restore(city: string, location: string | null | undefined): { copy: PlacementCopy; placement: string; fit: Fit; layer: LayerTransform } {
-  const fallback = defaults(city, location);
-  if (typeof window === "undefined") return fallback;
-  try {
-    const raw = window.localStorage.getItem(STORE);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw) as StoredPayoff;
-    const known = PLACEMENTS.some((placement) => placement.id === parsed.placement);
-    const placement = known ? (parsed.placement as string) : fallback.placement;
-    // The arrangement used to be kept per surface. It is one arrangement now, applied everywhere — so the
-    // old shape is read once, for the surface that was selected when it was made, and written back as the
-    // single one. A visitor who arranged something before this change keeps their arrangement.
-    const legacy = parsed.layers?.[placement] ?? Object.values(parsed.layers ?? {})[0];
-    const layer = readLayer(parsed.layer) ?? readLayer(legacy) ?? fallback.layer;
-    return {
-      copy: { ...fallback.copy, ...parsed.copy },
-      placement,
-      fit: parsed.fit === "cover" || parsed.fit === "contain" ? parsed.fit : fallback.fit,
-      layer,
-    };
-  } catch {
-    return fallback;
-  }
-}
-
-export function Launch({ artworkUrl, subjectUrl, layering = true, city = "Bahía Rosa", location, onBack, backLabel = "Back to the editor" }: LaunchProps) {
-  const first = useMemo(() => restore(city, location), [city, location]);
-  const [selectedId, setSelectedId] = useState<string>(first.placement);
-  const [copy, setCopy] = useState<PlacementCopy>(first.copy);
-  const [fit, setFit] = useState<Fit>(first.fit);
-  const [layer, setLayer] = useState<LayerTransform>(first.layer);
+export function Launch({
+  artworkUrl,
+  subjectUrl,
+  arranging = true,
+  copy,
+  setCopy,
+  fit,
+  setFit,
+  layer,
+  placementId,
+  setPlacementId,
+  onBack,
+  backLabel = "Back to the editor",
+}: LaunchProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [dragging, setDragging] = useState(false);
-  const dragRef = useRef<{ x: number; y: number; dx: number; dy: number; w: number; h: number } | null>(null);
 
-  /** One writer for the layer, so a drag, a slider and a reset cannot disagree about the shape. */
-  const updateLayer = (patch: Partial<LayerTransform>) => {
-    setLayer((current) => ({ ...current, ...patch }));
-  };
-
-  /** What every surface draws: the arrangement, or the press's own framing when there is nothing to arrange. */
-  const arranged = layering ? layer : LAYER_DEFAULT;
-
-  const clampMove = (value: number) => Math.min(1.5, Math.max(-1.5, value));
-
-  const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    dragRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-      dx: layer.dx,
-      dy: layer.dy,
-      w: Math.max(1, rect.width),
-      h: Math.max(1, rect.height),
-    };
-    setDragging(true);
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const moveDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    if (!drag) return;
-    // A drag is a fraction of the surface, so the same gesture means the same thing on a postcard and on
-    // a billboard — and a download at 1600px wide reproduces it exactly.
-    updateLayer({
-      dx: clampMove(drag.dx + (event.clientX - drag.x) / drag.w),
-      dy: clampMove(drag.dy + (event.clientY - drag.y) / drag.h),
-    });
-  };
-
-  const endDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
-    dragRef.current = null;
-    setDragging(false);
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-  };
-
-  /** The same movement without a pointer: arrows nudge, shift-arrows move by a bigger step. */
-  const nudge = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    const step = event.shiftKey ? 0.1 : 0.02;
-    const moves: Record<string, [number, number]> = {
-      ArrowLeft: [-step, 0],
-      ArrowRight: [step, 0],
-      ArrowUp: [0, -step],
-      ArrowDown: [0, step],
-    };
-    const move = moves[event.key];
-    if (!move) return;
-    event.preventDefault();
-    updateLayer({ dx: clampMove(layer.dx + move[0]), dy: clampMove(layer.dy + move[1]) });
-  };
-
-  // Kept as you type — and as you arrange. The layer belongs in the dependency list as much as the words
-  // do: without it the drag updates the canvas and never reaches storage, which is a memory that looks
-  // like it works until the visitor comes back.
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        STORE,
-        JSON.stringify({ copy, placement: selectedId, fit, layer } satisfies StoredPayoff),
-      );
-    } catch {
-      // A browser with storage disabled is not a broken page: the copy simply is not remembered.
-    }
-  }, [copy, selectedId, fit, layer]);
+  /** What every surface draws: the arrangement made in the editing phase, or the press's own framing. */
+  const arranged = arranging ? layer : undefined;
+  const arrangedLine = !subjectUrl
+    ? "one picture — an edit is flattened, so this is the frame as it was saved"
+    : arranging
+      ? isDefaultLayer(layer)
+        ? "the press's own framing — arrange them in the editing phase if you want them moved"
+        : "arranged in the editing phase · the same arrangement on all four"
+      : "your own room: they stand where they stood";
 
   const selected = useMemo<Placement>(
-    () => PLACEMENTS.find((placement) => placement.id === selectedId) ?? PLACEMENTS[0],
-    [selectedId],
+    () => PLACEMENTS.find((placement) => placement.id === placementId) ?? PLACEMENTS[0],
+    [placementId],
   );
+
+  // Kept in the page as well as in storage while this stage is open: the store is written by the payoff
+  // hook, and this only refreshes the surface when a different one is chosen.
+  useEffect(() => {
+    setError(null);
+  }, [selected.id]);
 
   const save = async (placement: Placement) => {
     setBusy(placement.id);
@@ -253,33 +124,23 @@ export function Launch({ artworkUrl, subjectUrl, layering = true, city = "Bahía
 
       <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_minmax(260px,320px)]">
         <div>
-          <div
-            className="plate-inset"
-            {...(layering
-              ? {
-                  "data-testid": "layer-surface",
-                  role: "application" as const,
-                  tabIndex: 0,
-                  "aria-label": "the subject in the frame: drag it, or nudge it with the arrow keys",
-                  onPointerDown: startDrag,
-                  onPointerMove: moveDrag,
-                  onPointerUp: endDrag,
-                  onPointerCancel: endDrag,
-                  onKeyDown: nudge,
-                  style: { touchAction: "none" as const, cursor: dragging ? "grabbing" : "grab" },
-                }
-              : {})}
-          >
-            <PlacementCanvas placement={selected} artworkUrl={artworkUrl} subjectUrl={subjectUrl} copy={copy} fit={fit} layer={arranged} className="block w-full" />
+          <div className="plate-inset">
+            <PlacementCanvas
+              placement={selected}
+              artworkUrl={artworkUrl}
+              subjectUrl={subjectUrl}
+              copy={copy}
+              fit={fit}
+              layer={arranged}
+              className="block w-full"
+            />
           </div>
           <p className="mt-3 text-xs" style={{ color: "var(--color-faint)" }}>
             {selected.label} · {selected.width}×{selected.height} · {selected.blurb}
           </p>
-          {layering ? (
-            <p className="mt-2 text-xs" style={{ color: "var(--color-muted)" }}>
-              drag the frame to place yourself · arrows nudge · shift-arrows move further
-            </p>
-          ) : null}
+          <p className="mt-2 text-xs" style={{ color: "var(--color-muted)" }} data-testid="arrangement-note">
+            {arrangedLine}
+          </p>
           <p className="sr-only">{selected.caption}</p>
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -401,80 +262,6 @@ export function Launch({ artworkUrl, subjectUrl, layering = true, city = "Bahía
             </p>
           </div>
 
-          {layering ? (
-          <div className="mt-8">
-            <h3 className="text-xs" style={{ color: "var(--color-muted)" }}>
-              the layer
-            </h3>
-            <p className="measure mt-2 text-xs" style={{ color: "var(--color-faint)" }}>
-              one arrangement, applied to all four surfaces and to the downloads — however many of you are in
-              the photograph, since a group is painted as one and moves, sizes and cuts as one. drag the frame
-              above, or nudge with the arrow keys.
-            </p>
-            <div className="mt-4 grid gap-4 sm:grid-cols-3">
-              <label className="block text-xs" style={{ color: "var(--color-muted)" }}>
-                size · {layer.scale.toFixed(2)}×
-                <input
-                  data-testid="layer-scale"
-                  type="range"
-                  min={0.4}
-                  max={2.4}
-                  step={0.02}
-                  value={layer.scale}
-                  onChange={(event) => updateLayer({ scale: Number(event.target.value) })}
-                  className="mt-2 w-full"
-                />
-              </label>
-              <label className="block text-xs" style={{ color: "var(--color-muted)" }}>
-                cut from the top · {Math.round(layer.cropTop * 100)}%
-                <input
-                  data-testid="layer-crop-top"
-                  type="range"
-                  min={0}
-                  max={0.6}
-                  step={0.01}
-                  value={layer.cropTop}
-                  onChange={(event) => updateLayer({ cropTop: Number(event.target.value) })}
-                  className="mt-2 w-full"
-                />
-              </label>
-              <label className="block text-xs" style={{ color: "var(--color-muted)" }}>
-                cut from the bottom · {Math.round(layer.cropBottom * 100)}%
-                <input
-                  data-testid="layer-crop-bottom"
-                  type="range"
-                  min={0}
-                  max={0.6}
-                  step={0.01}
-                  value={layer.cropBottom}
-                  onChange={(event) => updateLayer({ cropBottom: Number(event.target.value) })}
-                  className="mt-2 w-full"
-                />
-              </label>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={layer.overflow}
-                data-testid="layer-overflow"
-                onClick={() => updateLayer({ overflow: !layer.overflow })}
-                className="btn-quiet"
-              >
-                {layer.overflow ? "runs off the edge" : "held inside the frame"}
-              </button>
-              <button
-                type="button"
-                data-testid="layer-reset"
-                onClick={() => setLayer(LAYER_DEFAULT)}
-                className="btn-quiet"
-              >
-                reset the layer
-              </button>
-            </div>
-          </div>
-          ) : null}
-
           <div>
             <h3 className="text-xs" style={{ color: "var(--color-muted)" }}>
               where it runs
@@ -486,14 +273,22 @@ export function Launch({ artworkUrl, subjectUrl, layering = true, city = "Bahía
                   type="button"
                   data-testid={`place-${placement.id}`}
                   aria-pressed={placement.id === selected.id}
-                  onClick={() => setSelectedId(placement.id)}
+                  onClick={() => setPlacementId(placement.id)}
                   className="lift text-left"
                   style={{
                     border: `1px solid ${placement.id === selected.id ? "var(--color-accent)" : "var(--color-rule)"}`,
                     padding: "6px",
                   }}
                 >
-                  <PlacementCanvas placement={placement} artworkUrl={artworkUrl} subjectUrl={subjectUrl} copy={copy} fit={fit} layer={arranged} className="block w-full" />
+                  <PlacementCanvas
+                    placement={placement}
+                    artworkUrl={artworkUrl}
+                    subjectUrl={subjectUrl}
+                    copy={copy}
+                    fit={fit}
+                    layer={arranged}
+                    className="block w-full"
+                  />
                   <span className="mt-2 block px-1 pb-1 text-xs" style={{ color: "var(--color-muted)" }}>
                     {placement.label.toLowerCase()}
                   </span>
