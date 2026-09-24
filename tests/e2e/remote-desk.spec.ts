@@ -41,8 +41,11 @@ test("a desk at another origin prints through the front door", async ({ page }) 
   await page.getByTestId("photo-input").setInputFiles(photo);
 
   await expect(page.getByTestId("print-desk")).toBeVisible();
-  // The whole print crosses origins: upload, prompt, progress socket, then the face restore.
-  await expect(page.locator(".editor-shell")).toBeVisible({ timeout: 280_000 });
+  // The whole print crosses origins: upload, prompt, progress socket, then the face restore — and it
+  // lands at the fork, where the plate is offered raw or into the editor.
+  await expect(page.getByTestId("printed-fork")).toBeVisible({ timeout: 280_000 });
+  await page.getByTestId("edit-in-editor").click();
+  await expect(page.locator(".editor-shell")).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId("start-over")).toBeVisible();
 
   // The address is remembered: a reload without the query still talks to that desk.

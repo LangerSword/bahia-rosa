@@ -1,0 +1,149 @@
+/*
+ * The site-wide effect layer. Everything here is decoration and every animation is opt-out: the
+ * `prefers-reduced-motion` block at the bottom turns the lot of them off, because a page that will not
+ * hold still is a page some people cannot read.
+ */
+
+.fx-grain {
+  position: fixed;
+  inset: -50%;
+  z-index: 40;
+  pointer-events: none;
+  opacity: 0.14;
+  mix-blend-mode: overlay;
+  /* A photographic grain, generated rather than shipped: one inline SVG turbulence, tiled. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+
+.fx-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 22%, transparent 45%, rgba(4, 3, 10, 0.55) 100%);
+}
+
+/* The sheen that rolls down the page once, the way ink goes through a press. */
+.fx-roll {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 34vw;
+  z-index: 41;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255, 214, 150, 0.07) 42%, transparent 70%);
+  animation: fx-roll 2.6s cubic-bezier(0.22, 1, 0.36, 1) 1 both;
+}
+
+@keyframes fx-roll {
+  from {
+    transform: translateX(-40vw);
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  to {
+    transform: translateX(120vw);
+    opacity: 0;
+  }
+}
+
+.fx-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 45;
+  pointer-events: none;
+  background: rgba(255, 214, 150, 0.08);
+}
+
+.fx-progress-fill {
+  height: 100%;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--color-gold), var(--color-paper));
+}
+
+.fx-marquee {
+  overflow: hidden;
+}
+
+.fx-marquee-row {
+  display: flex;
+  width: max-content;
+  white-space: nowrap;
+  animation: fx-marquee 42s linear infinite;
+}
+
+.fx-marquee-still {
+  animation: none;
+}
+
+@keyframes fx-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-33.333%);
+  }
+}
+
+/* A sheen that crosses a card on hover, so the whole grid feels handled rather than listed. */
+.fx-sheen {
+  position: relative;
+  overflow: hidden;
+}
+
+.fx-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.09) 48%, transparent 62%);
+  transform: translateX(-120%);
+  transition: transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fx-sheen:hover::after,
+.fx-sheen:focus-visible::after {
+  transform: translateX(120%);
+}
+
+/* Underline that draws itself, for links that should not look like buttons. */
+.fx-link {
+  position: relative;
+  text-decoration: none;
+}
+
+.fx-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 1px;
+  background: var(--color-gold);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fx-link:hover::after,
+.fx-link:focus-visible::after {
+  transform: scaleX(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-roll,
+  .fx-progress,
+  .fx-marquee-row::after,
+  .fx-sheen::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .fx-grain {
+    opacity: 0.1;
+  }
+}

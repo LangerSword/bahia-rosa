@@ -40,7 +40,10 @@ test("intake choices reach the desk and the plate lands in the editor", async ({
   await expect(desk).toContainText("loadingscreen");
   await expect(desk).toContainText("marina");
 
-  // And the plate must actually come back: the editor mounts only after the desk answers.
-  await expect(page.locator(".editor-shell")).toBeVisible({ timeout: 200_000 });
+  // And the plate must actually come back. The press stops at the fork now — the plate is shown, and
+  // the visitor chooses raw or editor — so the editor mounts only after that choice is made.
+  await expect(page.getByTestId("printed-fork")).toBeVisible({ timeout: 200_000 });
+  await page.getByTestId("edit-in-editor").click();
+  await expect(page.locator(".editor-shell")).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId("start-over")).toBeVisible();
 });

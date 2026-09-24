@@ -9,6 +9,7 @@ import { LOOKS } from "./look/stylise";
 import { portraitFromImage, type PortraitResult } from "./look/portrait";
 import { SCENES, SCENE_IDS, sceneSrc, type SceneId } from "./look/scenes";
 import { BeforeAfter } from "./components/BeforeAfter";
+import { Fx, Marquee } from "./components/Fx";
 import type { PlateSource } from "./lib/plates/plates";
 import { deskRoot, printChoices } from "./lib/printdesk/client";
 
@@ -33,7 +34,7 @@ const PLANS: Record<string, { surfaceId: string; title: string; brief: string; g
   poster: { surfaceId: "poster", title: "the VIP poster", brief: "sell the room; you are the night's draw", gating: POSTER_GATING },
 };
 
-type Stage = "gate" | "converting" | "printing" | "editing" | "launch";
+type Stage = "gate" | "converting" | "printed" | "printing" | "editing" | "launch";
 
 const { locations } = printChoices();
 
@@ -63,7 +64,7 @@ export function App() {
   /** The stages the press has actually reached, so the progress line is never a lie. */
   const [stages, setStages] = useState<string[]>([]);
   /** What the cut found, reported honestly under the frame. */
-  const [cut, setCut] = useState<Pick<PortraitResult, "cutOut" | "share" | "scene"> | null>(null);
+  const [cut, setCut] = useState<Pick<PortraitResult, "cutOut" | "share" | "scene" | "cutSource"> | null>(null);
   const reduce = useReducedMotion();
 
   const onSaved = useCallback((dataUrl: string) => {
@@ -81,7 +82,9 @@ export function App() {
     (next: PlateSource, printedMeta: { register: string; location: string | null; seed: number }) => {
       setPlate(next);
       setMeta(printedMeta);
-      setStage("editing");
+      // The plate goes to the fork, not straight into the editor: download it raw, or take it in and
+      // make something. The visitor chooses, both are one click.
+      setStage("printed");
     },
     [],
   );
@@ -105,11 +108,16 @@ export function App() {
           seed: 1 + (file.size % 997),
           onStage: (label) => setStages((seen) => (seen.includes(label) ? seen : [...seen, label])),
         });
-        setCut({ cutOut: result.cutOut, share: result.share, scene: result.scene });
+        setCut({
+          cutOut: result.cutOut,
+          share: result.share,
+          scene: result.scene,
+          cutSource: result.cutSource,
+        });
         setPlate({ kind: "photo", objectUrl: result.canvas.toDataURL("image/jpeg", 0.94), name: file.name });
         setSource(url); // kept for the before/after comparison; revoked on reset
         setMeta(null);
-        setStage("editing");
+        setStage("printed");
       } catch {
         URL.revokeObjectURL(url);
         // A file this browser cannot decode still takes the desk path, which reports the problem.
@@ -155,15 +163,33 @@ export function App() {
     }
   }, [useFallback]);
 
-  const stepIndex = stage === "gate" ? 0 : stage === "converting" ? 0 : stage === "printing" || stage === "editing" ? 1 : 2;
+  const stepIndex =
+    stage === "gate" || stage === "converting"
+      ? 0
+      : stage === "printing" || stage === "printed" || stage === "editing"
+        ? 1
+        : 2;
   const steps = [
     { label: "The plate", hint: "bring a photo" },
     { label: "The editor", hint: "make it yours" },
     { label: "The city", hint: "run it" },
   ];
 
+  /** What the cut did, in one honest sentence — reported, never guessed at. */
+  const cutLine =
+    cut?.cutSource === "model"
+      ? `The segmenter found you — ${Math.round(cut.share * 100)}% of the frame — and the press set you into the place.`
+      : cut?.cutSource === "classic"
+        ? "The segmentation model could not load in this browser, so the rough find did the cut. Honest work, but the model is better."
+        : meta
+          ? "The desk printed this one on a GPU."
+          : cut
+            ? "Nobody could be told apart from the background, so the whole frame was painted."
+            : "";
+
   return (
     <div className="grain vignette min-h-screen">
+      <Fx />
       <a href="#intake" className="skip">
         Skip to the press
       </a>
@@ -264,14 +290,8 @@ export function App() {
           </div>
         </motion.section>
 
-        <div className="rule mt-8 overflow-hidden border-y py-3">
-          <div className="ticker kicker">
-            {[...locations, ...locations].map((place, index) => (
-              <span key={`${place.id}-${index}`} className="mx-6">
-                {place.label} <span style={{ color: "var(--color-gold)" }}>·</span>
-              </span>
-            ))}
-          </div>
+        <div className="mt-8">
+          <Marquee items={locations.map((place) => place.label)} />
         </div>
 
         {stage === "gate" ? (
@@ -407,6 +427,82 @@ export function App() {
           </motion.section>
         ) : null}
 
+        {stage === "printed" && image ? (
+          <motion.section
+            initial={reduce ? undefined : { opacity: 0, y: 14 }}
+            animate={reduce ? undefined : { opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: EASE }}
+            className="panel rule mt-10 border p-8"
+            data-testid="printed-fork"
+          >
+            <p className="kicker">Off the press</p>
+            <h2 className="display mt-3 text-4xl">
+              There you are, in {SCENES[cut?.scene ?? scene].label.toLowerCase()}
+            </h2>
+            <p
+              className="mt-3 max-w-[62ch] text-sm leading-relaxed text-[color:var(--color-muted)]"
+              data-testid="cut-line"
+            >
+              {cutLine} Nothing was uploaded, there is no key in the path, and there is{" "}
+              <strong>no text on the plate</strong> — text is only ever burned into the city placements
+              later, and those download separately.
+            </p>
+
+            <div className="mt-7 grid gap-7 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="rule overflow-hidden border">
+                <img
+                  src={image}
+                  alt="Your plate, freshly printed"
+                  data-testid="printed-plate"
+                  className="w-full"
+                />
+              </div>
+              <div className="flex flex-col gap-3">
+                <a
+                  href={image}
+                  download={frameName}
+                  data-testid="download-raw"
+                  className="lift border px-6 py-4 text-center text-xs tracking-[0.2em] uppercase"
+                  style={{
+                    background: "var(--color-gold)",
+                    color: "var(--color-ink)",
+                    borderColor: "var(--color-gold)",
+                  }}
+                >
+                  Download it raw
+                </a>
+                <span className="kicker" style={{ color: "var(--color-muted)" }}>
+                  clean PNG · no text, no watermark
+                </span>
+                <button
+                  type="button"
+                  data-testid="edit-in-editor"
+                  onClick={() => setStage("editing")}
+                  className="lift rule border px-6 py-4 text-center text-xs tracking-[0.2em] text-[color:var(--color-paper)] uppercase"
+                >
+                  Take it into the editor
+                </button>
+                <span className="kicker" style={{ color: "var(--color-muted)" }}>
+                  text · filters · crop · drawing · shapes · stickers
+                </span>
+                <button
+                  type="button"
+                  onClick={reset}
+                  className="fx-link mt-3 text-left text-xs tracking-[0.2em] text-[color:var(--color-faint)] uppercase hover:text-[color:var(--color-gold)]"
+                >
+                  Bring a different photo
+                </button>
+              </div>
+            </div>
+
+            {source && image ? (
+              <div className="mt-7">
+                <BeforeAfter before={source} after={image} />
+              </div>
+            ) : null}
+          </motion.section>
+        ) : null}
+
         {stage === "printing" && pendingPhoto ? (
           <div className="mt-10">
             <PrintDesk file={pendingPhoto} choice={choice} onPrinted={printed} />
@@ -455,8 +551,16 @@ export function App() {
                   clean PNG · no text, no watermark
                 </span>
                 {cut ? (
-                  <span className="kicker" style={{ color: "var(--color-muted)" }}>
-                    {cut.cutOut ? `you were cut out (${Math.round(cut.share * 100)}% of the frame)` : "whole frame painted"}
+                  <span
+                    className="kicker"
+                    style={{ color: "var(--color-muted)" }}
+                    data-testid="cut-source"
+                  >
+                    {cut.cutSource === "model"
+                      ? `found by the segmenter (${Math.round(cut.share * 100)}% of the frame)`
+                      : cut.cutSource === "classic"
+                        ? "rough find — the segmenter could not load"
+                        : "whole frame painted"}
                   </span>
                 ) : null}
               </div>

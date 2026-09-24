@@ -1,4 +1,5 @@
 import { loadImage } from "../world/compose";
+import { bodyCut } from "./bodysegment";
 import { faceBox, subjectMask } from "./segment";
 import { SCENES, placeSubject, sceneSrc, type SceneId } from "./scenes";
 import { styliseImageData, type StyliseOptions } from "./stylise";
@@ -33,6 +34,8 @@ export interface PortraitResult {
   share: number;
   /** True when the subject was cut out and placed; false when the whole frame was painted. */
   cutOut: boolean;
+  /** Who found the person: the segmentation model, the classic region find, or nobody. */
+  cutSource: "model" | "classic" | "none";
   scene: SceneId;
 }
 
@@ -70,16 +73,29 @@ export async function portraitFromImage(
   let mask: Uint8ClampedArray | null = null;
   let box = { x: 0, y: 0, width: workW, height: workH };
   let share = 0;
+  let cutSource: PortraitResult["cutSource"] = "none";
   if (!wholeFrame) {
     onStage?.("finding you in the frame");
-    const keep = await faceBox(image);
-    const subject = subjectMask(frame.data, workW, workH, { keep });
-    // A cut that found almost nothing, or almost everything, is wrong, and a wrong cut is worse than
-    // no cut: fall back to painting the whole frame.
-    if (subject.share > 0.012 && subject.share < 0.985) {
-      mask = subject.mask;
-      box = subject.box;
-      share = subject.share;
+    // The segmentation model first, because it is the difference between a cut-out and a recolour: it
+    // reads a face in shadow, a subject at night, and hair against a busy wall. One 16MB download,
+    // cached by the browser, no key, nothing uploaded.
+    const cut = await bodyCut(photo.canvas, workW, workH, onStage);
+    if (cut && cut.share > 0.012 && cut.share < 0.985) {
+      mask = cut.alpha;
+      box = cut.box;
+      share = cut.share;
+      cutSource = "model";
+    } else {
+      // The classic find, for the case where the model could not load. Good on a plain background, and
+      // reported honestly when it is what did the work.
+      const keep = await faceBox(image);
+      const subject = subjectMask(frame.data, workW, workH, { keep });
+      if (subject.share > 0.012 && subject.share < 0.985) {
+        mask = subject.mask;
+        box = subject.box;
+        share = subject.share;
+        cutSource = "classic";
+      }
     }
   }
 
@@ -219,5 +235,5 @@ export async function portraitFromImage(
   gradedImage.data.set(graded);
   out.ctx.putImageData(gradedImage, 0, 0);
 
-  return { canvas: out.canvas, share, cutOut: Boolean(mask), scene };
+  return { canvas: out.canvas, share, cutOut: Boolean(mask), cutSource, scene };
 }

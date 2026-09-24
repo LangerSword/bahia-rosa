@@ -5,10 +5,14 @@
 A GTA VI-inspired experience built for the
 [Unlayer "Build with React Image Editor" Challenge](https://github.com/unlayer/react-image-editor).
 
-You bring one photo. The city prints you as a character standing in its own light. The editor turns
-that plate into tonight's poster — and then the payoff: **the city runs it**. Your artwork goes up on
-the roadside billboard, onto the venue's foyer display, into the coast's feed, and home as a printed
-postcard. Every placement downloads at full resolution.
+You bring one photo. It does not leave your browser: **a segmentation model finds you in the frame**
+(MediaPipe's `selfie_multiclass`, served from this site's own origin — no key, no account, no upload,
+Apache-2.0), the press paints you in the city's light, and composites you **into a place** — a Bahía
+beach at golden hour, the marina, a rooftop pool, a palm boulevard. Then the fork: **download the plate
+raw**, or take it into the editor and make tonight's poster. And then the payoff: **the city runs it.**
+Your artwork goes up on the roadside billboard, onto the venue's foyer display, into the coast's feed,
+and home as a printed postcard. Every placement downloads at full resolution, and the plate itself
+never carries text — only the placements do, as a separate download.
 
 **React Image Editor is the workstation for every surface**, and each surface hands you a deliberately
 different tool set — so "the editor is core" is structural, not a claim. The placements are the reason
@@ -75,7 +79,10 @@ the self-stop watchdog are written up in [`docs/print-desk.md`](docs/print-desk.
 ## The pipeline
 
 ```
-photo → frame.py ──► print.mjs ──► plate ──► editor ──► launch
+browser: photo → segment ──► paint ──► place into a scene ──► THE FORK ──► editor ──► launch
+                (MediaPipe)   (stylise)  (art/scenes/*.jpg)    raw │ edited
+                                                                 │
+desk:    photo → frame.py ──► print.mjs ──► plate ──► editor ──► launch
         face detect    look spec      |         React       billboard · venue
         + crop         + klein        |         Image       feed · postcard
                                       |         Editor      (canvas export)

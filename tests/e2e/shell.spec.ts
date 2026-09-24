@@ -22,7 +22,7 @@ test("the shell renders the city's design language and stays clean", async ({ pa
   // Wordmark, kicker and display type all come from the self-hosted faces.
   await expect(page.locator(".wordmark").first()).toHaveText(/late edition/i);
   await expect(page.locator("h1.display")).toBeVisible();
-  await expect(page.locator(".ticker")).toContainText("Marina pier");
+  await expect(page.locator(".fx-marquee")).toContainText("Marina pier");
 
   // The self-hosted fonts must actually load (a 404 here would silently fall back to system type).
   const fonts = await page.evaluate(() => document.fonts.check('16px "Limelight"') && document.fonts.check('16px "Pinyon Script"'));
