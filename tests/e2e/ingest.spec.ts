@@ -85,6 +85,23 @@ test("a screenshot pasted from the clipboard is pressed", async ({ page }) => {
   expect(await page.getByTestId("cut-line").textContent()).toMatch(/found you in the frame/);
 });
 
+test("a photo dropped on the city is pressed — a drop works wherever the visitor is", async ({ page }) => {
+  test.setTimeout(300_000);
+  await page.goto("/");
+  await expect(page.getByTestId("choose-photo")).toBeVisible();
+  await page.getByTestId("photo-input").setInputFiles("public/art/demo/s1-marisol-keyart.jpg");
+  await expect(page.getByTestId("printed-fork")).toBeVisible({ timeout: 150_000 });
+
+  // Into the city, which is where someone with an arrangement in front of them tries to drop the next
+  // photograph — and where the drop used to do nothing at all, because it was only enabled on two stages.
+  await page.getByTestId("take-to-city").click();
+  await expect(page.getByTestId("launch")).toBeVisible();
+
+  await dropFile(page, "another-one.jpg", "image/jpeg");
+  // A new press, and the fork again: dropping is a way to start over with a different photograph.
+  await expect(page.getByTestId("printed-fork")).toBeVisible({ timeout: 150_000 });
+});
+
 test("a paste that carried only words is answered, not ignored", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("choose-photo")).toBeVisible();

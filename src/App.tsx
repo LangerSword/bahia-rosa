@@ -68,7 +68,7 @@ export function App() {
   /** The stages the press has actually reached, so the progress line is never a lie. */
   const [stages, setStages] = useState<string[]>([]);
   /** What the cut found, reported honestly under the frame. */
-  const [cut, setCut] = useState<Pick<PortraitResult, "cutOut" | "share" | "scene" | "cutSource" | "width"> | null>(null);
+  const [cut, setCut] = useState<Pick<PortraitResult, "cutOut" | "share" | "scene" | "cutSource" | "width" | "sourceEdge"> | null>(null);
   const reduce = useReducedMotion();
 
   /** Where the city was entered from, so "back" goes where the visitor actually came from. */
@@ -137,6 +137,7 @@ export function App() {
           scene: result.scene,
           cutSource: result.cutSource,
           width: result.width,
+          sourceEdge: result.sourceEdge,
         });
         setPlate({ kind: "photo", objectUrl: result.canvas.toDataURL("image/jpeg", 0.94), name: file.name });
         setSource(url); // kept for the before/after comparison; revoked on reset
@@ -293,7 +294,13 @@ export function App() {
           ? "printed at the desk"
           : cut
             ? "no person could be told apart, so the whole frame was painted"
-            : "") + (cut ? ` · ${cutLabel}` : "");
+            : "") +
+    (cut ? ` · ${cutLabel}` : "") +
+    // A small photograph is named rather than quietly smeared: a pasted screenshot is often half the size
+    // the subject is painted at, and the honest advice is a bigger copy.
+    (cut && cut.sourceEdge < 900
+      ? ` · from a ${cut.sourceEdge}px photo${cut.sourceEdge < 640 ? " — a bigger copy will press sharper" : ""}`
+      : "");
 
   return (
     <div className="grain vignette min-h-screen">
@@ -350,12 +357,11 @@ export function App() {
         </div>
       </header>
 
-      {/* A photo from anywhere: dropped on the page, or pasted. Live where a new photo means something. */}
-      <PhotoDrop
-        enabled={stage === "gate" || stage === "printed"}
-        onPhoto={takePhoto}
-        onProblem={setIntakeProblem}
-      />
+      {/* A photo from anywhere: dropped on the page, or pasted. Live on every stage where a new photo is a
+          sensible thing to want — which is every stage except the editor, where a drop belongs to the
+          editor's own canvas. Being picky about the stage is what made a drop do nothing at all on the city,
+          which is exactly where someone with an arrangement in front of them tries it. */}
+      <PhotoDrop enabled={stage !== "editing"} onPhoto={takePhoto} onProblem={setIntakeProblem} />
 
       <main className="mx-auto max-w-[1280px] px-8">
         <motion.section

@@ -24,7 +24,7 @@ test("the subject is a layer: drag it, size it, cut it, let it run off the edge"
   const stored = () =>
     page.evaluate(() =>
       JSON.parse(window.localStorage.getItem("bahia-rosa.payoff.v1") ?? "{}"),
-    ) as Promise<{ layers?: Record<string, { dx: number; dy: number; scale: number; cropBottom: number; overflow: boolean }> }>;
+    ) as Promise<{ layer?: { dx: number; dy: number; scale: number; cropBottom: number; overflow: boolean } }>;
   const selectedId = await page.evaluate(
     () =>
       document
@@ -54,7 +54,7 @@ test("the subject is a layer: drag it, size it, cut it, let it run off the edge"
   );
   await page.mouse.up();
 
-  const dragged = (await stored()).layers?.[selectedId];
+  const dragged = (await stored()).layer;
   expect(dragged, "the drag was not remembered").toBeTruthy();
   expect(dragged?.dx).toBeGreaterThan(0.1);
   expect(dragged?.dy).toBeLessThan(-0.05);
@@ -64,16 +64,16 @@ test("the subject is a layer: drag it, size it, cut it, let it run off the edge"
 
   // 2. Size.
   await page.getByTestId("layer-scale").fill("1.6");
-  expect((await stored()).layers?.[selectedId]?.scale).toBeCloseTo(1.6, 2);
+  expect((await stored()).layer?.scale).toBeCloseTo(1.6, 2);
 
   // 3. Cut from the bottom — "I don't want the full body".
   await page.getByTestId("layer-crop-bottom").fill("0.3");
-  expect((await stored()).layers?.[selectedId]?.cropBottom).toBeCloseTo(0.3, 2);
+  expect((await stored()).layer?.cropBottom).toBeCloseTo(0.3, 2);
 
   // 4. Overflow — let it run off the edge.
   await page.getByTestId("layer-overflow").click();
   await expect(page.getByTestId("layer-overflow")).toHaveAttribute("aria-checked", "true");
-  expect((await stored()).layers?.[selectedId]?.overflow).toBe(true);
+  expect((await stored()).layer?.overflow).toBe(true);
 
   // 5. And the export runs with all of it, producing a real file.
   const [download] = await Promise.all([
@@ -84,7 +84,7 @@ test("the subject is a layer: drag it, size it, cut it, let it run off the edge"
 
   // 6. Reset returns the layer to the arrangement the press made, not to some other default.
   await page.getByTestId("layer-reset").click();
-  const reset = (await stored()).layers?.[selectedId];
+  const reset = (await stored()).layer;
   expect(reset?.dx).toBe(0);
   expect(reset?.scale).toBe(1);
   expect(reset?.cropBottom).toBe(0);

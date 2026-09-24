@@ -38,15 +38,22 @@ describe("the layer", () => {
     expect(moved.destination.y - base.destination.y).toBeCloseTo(-45, 6);
   });
 
-  it("at the fit size there is no slack, so a drag cannot move it while it is held inside", () => {
-    // A layer that exactly fills the surface has nowhere to go: clamping is the honest answer, not a
-    // half-move that stops at the edge. This is also why the interface offers overflow — letting the layer
-    // run off the edge is how you move it at the fitted size, and how part of a body is left out of frame.
-    const held = layerGeometry(image, rect, withLayer({ dx: 0.25 }), "contain");
-    expect(held.destination.x).toBeCloseTo(rect.x, 6);
+  it("a drag moves it even when the layer fills the surface", () => {
+    // This test used to assert the opposite — that a layer filling the surface could not move, because
+    // there was no slack to move into. It was honest and it was wrong: the visitor drags, the picture does
+    // not move, and the control reads as broken. So a full axis is left free, and a drag at the fit size
+    // moves the picture within the frame the way moving a photograph inside a frame should feel.
+    const base = layerGeometry(image, rect, LAYER_DEFAULT, "contain");
+    const moved = layerGeometry(image, rect, withLayer({ dx: 0.25, dy: -0.1 }), "contain");
 
-    const loose = layerGeometry(image, rect, withLayer({ dx: 0.25, overflow: true }), "contain");
-    expect(loose.destination.x - rect.x).toBeCloseTo(100, 6);
+    expect(moved.destination.x - base.destination.x).toBeCloseTo(100, 6);
+    expect(moved.destination.y - base.destination.y).toBeCloseTo(-30, 6);
+
+    // And overflow still means something for a layer with slack: it may leave the surface entirely.
+    const small = layerGeometry(image, rect, withLayer({ scale: 0.5 }), "contain");
+    const loose = layerGeometry(image, rect, withLayer({ scale: 0.5, dx: 1.4, overflow: true }), "contain");
+    expect(small.destination.x).toBeGreaterThan(rect.x);
+    expect(loose.destination.x).toBeGreaterThan(rect.x + rect.w);
   });
 
   it("the size multiplies the fit and keeps the proportions", () => {
@@ -69,20 +76,21 @@ describe("the layer", () => {
     expect(trimmed.source.h).toBe(360);
   });
 
-  it("holds the layer inside the surface unless overflow is asked for", () => {
-    const held = layerGeometry(image, rect, withLayer({ dx: 5 }), "contain");
+  it("holds a smaller layer inside the surface unless overflow is asked for", () => {
+    const held = layerGeometry(image, rect, withLayer({ scale: 0.5, dx: 5 }), "contain");
     expect(held.destination.x).toBeGreaterThanOrEqual(rect.x);
     expect(held.destination.x + held.destination.w).toBeLessThanOrEqual(rect.x + rect.w + 1e-6);
 
     // The same drag, allowed to run past the edge — which is how part of a body is shown on purpose.
-    const loose = layerGeometry(image, rect, withLayer({ dx: 5, overflow: true }), "contain");
+    const loose = layerGeometry(image, rect, withLayer({ scale: 0.5, dx: 5, overflow: true }), "contain");
     expect(loose.destination.x).toBeGreaterThan(rect.x + rect.w);
   });
 
-  it("a layer bigger than the surface is centred rather than clamped to nonsense", () => {
-    const huge = layerGeometry(image, rect, withLayer({ scale: 4, dx: 1 }), "contain");
-    expect(huge.destination.x).toBeCloseTo(rect.x + (rect.w - huge.destination.w) / 2, 6);
-    expect(huge.destination.y).toBeCloseTo(rect.y + (rect.h - huge.destination.h) / 2, 6);
+  it("a layer bigger than the surface is free to move — it cannot be held inside something smaller", () => {
+    const huge = layerGeometry(image, rect, withLayer({ scale: 4, dx: 0.25 }), "contain");
+    // There is nothing to clamp against, so the drag is taken at face value rather than swallowed: the
+    // centring is the anchor, and the movement is added to it.
+    expect(huge.destination.x).toBeCloseTo(rect.x + (rect.w - huge.destination.w) / 2 + rect.w * 0.25, 6);
   });
 
   it("clamps the cuts so a layer can never be cut away to nothing", () => {

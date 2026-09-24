@@ -244,10 +244,14 @@ export function layerGeometry(
   let y = rect.y + (rect.h - h) / 2 + transform.dy * rect.h;
 
   if (!transform.overflow) {
-    // Held inside the surface. When the layer is larger than the rect there is nothing to clamp against,
-    // so it is centred instead — which is what "no overflow" means at that size.
-    x = w >= rect.w ? rect.x + (rect.w - w) / 2 : Math.min(rect.x + rect.w - w, Math.max(rect.x, x));
-    y = h >= rect.h ? rect.y + (rect.h - h) / 2 : Math.min(rect.y + rect.h - h, Math.max(rect.y, y));
+    // Held inside the surface — but only where there is somewhere to be held *to*. An axis the layer
+    // already fills has no slack, and clamping it there meant a drag that did nothing at all: the visitor
+    // asked to move their picture and the picture did not move. A control that reads as broken is worse
+    // than a picture that shows a gap at one edge, so a full axis is left free.
+    const clampAxis = (value: number, start: number, size: number, extent: number): number =>
+      size >= extent ? value : Math.min(start + extent - size, Math.max(start, value));
+    x = clampAxis(x, rect.x, w, rect.w);
+    y = clampAxis(y, rect.y, h, rect.h);
   }
 
   return { source, destination: { x, y, w, h } };

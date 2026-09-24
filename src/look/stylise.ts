@@ -273,6 +273,57 @@ export function whiteBalance(
   return out;
 }
 
+/**
+ * An unsharp mask, for photographs that arrive smaller than the frame they are painted into.
+ *
+ * A clipboard image — a screenshot, a copy from a chat window — is often 600 or 800 pixels wide, and the
+ * press paints the subject at a 900–1200px edge. Upscaling alone gives a soft edge, and softness is what
+ * "the copied image looks bad" means. A light unsharp mask restores the *apparent* detail: it cannot invent
+ * what was never sampled, and it says so by being scaled to the upscale factor, but an edge that reads as
+ * an edge is the difference between a print and a smear.
+ *
+ * Pure, so the numbers are testable: `amount` 0 is an exact identity.
+ */
+export function unsharpMask(
+  source: Uint8ClampedArray,
+  width: number,
+  height: number,
+  amount: number,
+): Uint8ClampedArray {
+  if (amount <= 0) {
+    // A copy, not the same buffer: a caller that gets its argument back cannot tell whether the mask ran,
+    // and a value-identical result is what "identity" means here.
+    const untouched = new Uint8ClampedArray(source.length);
+    untouched.set(source);
+    return untouched;
+  }
+  const out = new Uint8ClampedArray(source.length);
+  out.set(source);
+  const strength = Math.min(1.2, amount);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const p = (y * width + x) * 4;
+      for (let channel = 0; channel < 3; channel += 1) {
+        let sum = 0;
+        let count = 0;
+        for (let dy = -1; dy <= 1; dy += 1) {
+          const sy = y + dy;
+          if (sy < 0 || sy >= height) continue;
+          for (let dx = -1; dx <= 1; dx += 1) {
+            const sx = x + dx;
+            if (sx < 0 || sx >= width) continue;
+            sum += source[(sy * width + sx) * 4 + channel];
+            count += 1;
+          }
+        }
+        const blurred = sum / Math.max(1, count);
+        out[p + channel] = source[p + channel] + (source[p + channel] - blurred) * strength;
+      }
+    }
+  }
+  return out;
+}
+
 export function exposureAndCurve(
   source: Uint8ClampedArray,
   _width: number,

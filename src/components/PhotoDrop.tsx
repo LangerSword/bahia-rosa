@@ -61,9 +61,12 @@ export function PhotoDrop({ enabled, onPhoto, onProblem }: PhotoDropProps) {
       setDragging(true);
     };
     const onDragOver = (event: DragEvent) => {
-      if (!carriesFiles(event)) return;
-      // Without this the browser refuses the drop and opens the file instead — the page navigates away
-      // from the frame the visitor was about to make.
+      // Prevent the default or the browser refuses the drop and opens the file instead — the page navigates
+      // away from the frame the visitor was about to make. Also done when the drag carries no readable type
+      // list, because some platforms fill that in only at the moment of the drop, and a drag that is
+      // silently refused is a drag that looks broken.
+      const types = event.dataTransfer?.types;
+      if (!carriesFiles(event) && types && types.length > 0) return;
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
     };
@@ -72,11 +75,14 @@ export function PhotoDrop({ enabled, onPhoto, onProblem }: PhotoDropProps) {
       if (depth.current === 0) setDragging(false);
     };
     const onDrop = (event: DragEvent) => {
-      if (!carriesFiles(event)) return;
+      // The files themselves decide, not the type list: gating the drop on `types` is what made a real
+      // drag from a file manager do nothing on the platforms that leave it empty until the drop.
+      const files = event.dataTransfer?.files ?? null;
+      if (!files || files.length === 0) return;
       event.preventDefault();
       depth.current = 0;
       setDragging(false);
-      take(event.dataTransfer?.files ?? null);
+      take(files);
     };
     const onPaste = (event: ClipboardEvent) => {
       const items = event.clipboardData?.items;

@@ -3,7 +3,7 @@ import { bodyCut } from "./bodysegment";
 import { needsResample } from "./stylise";
 import { faceBox, subjectMask } from "./segment";
 import { SCENES, placeSubject, sceneSrc, type SceneId } from "./scenes";
-import { styliseImageData, FAST, FINE, type StyliseOptions } from "./stylise";
+import { styliseImageData, FAST, FINE, unsharpMask, type StyliseOptions } from "./stylise";
 import { gradeFor, gradePixels } from "./timeofday";
 
 /**
@@ -48,6 +48,8 @@ export interface PortraitResult {
   cutSource: "model" | "classic" | "none";
   /** The frame's real width in pixels, so the finish can be reported from the result and not claimed. */
   width: number;
+  /** The photograph's own short edge, so a small one can be named rather than silently smeared. */
+  sourceEdge: number;
   scene: SceneId;
 }
 
@@ -137,6 +139,8 @@ export async function portraitFromImage(
   const photoScale = Math.min(1, outLong / Math.max(image.width, image.height));
   const workW = Math.max(320, Math.round(image.width * photoScale));
   const workH = Math.max(320, Math.round(image.height * photoScale));
+  /** How big the photograph actually was — a small one is named in the report rather than quietly smeared. */
+  const sourceEdge = Math.min(image.width, image.height);
 
   onStage?.("reading your photo");
   const photo = canvasOf(workW, workH);
@@ -302,7 +306,7 @@ export async function portraitFromImage(
     }
   }
 
-  let toPaint = crop.ctx.getImageData(0, 0, cropW, cropH).data;
+  let toPaint: Uint8ClampedArray = crop.ctx.getImageData(0, 0, cropW, cropH).data;
   if (needsResample({ width: cropW, height: cropH }, { width: paintW, height: paintH })) {
     // Resample whenever the paint size differs from the crop — up *or* down. The test here used to be
     // "upscale > 1.01", which is false for a large crop: a wide group whose short edge is already past
@@ -315,6 +319,13 @@ export async function portraitFromImage(
     big.ctx.imageSmoothingQuality = "high";
     big.ctx.drawImage(crop.canvas, 0, 0, cropW, cropH, 0, 0, paintW, paintH);
     toPaint = big.ctx.getImageData(0, 0, paintW, paintH).data;
+    // And, when that resample was an *enlargement*, put the edges back: a screenshot pasted from the
+    // clipboard is often half the size the subject is painted at, and upscaling alone reads as a smear.
+    // The amount is scaled to the enlargement, so a photograph that was already big enough is untouched.
+    if (upscale > 1.15) {
+      const grow = Math.min(paintW / Math.max(1, cropW), paintH / Math.max(1, cropH));
+      toPaint = unsharpMask(toPaint, paintW, paintH, Math.min(0.9, (grow - 1) * 0.55));
+    }
   }
 
   const paintedPixels = styliseImageData(toPaint, paintW, paintH, {
@@ -467,5 +478,5 @@ export async function portraitFromImage(
   gradedImage.data.set(graded);
   final.ctx.putImageData(gradedImage, 0, 0);
 
-  return { canvas: final.canvas, share, cutOut: Boolean(mask), cutSource, width: finalW, scene };
+  return { canvas: final.canvas, share, cutOut: Boolean(mask), cutSource, width: finalW, sourceEdge, scene };
 }

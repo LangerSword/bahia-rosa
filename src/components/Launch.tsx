@@ -45,7 +45,9 @@ interface StoredPayoff {
   copy?: Partial<PlacementCopy>;
   placement?: string;
   fit?: Fit;
-  /** The subject's framing, per surface — so leaving and coming back does not undo your arrangement. */
+  /** The subject's framing — one arrangement, applied to every surface. */
+  layer?: LayerTransform;
+  /** The shape this used to have, when the arrangement was kept per surface. Read, then written as `layer`. */
   layers?: Record<string, LayerTransform>;
 }
 
@@ -65,7 +67,7 @@ function readLayer(value: unknown): LayerTransform | null {
   };
 }
 
-function defaults(city: string, location: string | null | undefined): { copy: PlacementCopy; placement: string; fit: Fit; layers: Record<string, LayerTransform> } {
+function defaults(city: string, location: string | null | undefined): { copy: PlacementCopy; placement: string; fit: Fit; layer: LayerTransform } {
   return {
     copy: {
       city,
@@ -79,11 +81,11 @@ function defaults(city: string, location: string | null | undefined): { copy: Pl
     fit: "contain",
     // And the subject exactly where the press put it: centred, fitted, nothing cut. Every control below
     // starts from the honest default and only moves if the visitor moves it.
-    layers: {},
+    layer: LAYER_DEFAULT,
   };
 }
 
-function restore(city: string, location: string | null | undefined): { copy: PlacementCopy; placement: string; fit: Fit; layers: Record<string, LayerTransform> } {
+function restore(city: string, location: string | null | undefined): { copy: PlacementCopy; placement: string; fit: Fit; layer: LayerTransform } {
   const fallback = defaults(city, location);
   if (typeof window === "undefined") return fallback;
   try {
@@ -91,16 +93,17 @@ function restore(city: string, location: string | null | undefined): { copy: Pla
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as StoredPayoff;
     const known = PLACEMENTS.some((placement) => placement.id === parsed.placement);
-    const layers: Record<string, LayerTransform> = {};
-    for (const placement of PLACEMENTS) {
-      const layer = readLayer(parsed.layers?.[placement.id]);
-      if (layer) layers[placement.id] = layer;
-    }
+    const placement = known ? (parsed.placement as string) : fallback.placement;
+    // The arrangement used to be kept per surface. It is one arrangement now, applied everywhere — so the
+    // old shape is read once, for the surface that was selected when it was made, and written back as the
+    // single one. A visitor who arranged something before this change keeps their arrangement.
+    const legacy = parsed.layers?.[placement] ?? Object.values(parsed.layers ?? {})[0];
+    const layer = readLayer(parsed.layer) ?? readLayer(legacy) ?? fallback.layer;
     return {
       copy: { ...fallback.copy, ...parsed.copy },
-      placement: known ? (parsed.placement as string) : fallback.placement,
+      placement,
       fit: parsed.fit === "cover" || parsed.fit === "contain" ? parsed.fit : fallback.fit,
-      layers,
+      layer,
     };
   } catch {
     return fallback;
@@ -112,18 +115,15 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
   const [selectedId, setSelectedId] = useState<string>(first.placement);
   const [copy, setCopy] = useState<PlacementCopy>(first.copy);
   const [fit, setFit] = useState<Fit>(first.fit);
-  const [layers, setLayers] = useState<Record<string, LayerTransform>>(first.layers);
+  const [layer, setLayer] = useState<LayerTransform>(first.layer);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{ x: number; y: number; dx: number; dy: number; w: number; h: number } | null>(null);
 
-  /** This surface's framing, defaulted — every read of it goes through here so nothing is undefined. */
-  const layer = layers[selectedId] ?? LAYER_DEFAULT;
-
   /** One writer for the layer, so a drag, a slider and a reset cannot disagree about the shape. */
-  const setLayer = (id: string, patch: Partial<LayerTransform>) => {
-    setLayers((all) => ({ ...all, [id]: { ...(all[id] ?? LAYER_DEFAULT), ...patch } }));
+  const updateLayer = (patch: Partial<LayerTransform>) => {
+    setLayer((current) => ({ ...current, ...patch }));
   };
 
   const clampMove = (value: number) => Math.min(1.5, Math.max(-1.5, value));
@@ -147,7 +147,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
     if (!drag) return;
     // A drag is a fraction of the surface, so the same gesture means the same thing on a postcard and on
     // a billboard — and a download at 1600px wide reproduces it exactly.
-    setLayer(selectedId, {
+    updateLayer({
       dx: clampMove(drag.dx + (event.clientX - drag.x) / drag.w),
       dy: clampMove(drag.dy + (event.clientY - drag.y) / drag.h),
     });
@@ -173,7 +173,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
     const move = moves[event.key];
     if (!move) return;
     event.preventDefault();
-    setLayer(selectedId, { dx: clampMove(layer.dx + move[0]), dy: clampMove(layer.dy + move[1]) });
+    updateLayer({ dx: clampMove(layer.dx + move[0]), dy: clampMove(layer.dy + move[1]) });
   };
 
   // Kept as you type — and as you arrange. The layer belongs in the dependency list as much as the words
@@ -183,12 +183,12 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
     try {
       window.localStorage.setItem(
         STORE,
-        JSON.stringify({ copy, placement: selectedId, fit, layers } satisfies StoredPayoff),
+        JSON.stringify({ copy, placement: selectedId, fit, layer } satisfies StoredPayoff),
       );
     } catch {
       // A browser with storage disabled is not a broken page: the copy simply is not remembered.
     }
-  }, [copy, selectedId, fit, layers]);
+  }, [copy, selectedId, fit, layer]);
 
   const selected = useMemo<Placement>(
     () => PLACEMENTS.find((placement) => placement.id === selectedId) ?? PLACEMENTS[0],
@@ -199,7 +199,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
     setBusy(placement.id);
     setError(null);
     try {
-      const blob = await composePlacement({ placement, artworkUrl, copy, fit, layer: layers[placement.id] });
+      const blob = await composePlacement({ placement, artworkUrl, copy, fit, layer });
       downloadBlob(blob, placementFilename(placement, copy.city));
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "the export failed");
@@ -213,7 +213,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
     setError(null);
     try {
       for (const placement of PLACEMENTS) {
-        const blob = await composePlacement({ placement, artworkUrl, copy, fit, layer: layers[placement.id] });
+        const blob = await composePlacement({ placement, artworkUrl, copy, fit, layer });
         downloadBlob(blob, placementFilename(placement, copy.city));
         await new Promise((resolve) => setTimeout(resolve, 400));
       }
@@ -389,9 +389,9 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
               the layer
             </h3>
             <p className="measure mt-2 text-xs" style={{ color: "var(--color-faint)" }}>
-              one layer, however many of you are in the photograph — a group moves, sizes and cuts as one,
-              because the paint is what holds a group together. let it run off the edge if you want only
-              part of it in the frame.
+              one arrangement, applied to all four surfaces and to the downloads — however many of you are in
+              the photograph, since a group is painted as one and moves, sizes and cuts as one. drag the frame
+              above, or nudge with the arrow keys.
             </p>
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
               <label className="block text-xs" style={{ color: "var(--color-muted)" }}>
@@ -403,7 +403,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
                   max={2.4}
                   step={0.02}
                   value={layer.scale}
-                  onChange={(event) => setLayer(selectedId, { scale: Number(event.target.value) })}
+                  onChange={(event) => updateLayer({ scale: Number(event.target.value) })}
                   className="mt-2 w-full"
                 />
               </label>
@@ -416,7 +416,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
                   max={0.6}
                   step={0.01}
                   value={layer.cropTop}
-                  onChange={(event) => setLayer(selectedId, { cropTop: Number(event.target.value) })}
+                  onChange={(event) => updateLayer({ cropTop: Number(event.target.value) })}
                   className="mt-2 w-full"
                 />
               </label>
@@ -429,7 +429,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
                   max={0.6}
                   step={0.01}
                   value={layer.cropBottom}
-                  onChange={(event) => setLayer(selectedId, { cropBottom: Number(event.target.value) })}
+                  onChange={(event) => updateLayer({ cropBottom: Number(event.target.value) })}
                   className="mt-2 w-full"
                 />
               </label>
@@ -440,7 +440,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
                 role="switch"
                 aria-checked={layer.overflow}
                 data-testid="layer-overflow"
-                onClick={() => setLayer(selectedId, { overflow: !layer.overflow })}
+                onClick={() => updateLayer({ overflow: !layer.overflow })}
                 className="btn-quiet"
               >
                 {layer.overflow ? "runs off the edge" : "held inside the frame"}
@@ -448,7 +448,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
               <button
                 type="button"
                 data-testid="layer-reset"
-                onClick={() => setLayer(selectedId, LAYER_DEFAULT)}
+                onClick={() => setLayer(LAYER_DEFAULT)}
                 className="btn-quiet"
               >
                 reset the layer
@@ -474,7 +474,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, bac
                     padding: "6px",
                   }}
                 >
-                  <PlacementCanvas placement={placement} artworkUrl={artworkUrl} copy={copy} fit={fit} layer={layers[placement.id]} className="block w-full" />
+                  <PlacementCanvas placement={placement} artworkUrl={artworkUrl} copy={copy} fit={fit} layer={layer} className="block w-full" />
                   <span className="mt-2 block px-1 pb-1 text-xs" style={{ color: "var(--color-muted)" }}>
                     {placement.label.toLowerCase()}
                   </span>
