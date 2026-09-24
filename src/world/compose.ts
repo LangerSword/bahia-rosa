@@ -180,9 +180,11 @@ export interface LayerTransform {
   dy: number;
   /** Size on top of the fitted size: 1 is exactly the fit, 2 is twice it. */
   scale: number;
-  /** Cut away from the top and the bottom of the layer, 0..0.6 each — "just the top half of us". */
+  /** Cut away from each edge of the layer, 0..0.6 each — "just the top half of us", or "not the sides". */
   cropTop: number;
   cropBottom: number;
+  cropLeft: number;
+  cropRight: number;
   /** Let the layer run past the surface's edge instead of being held inside it. */
   overflow: boolean;
 }
@@ -193,6 +195,8 @@ export const LAYER_DEFAULT: LayerTransform = {
   scale: 1,
   cropTop: 0,
   cropBottom: 0,
+  cropLeft: 0,
+  cropRight: 0,
   overflow: false,
 };
 
@@ -205,6 +209,8 @@ export function isDefaultLayer(layer: LayerTransform | undefined): boolean {
     layer.scale === 1 &&
     layer.cropTop === 0 &&
     layer.cropBottom === 0 &&
+    (layer.cropLeft ?? 0) === 0 &&
+    (layer.cropRight ?? 0) === 0 &&
     !layer.overflow
   );
 }
@@ -224,12 +230,18 @@ export function layerGeometry(
 ): { source: { x: number; y: number; w: number; h: number }; destination: { x: number; y: number; w: number; h: number } } {
   const cropTop = Math.min(0.6, Math.max(0, transform.cropTop));
   const cropBottom = Math.min(0.6, Math.max(0, transform.cropBottom));
-  const top = Math.round(image.height * cropTop);
+  const cropLeft = Math.min(0.6, Math.max(0, transform.cropLeft ?? 0));
+  const cropRight = Math.min(0.6, Math.max(0, transform.cropRight ?? 0));
+  const top = Math.min(image.height - 1, Math.round(image.height * cropTop));
   const bottom = Math.min(image.height - top - 1, Math.round(image.height * cropBottom));
+  // The same protection on the other axis, and it is not theoretical: two cuts of 0.6 each would leave a
+  // negative width, and a source rect with no width is a crash inside the painter rather than a crop.
+  const left = Math.min(image.width - 1, Math.round(image.width * cropLeft));
+  const right = Math.min(image.width - left - 1, Math.round(image.width * cropRight));
   const source = {
-    x: 0,
+    x: left,
     y: top,
-    w: Math.max(1, image.width),
+    w: Math.max(1, image.width - left - right),
     h: Math.max(1, image.height - top - bottom),
   };
 
@@ -267,14 +279,17 @@ export function layerGeometry(
  * that is using it.
  */
 export function cutAt(
-  pointerY: number,
-  box: { y: number; h: number },
-  edge: "top" | "bottom",
+  pointer: number,
+  box: { x: number; y: number; w: number; h: number },
+  edge: "top" | "bottom" | "left" | "right",
   max = 0.6,
 ): number {
-  if (box.h <= 0) return 0;
-  const fraction = (pointerY - box.y) / box.h;
-  const value = edge === "top" ? fraction : 1 - fraction;
+  const vertical = edge === "top" || edge === "bottom";
+  const extent = vertical ? box.h : box.w;
+  const start = vertical ? box.y : box.x;
+  if (extent <= 0) return 0;
+  const fraction = (pointer - start) / extent;
+  const value = edge === "top" || edge === "left" ? fraction : 1 - fraction;
   return Math.min(max, Math.max(0, value));
 }
 

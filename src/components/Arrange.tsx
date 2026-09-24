@@ -57,6 +57,29 @@ function decodeOnce(src: string): Promise<HTMLImageElement> {
   return pending;
 }
 
+/** The four edges a crop can take, and the layer field each one writes. */
+export type CropEdge = "top" | "bottom" | "left" | "right";
+const CUT_TESTID: Record<CropEdge, string> = {
+  top: "layer-crop-top",
+  bottom: "layer-crop-bottom",
+  left: "layer-crop-left",
+  right: "layer-crop-right",
+};
+const CUT_FIELD: Record<CropEdge, "cropTop" | "cropBottom" | "cropLeft" | "cropRight"> = {
+  top: "cropTop",
+  bottom: "cropBottom",
+  left: "cropLeft",
+  right: "cropRight",
+};
+const OPPOSITE_CUT: Record<CropEdge, "cropTop" | "cropBottom" | "cropLeft" | "cropRight"> = {
+  top: "cropBottom",
+  bottom: "cropTop",
+  left: "cropRight",
+  right: "cropLeft",
+};
+/** What the two cuts on one axis may add up to. A tenth of the person always survives. */
+const CUT_PAIR_MAX = 0.9;
+
 const clampMove = (value: number) => Math.min(1.5, Math.max(-1.5, value));
 const clampScale = (value: number) => Math.min(2.4, Math.max(0.4, value));
 /** How much of the person a cut may take: the same ceiling the geometry itself enforces. */
@@ -80,7 +103,7 @@ export function Arrange({
   const [whole, setWhole] = useState<Box | null>(null);
   const dragRef = useRef<{ x: number; y: number; dx: number; dy: number; w: number; h: number } | null>(null);
   const resizeRef = useRef<{ scale: number; cx: number; cy: number; from: number } | null>(null);
-  const cropRef = useRef<{ edge: "top" | "bottom" } | null>(null);
+  const cropRef = useRef<{ edge: CropEdge } | null>(null);
 
   /** One writer for the layer, so a drag, a corner, a slider and a reset cannot disagree about the shape. */
   const updateLayer = (patch: Partial<LayerTransform>) => {
@@ -179,7 +202,7 @@ export function Arrange({
   };
 
   /** A cut line: dragged straight to where the cut should land, in the frame's own units. */
-  const startCrop = (edge: "top" | "bottom") => (event: ReactPointerEvent<HTMLSpanElement>) => {
+  const startCrop = (edge: CropEdge) => (event: ReactPointerEvent<HTMLSpanElement>) => {
     event.stopPropagation();
     cropRef.current = { edge };
     setDragging(true);
@@ -193,9 +216,16 @@ export function Arrange({
     const host = event.currentTarget.closest('[data-testid="layer-surface"]');
     const rect = host?.getBoundingClientRect();
     if (!rect) return;
-    const pointerY = ((event.clientY - rect.top) / rect.height) * FRAME.height;
-    const next = cutAt(pointerY, whole, crop.edge);
-    updateLayer(crop.edge === "top" ? { cropTop: next } : { cropBottom: next });
+    const across = crop.edge === "left" || crop.edge === "right";
+    const pointer = across
+      ? ((event.clientX - rect.left) / rect.width) * FRAME.width
+      : ((event.clientY - rect.top) / rect.height) * FRAME.height;
+    const next = cutAt(pointer, whole, crop.edge);
+    // The pair on one axis may not add up to the whole person: two cuts of the maximum would leave a source
+    // rect with no extent, which the geometry survives but nobody wants to see. The edge being dragged gives
+    // way to the one already set.
+    const opposite = OPPOSITE_CUT[crop.edge];
+    updateLayer({ [CUT_FIELD[crop.edge]]: Math.min(next, Math.max(0, CUT_PAIR_MAX - layer[opposite])) });
   };
 
   /** The same movement without a pointer: arrows nudge, shift-arrows move by a bigger step. */
@@ -214,7 +244,13 @@ export function Arrange({
   };
 
   const offCentre =
-    layer.dx !== 0 || layer.dy !== 0 || layer.scale !== 1 || layer.cropTop !== 0 || layer.cropBottom !== 0;
+    layer.dx !== 0 ||
+    layer.dy !== 0 ||
+    layer.scale !== 1 ||
+    layer.cropTop !== 0 ||
+    layer.cropBottom !== 0 ||
+    (layer.cropLeft ?? 0) !== 0 ||
+    (layer.cropRight ?? 0) !== 0;
 
   const percent = (value: number, total: number) => `${(value / total) * 100}%`;
 
@@ -228,29 +264,59 @@ export function Arrange({
    * while the *mapping* keeps using the true box — the pointer decides the cut, the line only shows it.
    */
   const LINE_INSET = 20;
-  const clampIntoFrame = (value: number) => Math.min(FRAME.height, Math.max(0, value));
-  const handleY = (value: number) =>
-    Math.min(FRAME.height - LINE_INSET, Math.max(LINE_INSET, value));
-  const topLineY = whole ? handleY(whole.y + whole.h * layer.cropTop) : 0;
-  const bottomLineY = whole ? handleY(whole.y + whole.h * (1 - layer.cropBottom)) : 0;
-  const topShade = whole
-    ? (() => {
-        const from = clampIntoFrame(whole.y);
-        const to = clampIntoFrame(whole.y + whole.h * layer.cropTop);
-        return { y: from, h: Math.max(0, to - from) };
-      })()
-    : null;
-  const bottomShade = whole
-    ? (() => {
-        const from = clampIntoFrame(whole.y + whole.h * (1 - layer.cropBottom));
-        const to = clampIntoFrame(whole.y + whole.h);
-        return { y: from, h: Math.max(0, to - from) };
-      })()
-    : null;
-  const cutSummary =
-    layer.cropTop > 0 || layer.cropBottom > 0
-      ? ` · ${Math.round(layer.cropTop * 100)}% off the top, ${Math.round(layer.cropBottom * 100)}% off the foot`
-      : "";
+  const clampIntoFrame = (value: number, extent: number) => Math.min(extent, Math.max(0, value));
+  const handleY = (value: number) => Math.min(FRAME.height - LINE_INSET, Math.max(LINE_INSET, value));
+  const handleX = (value: number) => Math.min(FRAME.width - LINE_INSET, Math.max(LINE_INSET, value));
+  const band = (from: number, to: number, extent: number) => {
+    const a = clampIntoFrame(from, extent);
+    const b = clampIntoFrame(to, extent);
+    return { from: a, size: Math.max(0, b - a) };
+  };
+  /**
+   * The four bars: each edge's shaded band and where its cut line is drawn. One array, so the overlay has a
+   * single source of truth about a crop that is four numbers.
+   */
+  const cropBars = whole
+    ? [
+        {
+          edge: "top" as const,
+          vertical: false,
+          shade: band(whole.y, whole.y + whole.h * layer.cropTop, FRAME.height),
+          along: whole.x,
+          span: whole.w,
+          line: handleY(whole.y + whole.h * layer.cropTop),
+        },
+        {
+          edge: "bottom" as const,
+          vertical: false,
+          shade: band(whole.y + whole.h * (1 - layer.cropBottom), whole.y + whole.h, FRAME.height),
+          along: whole.x,
+          span: whole.w,
+          line: handleY(whole.y + whole.h * (1 - layer.cropBottom)),
+        },
+        {
+          edge: "left" as const,
+          vertical: true,
+          shade: band(whole.x, whole.x + whole.w * layer.cropLeft, FRAME.width),
+          along: whole.y,
+          span: whole.h,
+          line: handleX(whole.x + whole.w * layer.cropLeft),
+        },
+        {
+          edge: "right" as const,
+          vertical: true,
+          shade: band(whole.x + whole.w * (1 - layer.cropRight), whole.x + whole.w, FRAME.width),
+          along: whole.y,
+          span: whole.h,
+          line: handleX(whole.x + whole.w * (1 - layer.cropRight)),
+        },
+      ]
+    : [];
+  const cutSummary = (["top", "bottom", "left", "right"] as const)
+    .map((edge) => ({ edge, amount: layer[CUT_FIELD[edge]] ?? 0 }))
+    .filter(({ amount }) => amount > 0)
+    .map(({ edge, amount }) => `${Math.round(amount * 100)}% off the ${edge}`)
+    .join(", ");
 
   return (
     <div data-testid="arrange" aria-labelledby="arrange-heading">
@@ -336,33 +402,23 @@ export function Arrange({
             {/* The crop, shown on the uncropped extent: what is being taken away, and the line it is taken on. */}
             {cropping && whole && box ? (
               <div data-testid="crop-layer" aria-hidden="true" className="pointer-events-none absolute inset-0">
-                {(
-                  [
-                    ["top", topShade?.y ?? 0, topShade?.h ?? 0],
-                    ["bottom", bottomShade?.y ?? 0, bottomShade?.h ?? 0],
-                  ] as const
-                ).map(([edge, y, h]) =>
-                  h > 0.5 ? (
+                {cropBars.map(({ edge, vertical, shade, along, span }) =>
+                  (vertical ? shade.size : shade.size) > 0.5 ? (
                     <div
                       key={`shade-${edge}`}
                       data-testid={`crop-shade-${edge}`}
                       style={{
                         position: "absolute",
-                        left: percent(whole.x, FRAME.width),
-                        top: percent(y, FRAME.height),
-                        width: percent(whole.w, FRAME.width),
-                        height: percent(h, FRAME.height),
+                        left: percent(vertical ? shade.from : along, FRAME.width),
+                        top: percent(vertical ? along : shade.from, FRAME.height),
+                        width: percent(vertical ? shade.size : span, FRAME.width),
+                        height: percent(vertical ? span : shade.size, FRAME.height),
                         background: "rgba(6, 6, 12, 0.62)",
                       }}
                     />
                   ) : null,
                 )}
-                {(
-                  [
-                    ["top", topLineY],
-                    ["bottom", bottomLineY],
-                  ] as const
-                ).map(([edge, y]) => (
+                {cropBars.map(({ edge, vertical, along, span, line }) => (
                   <span
                     key={`line-${edge}`}
                     data-testid={`crop-handle-${edge}`}
@@ -372,13 +428,13 @@ export function Arrange({
                     onPointerCancel={endDrag}
                     style={{
                       position: "absolute",
-                      left: percent(whole.x, FRAME.width),
-                      top: percent(y, FRAME.height),
-                      width: percent(whole.w, FRAME.width),
-                      height: 22,
-                      transform: "translateY(-50%)",
+                      left: percent(vertical ? line : along, FRAME.width),
+                      top: percent(vertical ? along : line, FRAME.height),
+                      width: vertical ? 22 : percent(span, FRAME.width),
+                      height: vertical ? percent(span, FRAME.height) : 22,
+                      transform: vertical ? "translateX(-50%)" : "translateY(-50%)",
                       pointerEvents: "auto",
-                      cursor: "ns-resize",
+                      cursor: vertical ? "ew-resize" : "ns-resize",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -386,8 +442,8 @@ export function Arrange({
                   >
                     <span
                       style={{
-                        width: "100%",
-                        height: 3,
+                        width: vertical ? 3 : "100%",
+                        height: vertical ? "100%" : 3,
                         background: "var(--color-accent)",
                         boxShadow: "0 0 0 1px rgba(6, 6, 12, 0.65)",
                       }}
@@ -399,7 +455,7 @@ export function Arrange({
           </div>
           <p className="mt-3 text-xs" style={{ color: "var(--color-faint)" }}>
             {FRAME.width}×{FRAME.height} · the dashed box is them — drag it to move, drag a corner to size it
-            {cropping ? ", drag a cut line to take the top or the foot off" : ""}
+            {cropping ? ", drag a cut line on any of the four sides" : ""}
           </p>
           {onToCity ? (
             <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -422,8 +478,8 @@ export function Arrange({
               one arrangement, applied to all four surfaces and to the downloads — however many of you are in
               the photograph, since a group is painted as one and moves, sizes and cuts as one.
             </p>
-            <div className="mt-4 grid gap-4 sm:grid-cols-3">
-              <label className="block text-xs" style={{ color: "var(--color-muted)" }}>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <label className="block text-xs sm:col-span-2" style={{ color: "var(--color-muted)" }}>
                 size · {layer.scale.toFixed(2)}×
                 <input
                   data-testid="layer-scale"
@@ -436,36 +492,30 @@ export function Arrange({
                   className="mt-2 w-full"
                 />
               </label>
-              {cropping ? (
-                <>
-                  <label className="block text-xs" style={{ color: "var(--color-muted)" }}>
-                    cut from the top · {Math.round(layer.cropTop * 100)}%
-                    <input
-                      data-testid="layer-crop-top"
-                      type="range"
-                      min={0}
-                      max={CROP_MAX}
-                      step={0.01}
-                      value={layer.cropTop}
-                      onChange={(event) => updateLayer({ cropTop: Number(event.target.value) })}
-                      className="mt-2 w-full"
-                    />
-                  </label>
-                  <label className="block text-xs" style={{ color: "var(--color-muted)" }}>
-                    cut from the bottom · {Math.round(layer.cropBottom * 100)}%
-                    <input
-                      data-testid="layer-crop-bottom"
-                      type="range"
-                      min={0}
-                      max={CROP_MAX}
-                      step={0.01}
-                      value={layer.cropBottom}
-                      onChange={(event) => updateLayer({ cropBottom: Number(event.target.value) })}
-                      className="mt-2 w-full"
-                    />
-                  </label>
-                </>
-              ) : null}
+              {cropping
+                ? ([
+                    ["top", "cropTop", layer.cropBottom],
+                    ["bottom", "cropBottom", layer.cropTop],
+                    ["left", "cropLeft", layer.cropRight],
+                    ["right", "cropRight", layer.cropLeft],
+                  ] as const).map(([edge, field, other]) => (
+                    <label key={edge} className="block text-xs" style={{ color: "var(--color-muted)" }}>
+                      cut from the {edge} · {Math.round(layer[field] * 100)}%
+                      <input
+                        data-testid={CUT_TESTID[edge]}
+                        type="range"
+                        min={0}
+                        max={Math.min(CROP_MAX, CUT_PAIR_MAX - other)}
+                        step={0.01}
+                        value={layer[field]}
+                        onChange={(event) =>
+                          updateLayer({ [field]: Number(event.target.value) })
+                        }
+                        className="mt-2 w-full"
+                      />
+                    </label>
+                  ))
+                : null}
             </div>
             <div className="mt-4 flex flex-wrap gap-3">
               <button
@@ -476,7 +526,7 @@ export function Arrange({
                 onClick={() => setCropping((on) => !on)}
                 className={cropping ? "btn" : "btn-quiet"}
               >
-                {cropping ? "done cropping" : `crop${cutSummary}`}
+                {cropping ? "done cropping" : cutSummary ? `crop · ${cutSummary}` : "crop"}
               </button>
               <button
                 type="button"
@@ -499,9 +549,10 @@ export function Arrange({
             </div>
             {cropping ? (
               <p className="measure mt-3 text-xs" style={{ color: "var(--color-faint)" }}>
-                the cut lines are the crop: drag either one straight to where you want it, or take the sliders
+                the cut lines are the crop: drag any of the four to where you want it, or take the sliders
                 above. the shaded bands are what the cut is removing, and the person is refitted to what is
-                left — so taking the foot off fills the frame with the rest of you.
+                left — so taking the foot off fills the frame with the rest of you, and taking a side off
+                brings the rest closer.
               </p>
             ) : null}
           </div>

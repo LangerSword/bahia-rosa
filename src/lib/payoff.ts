@@ -50,6 +50,8 @@ function readLayer(value: unknown): LayerTransform | null {
     scale: number(candidate.scale, 1, 0.2, 4),
     cropTop: number(candidate.cropTop, 0, 0, 0.6),
     cropBottom: number(candidate.cropBottom, 0, 0, 0.6),
+    cropLeft: number(candidate.cropLeft, 0, 0, 0.6),
+    cropRight: number(candidate.cropRight, 0, 0, 0.6),
     overflow: candidate.overflow === true,
   };
 }

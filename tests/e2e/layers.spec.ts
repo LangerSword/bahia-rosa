@@ -35,7 +35,7 @@ test("the subject is a layer: drag it, size it, cut it, let it run off the edge"
   const stored = () =>
     page.evaluate(() =>
       JSON.parse(window.localStorage.getItem("bahia-rosa.payoff.v1") ?? "{}"),
-    ) as Promise<{ layer?: { dx: number; dy: number; scale: number; cropTop: number; cropBottom: number; overflow: boolean } }>;
+    ) as Promise<{ layer?: { dx: number; dy: number; scale: number; cropTop: number; cropBottom: number; cropLeft: number; cropRight: number; overflow: boolean } }>;
 
   const previewPixels = async () =>
     surface.locator("canvas").evaluate((node) => (node as HTMLCanvasElement).toDataURL().length);
@@ -94,6 +94,17 @@ test("the subject is a layer: drag it, size it, cut it, let it run off the edge"
   await page.getByTestId("layer-crop-bottom").fill("0.3");
   expect((await stored()).layer?.cropBottom).toBeCloseTo(0.3, 2);
 
+  // The sides too: the left line drags across the way the top one drags down.
+  const leftLine = page.getByTestId("crop-handle-left");
+  await leftLine.hover();
+  const across = await leftLine.boundingBox();
+  if (!across) throw new Error("the crop has no left line to drag");
+  await page.mouse.down();
+  await page.mouse.move(across.x + across.width / 2 + 50, across.y + across.height / 2, { steps: 6 });
+  await page.mouse.up();
+  expect((await stored()).layer?.cropLeft).toBeGreaterThan(0.02);
+  await expect(page.getByTestId("crop-shade-left")).toBeVisible();
+
   // Done cropping puts the controls away again — they are a mode, not permanent furniture.
   await page.getByTestId("arrange-crop").click();
   await expect(page.getByTestId("layer-crop-bottom")).toHaveCount(0);
@@ -111,6 +122,8 @@ test("the subject is a layer: drag it, size it, cut it, let it run off the edge"
   expect(reset?.scale).toBe(1);
   expect(reset?.cropBottom).toBe(0);
   expect(reset?.cropTop).toBe(0);
+  expect(reset?.cropLeft).toBe(0);
+  expect(reset?.cropRight).toBe(0);
   expect(reset?.overflow).toBe(false);
 
   // 6. The outline: their actual box in the frame, drawn from the same geometry the exporter uses — and
