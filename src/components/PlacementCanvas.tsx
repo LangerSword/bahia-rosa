@@ -11,6 +11,26 @@ import type { Placement, PlacementCopy } from "../world/placements";
  * function that writes the file.
  */
 
+/**
+ * Decoded images, kept. The press hands over the ground and the person as data URLs, and a drag repaints
+ * the canvas on every pointer move; forking a fresh `Image` and decoding a megabyte of base64 on each of
+ * those frames is what made an arrangment stutter — and stutter is what "the layering doesn't work" looks
+ * like from the outside. One decode per URL, then it is pixels.
+ */
+const decoded = new Map<string, Promise<HTMLImageElement>>();
+
+function decodeOnce(url: string): Promise<HTMLImageElement> {
+  const cached = decoded.get(url);
+  if (cached) return cached;
+  const promise = loadImage(url).catch((error: unknown) => {
+    // A URL that cannot be decoded must not poison the cache for a later, valid one.
+    decoded.delete(url);
+    throw error;
+  });
+  decoded.set(url, promise);
+  return promise;
+}
+
 export interface PlacementCanvasProps {
   placement: Placement;
   artworkUrl: string;
@@ -33,6 +53,9 @@ export function PlacementCanvas({ placement, artworkUrl, subjectUrl, copy, fit, 
     // The repaint guard: the canvas's own size change fires the observer again, so a paint that
     // rescales the element would loop forever (and Playwright would never see a stable target).
     let lastWidth = 0;
+    // The arrangement is part of the paint's identity: a drag has to repaint, and only a drag that changes
+    // nothing should be skipped.
+    let lastLayer: unknown = null;
 
     const paint = async () => {
       const canvas = canvasRef.current;
@@ -40,28 +63,39 @@ export function PlacementCanvas({ placement, artworkUrl, subjectUrl, copy, fit, 
       if (!canvas || !host) return;
 
       const cssWidth = Math.max(160, host.clientWidth);
-      if (Math.abs(cssWidth - lastWidth) < 1) return;
+      if (Math.abs(cssWidth - lastWidth) < 1 && lastLayer === layer) return;
       lastWidth = cssWidth;
+      lastLayer = layer;
 
       const cssHeight = (cssWidth * placement.height) / placement.width;
       const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const targetW = Math.round(cssWidth * dpr);
+      const targetH = Math.round(cssHeight * dpr);
 
+      // One decode per URL, then pixels. A drag repaints on every pointer move, and forking a fresh Image
+      // and decoding the ground and the person on each of those frames is what made arranging them stutter.
       await readyFonts();
       const [artwork, ground, subject] = await Promise.all([
-        loadImage(artworkUrl),
+        decodeOnce(artworkUrl),
         loadGround(placement),
-        subjectUrl ? loadImage(subjectUrl) : Promise.resolve(null),
+        subjectUrl ? decodeOnce(subjectUrl) : Promise.resolve(null),
       ]);
       if (cancelled) return;
 
-      canvas.width = Math.round(cssWidth * dpr);
-      canvas.height = Math.round(cssHeight * dpr);
-      // Deliberately NOT setting style.width/height: the JSX already reserves the exact box with
-      // aspect-ratio, so the async paint changes the backing store and never the layout. Resizing the
-      // element here is what made the surrounding buttons "not stable" for a click.
-
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
+
+      // Only touch the backing store when it actually changes: assigning width or height clears the canvas
+      // and reallocates it, which on every frame of a drag is a stutter of its own. When it does not change,
+      // clearing by hand is enough — and it must be cleared, or a drag would paint over its own last frame.
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+      } else {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, targetW, targetH);
+      }
+
       const scale = (cssWidth / placement.width) * dpr;
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
       drawPlacement(ctx, placement, artwork, { city, handle, title, line }, ground, fit, layer, subject);

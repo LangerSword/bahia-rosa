@@ -775,6 +775,8 @@ export function App() {
             <Launch
               artworkUrl={plate?.kind === "photo" ? plate.groundUrl ?? saved : saved}
               subjectUrl={plate?.kind === "photo" ? plate.subjectUrl : undefined}
+              // The city's plates are arranged; "as it is" is their own room, and they stand where they stood.
+              layering={scene !== "asis"}
               location={meta?.location ?? null}
               onBack={() => setStage(viaEditor ? "editing" : "printed")}
               backLabel={viaEditor ? "Back to the editor" : "Back to your plate"}

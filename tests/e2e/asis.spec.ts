@@ -55,4 +55,12 @@ test("the as-it-is ground is the photograph's own light, repainted", async ({ pa
   expect(toPhotograph).toBeLessThan(toBeach);
   // And it is still a print of the city, not a copy: the paint and the grade move it.
   expect(toPhotograph).toBeGreaterThan(2);
+
+  // "As it is" is their own room: they stand where they stood. So there is no drag surface and no layer
+  // panel here — offering to arrange somebody inside their own photograph only adds ways for it to look
+  // wrong, and the arrangement belongs to the city's own plates.
+  await page.getByTestId("take-to-city").click();
+  await expect(page.getByTestId("launch")).toBeVisible();
+  await expect(page.getByTestId("layer-surface")).toHaveCount(0);
+  await expect(page.getByTestId("layer-scale")).toHaveCount(0);
 });

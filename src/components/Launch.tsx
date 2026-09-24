@@ -26,6 +26,12 @@ export interface LaunchProps {
   artworkUrl: string;
   /** The person on their own, if the press kept the layers apart — what the layer controls move. */
   subjectUrl?: string;
+  /**
+   * Whether this ground is one you arrange. The city's own plates are: the person was painted for that
+   * place and moving them inside it is the point. "As it is" is *their* room — they stand where they stood,
+   * and offering to drag them around their own photograph only adds ways for the frame to look wrong.
+   */
+  layering?: boolean;
   city?: string;
   /** Where the plate was printed, used as the default headline. */
   location?: string | null;
@@ -112,7 +118,7 @@ function restore(city: string, location: string | null | undefined): { copy: Pla
   }
 }
 
-export function Launch({ artworkUrl, subjectUrl, city = "Bahía Rosa", location, onBack, backLabel = "Back to the editor" }: LaunchProps) {
+export function Launch({ artworkUrl, subjectUrl, layering = true, city = "Bahía Rosa", location, onBack, backLabel = "Back to the editor" }: LaunchProps) {
   const first = useMemo(() => restore(city, location), [city, location]);
   const [selectedId, setSelectedId] = useState<string>(first.placement);
   const [copy, setCopy] = useState<PlacementCopy>(first.copy);
@@ -127,6 +133,9 @@ export function Launch({ artworkUrl, subjectUrl, city = "Bahía Rosa", location,
   const updateLayer = (patch: Partial<LayerTransform>) => {
     setLayer((current) => ({ ...current, ...patch }));
   };
+
+  /** What every surface draws: the arrangement, or the press's own framing when there is nothing to arrange. */
+  const arranged = layering ? layer : LAYER_DEFAULT;
 
   const clampMove = (value: number) => Math.min(1.5, Math.max(-1.5, value));
 
@@ -201,7 +210,7 @@ export function Launch({ artworkUrl, subjectUrl, city = "Bahía Rosa", location,
     setBusy(placement.id);
     setError(null);
     try {
-      const blob = await composePlacement({ placement, artworkUrl, subjectUrl, copy, fit, layer });
+      const blob = await composePlacement({ placement, artworkUrl, subjectUrl, copy, fit, layer: arranged });
       downloadBlob(blob, placementFilename(placement, copy.city));
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "the export failed");
@@ -215,7 +224,7 @@ export function Launch({ artworkUrl, subjectUrl, city = "Bahía Rosa", location,
     setError(null);
     try {
       for (const placement of PLACEMENTS) {
-        const blob = await composePlacement({ placement, artworkUrl, subjectUrl, copy, fit, layer });
+        const blob = await composePlacement({ placement, artworkUrl, subjectUrl, copy, fit, layer: arranged });
         downloadBlob(blob, placementFilename(placement, copy.city));
         await new Promise((resolve) => setTimeout(resolve, 400));
       }
@@ -246,25 +255,31 @@ export function Launch({ artworkUrl, subjectUrl, city = "Bahía Rosa", location,
         <div>
           <div
             className="plate-inset"
-            data-testid="layer-surface"
-            role="application"
-            tabIndex={0}
-            aria-label="the subject in the frame: drag it, or nudge it with the arrow keys"
-            onPointerDown={startDrag}
-            onPointerMove={moveDrag}
-            onPointerUp={endDrag}
-            onPointerCancel={endDrag}
-            onKeyDown={nudge}
-            style={{ touchAction: "none", cursor: dragging ? "grabbing" : "grab" }}
+            {...(layering
+              ? {
+                  "data-testid": "layer-surface",
+                  role: "application" as const,
+                  tabIndex: 0,
+                  "aria-label": "the subject in the frame: drag it, or nudge it with the arrow keys",
+                  onPointerDown: startDrag,
+                  onPointerMove: moveDrag,
+                  onPointerUp: endDrag,
+                  onPointerCancel: endDrag,
+                  onKeyDown: nudge,
+                  style: { touchAction: "none" as const, cursor: dragging ? "grabbing" : "grab" },
+                }
+              : {})}
           >
-            <PlacementCanvas placement={selected} artworkUrl={artworkUrl} subjectUrl={subjectUrl} copy={copy} fit={fit} layer={layer} className="block w-full" />
+            <PlacementCanvas placement={selected} artworkUrl={artworkUrl} subjectUrl={subjectUrl} copy={copy} fit={fit} layer={arranged} className="block w-full" />
           </div>
           <p className="mt-3 text-xs" style={{ color: "var(--color-faint)" }}>
             {selected.label} · {selected.width}×{selected.height} · {selected.blurb}
           </p>
-          <p className="mt-2 text-xs" style={{ color: "var(--color-muted)" }}>
-            drag the frame to place yourself · arrows nudge · shift-arrows move further
-          </p>
+          {layering ? (
+            <p className="mt-2 text-xs" style={{ color: "var(--color-muted)" }}>
+              drag the frame to place yourself · arrows nudge · shift-arrows move further
+            </p>
+          ) : null}
           <p className="sr-only">{selected.caption}</p>
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -386,6 +401,7 @@ export function Launch({ artworkUrl, subjectUrl, city = "Bahía Rosa", location,
             </p>
           </div>
 
+          {layering ? (
           <div className="mt-8">
             <h3 className="text-xs" style={{ color: "var(--color-muted)" }}>
               the layer
@@ -457,6 +473,7 @@ export function Launch({ artworkUrl, subjectUrl, city = "Bahía Rosa", location,
               </button>
             </div>
           </div>
+          ) : null}
 
           <div>
             <h3 className="text-xs" style={{ color: "var(--color-muted)" }}>
@@ -476,7 +493,7 @@ export function Launch({ artworkUrl, subjectUrl, city = "Bahía Rosa", location,
                     padding: "6px",
                   }}
                 >
-                  <PlacementCanvas placement={placement} artworkUrl={artworkUrl} subjectUrl={subjectUrl} copy={copy} fit={fit} layer={layer} className="block w-full" />
+                  <PlacementCanvas placement={placement} artworkUrl={artworkUrl} subjectUrl={subjectUrl} copy={copy} fit={fit} layer={arranged} className="block w-full" />
                   <span className="mt-2 block px-1 pb-1 text-xs" style={{ color: "var(--color-muted)" }}>
                     {placement.label.toLowerCase()}
                   </span>
