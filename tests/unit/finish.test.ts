@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FINE, LOOKS, styliseImageData } from "../../src/look/stylise";
+import { FAST, FINE, LOOKS, styliseImageData } from "../../src/look/stylise";
 
 /**
  * The finish, as a measurable claim.
@@ -44,8 +44,24 @@ const measure = (options: Parameters<typeof styliseImageData>[3]): number =>
   distinct(styliseImageData(photoFrame(SIZE), SIZE, SIZE, { ...LOOKS.golden.options, finish: 0, paper: 0, ...options }));
 
 describe("the finish", () => {
-  it("keeps more of the photograph's own colour than the look alone", () => {
-    expect(measure({ ...FINE })).toBeGreaterThan(measure({}));
+  it("fine keeps more of the photograph's own colour than fast", () => {
+    expect(measure({ ...FINE })).toBeGreaterThan(measure({ ...FAST }));
+  });
+
+  it("the two finishes differ enough to see, not just in the count of colours", () => {
+    // The complaint was "fast and fine look the same to me", which is the failure mode this whole
+    // setting has to avoid: a control that changes a number and nothing else is theatre. So the average
+    // per-channel difference is measured and held to a floor — a finish nobody can see is a bug.
+    const frame = photoFrame(SIZE);
+    const fast = styliseImageData(frame, SIZE, SIZE, { ...LOOKS.golden.options, ...FAST, finish: 0, paper: 0 });
+    const fine = styliseImageData(frame, SIZE, SIZE, { ...LOOKS.golden.options, ...FINE, finish: 0, paper: 0 });
+
+    let total = 0;
+    for (let i = 0; i < fast.length; i += 4) {
+      total += Math.abs(fast[i] - fine[i]) + Math.abs(fast[i + 1] - fine[i + 1]) + Math.abs(fast[i + 2] - fine[i + 2]);
+    }
+    const meanAbs = total / (fast.length / 4) / 3;
+    expect(meanAbs, `the finishes differ by only ${meanAbs.toFixed(1)}/255 on average`).toBeGreaterThan(8);
   });
 
   it("is still a painting: the palette still collapses the frame", () => {
@@ -54,11 +70,13 @@ describe("the finish", () => {
   });
 
   it("overrides the look's colour work and leaves its mood alone", () => {
-    expect(FINE.tone).toBeUndefined();
-    expect(FINE.light).toBeUndefined();
-    expect(FINE.finish).toBeUndefined();
-    expect(FINE.colours).toBeGreaterThan(LOOKS.golden.options.colours ?? 0);
-    expect(FINE.palette ?? 1).toBeLessThan(LOOKS.golden.options.palette ?? 1);
-    expect(FINE.ink).toBeLessThan(LOOKS.golden.options.ink ?? 1);
+    for (const preset of [FAST, FINE]) {
+      expect(preset.tone).toBeUndefined();
+      expect(preset.light).toBeUndefined();
+      expect(preset.finish).toBeUndefined();
+    }
+    expect(FINE.colours).toBeGreaterThan(FAST.colours ?? 0);
+    expect(FINE.palette ?? 1).toBeLessThan(FAST.palette ?? 1);
+    expect(FAST.colours).toBeLessThan(LOOKS.golden.options.colours ?? 0);
   });
 });

@@ -2,7 +2,7 @@ import { loadImage } from "../world/compose";
 import { bodyCut } from "./bodysegment";
 import { faceBox, subjectMask } from "./segment";
 import { SCENES, placeSubject, sceneSrc, type SceneId } from "./scenes";
-import { styliseImageData, FINE, type StyliseOptions } from "./stylise";
+import { styliseImageData, FAST, FINE, type StyliseOptions } from "./stylise";
 import { gradeFor, gradePixels } from "./timeofday";
 
 /**
@@ -45,6 +45,8 @@ export interface PortraitResult {
   cutOut: boolean;
   /** Who found the person: the segmentation model, the classic region find, or nobody. */
   cutSource: "model" | "classic" | "none";
+  /** The frame's real width in pixels, so the finish can be reported from the result and not claimed. */
+  width: number;
   scene: SceneId;
 }
 
@@ -68,10 +70,10 @@ export async function portraitFromImage(
   const plate = SCENES[scene] ?? SCENES.beach;
 
   // The finish decides the sizes. Fine prints bigger, paints the subject's crop at a higher minimum
-  const outLong = Math.round(maxSize ?? (fine ? 1900 : 1600));
+  const outLong = Math.round(maxSize ?? (fine ? 1900 : 1280));
   const paintEdge = fine ? 1200 : MIN_PAINT_EDGE;
   const supersample = fine ? 1.25 : 1;
-  const paintOptions = fine ? { ...style, ...FINE } : style;
+  const paintOptions = fine ? { ...style, ...FINE } : { ...style, ...FAST };
 
   // A working size that does not depend on what came in: a 500px photograph and a 6000px one both get
   // a frame with room to see detail. This is the fix for tiny images and for large ones whose subject
@@ -289,5 +291,5 @@ export async function portraitFromImage(
   gradedImage.data.set(graded);
   final.ctx.putImageData(gradedImage, 0, 0);
 
-  return { canvas: final.canvas, share, cutOut: Boolean(mask), cutSource, scene };
+  return { canvas: final.canvas, share, cutOut: Boolean(mask), cutSource, width: finalW, scene };
 }

@@ -42,15 +42,22 @@ test("a photo is pressed into a plate, then the fork offers it raw or in the edi
   // The cut reports itself — and it has to be the model that did the work. A run where the classic
   // fallback answered for a clean single-subject portrait is a run where the segmenter never loaded,
   // which is precisely the regression that let a recolour pass for a cut-out.
-  await expect(page.getByTestId("cut-line")).toContainText(/segmenter found you/i);
+  await expect(page.getByTestId("cut-line")).toContainText(/found you in the frame/i);
 
-  // And the third door: straight into the city, with no editor in the way at all.
+    // And the third door: straight into the city, with no editor in the way at all.
   await expect(page.getByTestId("take-to-city")).toBeVisible();
 
   // Door two: into the editor, where the plate is editable and downloadable again.
   await page.getByTestId("edit-in-editor").click();
   await expect(page.locator(".editor-shell")).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId("download-frame")).toBeVisible();
+
+  // Last, the way home — from the editor stage, where the hero's "Bring a photo" is the obvious thing to
+  // press. It used to be a bare `#intake` anchor, and the intake only exists once the gate stage renders
+  // it, so on any other stage the click had nothing to scroll to and did nothing at all.
+  await page.getByTestId("hero-cta").click();
+  await expect(page.getByTestId("choose-photo")).toBeVisible();
+  await expect(page.locator(".editor-shell")).toHaveCount(0);
 
   expect(problems, `console errors: ${problems.join(" | ")}`).toEqual([]);
 });

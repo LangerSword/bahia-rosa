@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { EditorSurface, type ToolGating } from "./components/EditorSurface";
 import { Launch } from "./components/Launch";
@@ -67,7 +67,7 @@ export function App() {
   /** The stages the press has actually reached, so the progress line is never a lie. */
   const [stages, setStages] = useState<string[]>([]);
   /** What the cut found, reported honestly under the frame. */
-  const [cut, setCut] = useState<Pick<PortraitResult, "cutOut" | "share" | "scene" | "cutSource"> | null>(null);
+  const [cut, setCut] = useState<Pick<PortraitResult, "cutOut" | "share" | "scene" | "cutSource" | "width"> | null>(null);
   const reduce = useReducedMotion();
 
   /** Where the city was entered from, so "back" goes where the visitor actually came from. */
@@ -130,6 +130,7 @@ export function App() {
           share: result.share,
           scene: result.scene,
           cutSource: result.cutSource,
+          width: result.width,
         });
         setPlate({ kind: "photo", objectUrl: result.canvas.toDataURL("image/jpeg", 0.94), name: file.name });
         setSource(url); // kept for the before/after comparison; revoked on reset
@@ -222,17 +223,36 @@ export function App() {
     node.focus({ preventScroll: true });
   }, [stage, reduce]);
 
-  /** What the cut did, in one honest sentence — reported, never guessed at. */
+  /**
+   * One way home, from every place that offers it.
+   *
+   * The hero's own "Bring a photo" was a bare `#intake` anchor, and the intake only exists once the
+   * gate stage renders it — so on any other stage the click had nothing to scroll to and did nothing.
+   * Every route home now goes through here: prevent the hash jump, reset, then scroll once React has
+   * rendered the stage. The href stays on the elements for the keyboard and for a copied link.
+   */
+  const goHome = useCallback(
+    (event: ReactMouseEvent) => {
+      event.preventDefault();
+      reset();
+    },
+    [reset],
+  );
+
+  /** What the finish actually produced — read from the result, so it cannot be a claim. */
+  const cutLabel = `${quality === "fine" ? "fine" : "fast"} · ${cut?.width ?? 0}px wide`;
+
+  /** What the cut did, and what the finish produced — reported from the result, never guessed at. */
   const cutLine =
-    cut?.cutSource === "model"
-      ? `The segmenter found you — ${Math.round(cut.share * 100)}% of the frame — and the press set you into the place.`
+    (cut?.cutSource === "model"
+      ? `found you in the frame — ${Math.round(cut.share * 100)}% of it`
       : cut?.cutSource === "classic"
-        ? "The segmentation model could not load in this browser, so the rough find did the cut. Honest work, but the model is better."
+        ? "the rough find did the cut — the segmenter could not load"
         : meta
-          ? "The desk printed this one on a GPU."
+          ? "printed at the desk"
           : cut
-            ? "Nobody could be told apart from the background, so the whole frame was painted."
-            : "";
+            ? "no person could be told apart, so the whole frame was painted"
+            : "") + (cut ? ` · ${cutLabel}` : "");
 
   return (
     <div className="grain vignette min-h-screen">
@@ -248,7 +268,7 @@ export function App() {
               <a
                 href="#intake"
                 data-testid="home"
-                onClick={reset}
+                onClick={goHome}
                 className="wordmark text-3xl leading-none"
                 aria-label="Bahía Rosa — back to the start"
               >
@@ -260,7 +280,7 @@ export function App() {
               <a
                 href="#intake"
                 data-testid="bring-a-photo"
-                onClick={reset}
+                onClick={goHome}
                 className="fx-link text-xs"
                 style={{ color: "var(--color-muted)" }}
               >
@@ -308,6 +328,7 @@ export function App() {
               <a
                 href="#intake"
                 data-testid="hero-cta"
+                onClick={goHome}
                 className="lift border px-6 py-3 text-xs tracking-[0.2em] uppercase"
                 style={{ background: "var(--color-gold)", color: "var(--color-ink)", borderColor: "var(--color-gold)" }}
               >

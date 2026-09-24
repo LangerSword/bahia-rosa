@@ -608,12 +608,20 @@ export function styliseImage(
 /**
  * The finish, as opposed to the look.
  *
- * A look decides the *mood* — tone, light, how hard the palette pull is. This decides how much work
- * the press does, and it overrides only the colour work: more colours in the palette, a gentler pull,
- * less ink over the top, less paper over the whole thing, and a softer smoothing pass. The result is
- * measurably closer to the photograph's own colour — the test asserts it — at roughly three times the
- * compute, which is why it is a choice and not a default.
+ * A look decides the *mood* — tone, light, how hard the palette pull is. This decides how much work the
+ * press does, and it overrides only the colour work.
+ *
+ * The two finishes have to be *visible*, or the control is theatre. Fast is deliberately further from
+ * the photograph than the look alone: fewer colours, a harder pull, a touch more grain. Fine keeps
+ * more of the photograph's own colour, at a larger size. The unit test measures the gap between them,
+ * because "it looked the same to me" is the failure mode this has to avoid.
  */
+export const FAST: StyliseOptions = {
+  colours: 8,
+  palette: 0.68,
+  paper: 0.34,
+};
+
 export const FINE: StyliseOptions = {
   colours: 24,
   palette: 0.34,
