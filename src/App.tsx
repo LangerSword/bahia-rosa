@@ -37,7 +37,7 @@ const PLANS: Record<string, { surfaceId: string; title: string; brief: string; g
   poster: { surfaceId: "poster", title: "the VIP poster", brief: "sell the room; you are the night's draw", gating: POSTER_GATING },
 };
 
-type Stage = "gate" | "converting" | "printed" | "printing" | "editing" | "launch";
+type Stage = "gate" | "converting" | "printed" | "printing" | "editing" | "city";
 
 const { locations } = printChoices();
 
@@ -70,13 +70,19 @@ export function App() {
   const [cut, setCut] = useState<Pick<PortraitResult, "cutOut" | "share" | "scene" | "cutSource"> | null>(null);
   const reduce = useReducedMotion();
 
+  /** Where the city was entered from, so "back" goes where the visitor actually came from. */
+  const [viaEditor, setViaEditor] = useState(false);
+  /** Fast, or fine for a slower render with truer colour. */
+  const [quality, setQuality] = useState<"fast" | "fine">("fast");
+
   const onSaved = useCallback((dataUrl: string) => {
     setSaved(dataUrl);
-    setStage("launch");
+    setViaEditor(true);
+    setStage("city");
   }, []);
   const image = plate ? (plate.kind === "photo" ? plate.objectUrl : plate.src) : null;
   /** The download's own filename: from the photo's name where there is one, without any text burned in. */
-  const frameName = `night-desk-${
+  const frameName = `bahia-rosa-${
     plate && "name" in plate && plate.name ? String(plate.name).replace(/\.[^.]+$/, "") : "frame"
   }.png`;
   const plan = PLANS[choice.surface] ?? PLANS.debut;
@@ -109,6 +115,7 @@ export function App() {
           ...preset,
           scene,
           look,
+          fine: quality === "fine",
           seed: 1 + (file.size % 997),
           onStage: (label) => setStages((seen) => (seen.includes(label) ? seen : [...seen, label])),
         });
@@ -129,7 +136,7 @@ export function App() {
         setStage("printing");
       }
     },
-    [scene, look],
+    [scene, look, quality],
   );
 
   const useFallback = useCallback(() => {
@@ -137,7 +144,8 @@ export function App() {
     // the honest stand-in — scenery, no person, nothing borrowed.
     setSaved(CITY_ART.marina);
     setMeta(null);
-    setStage("launch");
+    setViaEditor(false);
+    setStage("city");
   }, []);
 
   const reset = useCallback(() => {
@@ -167,17 +175,25 @@ export function App() {
     }
   }, [useFallback]);
 
-  const stepIndex =
-    stage === "gate" || stage === "converting"
-      ? 0
-      : stage === "printing" || stage === "printed" || stage === "editing"
-        ? 1
-        : 2;
+  // Two steps, because that is what the product is: you get a plate, and the city runs it. The
+  // editor is a detour inside the first step, not a stage of its own — which is why the payoff can be
+  // reached without it.
+  const stepIndex = stage === "city" ? 1 : 0;
   const steps = [
-    { label: "The plate", hint: "bring a photo" },
-    { label: "The editor", hint: "make it yours" },
-    { label: "The city", hint: "run it" },
+    { label: "Your plate", hint: "a photo, and what the city makes of it" },
+    { label: "The city", hint: "billboard · foyer · feed · postcard" },
   ];
+
+  // A stage that changes silently leaves a keyboard or screen-reader visitor at the top of the page with
+  // no idea anything happened. Move the view to the work, and put focus there, so tabbing continues from
+  // where the new thing is.
+  useEffect(() => {
+    if (stage === "gate") return;
+    const node = document.getElementById("stage");
+    if (!node) return;
+    node.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    node.focus({ preventScroll: true });
+  }, [stage, reduce]);
 
   /** What the cut did, in one honest sentence — reported, never guessed at. */
   const cutLine =
@@ -202,12 +218,29 @@ export function App() {
         <div className="mx-auto max-w-[1280px] px-8">
           <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 py-4">
             <div className="flex items-baseline gap-4">
-              <span className="wordmark text-3xl leading-none">Night Desk</span>
-              <span className="kicker hidden sm:inline">Bahía Rosa · La Gaviota</span>
+              <a
+                href="#intake"
+                data-testid="home"
+                onClick={reset}
+                className="wordmark text-3xl leading-none"
+                aria-label="Bahía Rosa — back to the start"
+              >
+                Bahía Rosa
+              </a>
+              <span className="kicker hidden sm:inline">la gaviota · the coast edition</span>
             </div>
             <div className="flex items-center gap-6">
+              <a
+                href="#intake"
+                data-testid="bring-a-photo"
+                onClick={reset}
+                className="fx-link text-xs"
+                style={{ color: "var(--color-muted)" }}
+              >
+                bring a photo
+              </a>
               <span className="kicker hidden md:inline">{locations.length} places</span>
-              <span className="kicker" style={{ color: "var(--color-gold)" }}>
+              <span className="kicker" style={{ color: "var(--color-flag)" }}>
                 {deskRoot() ? "printing at the desk" : "printing in your browser"}
               </span>
             </div>
@@ -241,7 +274,7 @@ export function App() {
           <Hero3D scene={scene} look={look} className="absolute inset-0 h-full w-full" />
           <div className="city-scrim" aria-hidden="true" />
           <div className="relative px-10 py-20">
-            <h1 className="display mt-5 text-5xl">Night Desk</h1>
+            <h1 className="display mt-5 text-5xl">Bahía Rosa</h1>
             <p className="deck mt-7">
               Bring one photo. It becomes a painted frame in the city&rsquo;s own light — flat colour,
               ink over the lines, violet in the shadows and gold where the sun lands — then the editor
@@ -358,6 +391,54 @@ export function App() {
                 })}
               </div>
             </section>
+            <section className="section-tight" aria-labelledby="finish-heading">
+              <h2 id="finish-heading" className="display" style={{ color: "var(--color-paper)" }}>
+                <span style={{ color: "var(--color-faint)" }}>~ </span>the finish
+              </h2>
+              <p className="measure mt-2 text-xs" id="finish-note" style={{ color: "var(--color-muted)" }}>
+                Fast gets you a frame in a few seconds. Fine renders it at a larger size and keeps more of
+                your photograph&rsquo;s own colour instead of pulling it to the palette — it takes roughly
+                three times as long, and it is the one to use for a print.
+              </p>
+              <div
+                className="mt-4 flex flex-wrap gap-3"
+                role="radiogroup"
+                aria-labelledby="finish-heading"
+                aria-describedby="finish-note"
+              >
+                {(
+                  [
+                    ["fast", "fast", "a few seconds"],
+                    ["fine", "fine", "slower, truer colour, bigger"],
+                  ] as const
+                ).map(([id, label, hint]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    data-testid={`finish-${id}`}
+                    aria-checked={quality === id}
+                    onClick={() => setQuality(id)}
+                    className="lift text-left"
+                    style={{
+                      border: `1px solid ${quality === id ? "var(--color-accent)" : "var(--color-rule)"}`,
+                      padding: "10px 14px",
+                    }}
+                  >
+                    <span
+                      className="block text-xs"
+                      style={{ color: quality === id ? "var(--color-accent)" : "var(--color-paper)" }}
+                    >
+                      {label}
+                      {quality === id ? " · chosen" : ""}
+                    </span>
+                    <span className="block text-xs" style={{ color: "var(--color-faint)" }}>
+                      {hint}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
             <PlateGate
               onPhoto={(file) => {
                 // The press decides the print: the desk keeps its own defaults, and the visitor's only
@@ -374,6 +455,11 @@ export function App() {
             />
           </motion.div>
         ) : null}
+
+        <div id="stage" tabIndex={-1} style={{ scrollMarginTop: "7.5rem" }} className="outline-none">
+        <p className="sr-only" role="status" data-testid="stage-status">
+          step {stepIndex + 1} of {steps.length}: {steps[stepIndex].label}
+        </p>
 
         {stage === "converting" ? (
           <motion.section
@@ -440,31 +526,36 @@ export function App() {
                 />
               </div>
               <div className="flex flex-col gap-3">
-                <a
-                  href={image}
-                  download={frameName}
-                  data-testid="download-raw"
-                  className="lift border px-6 py-4 text-center text-xs tracking-[0.2em] uppercase"
-                  style={{
-                    background: "var(--color-gold)",
-                    color: "var(--color-ink)",
-                    borderColor: "var(--color-gold)",
-                  }}
-                >
+                <a href={image} download={frameName} data-testid="download-raw" className="btn text-center">
                   Download it raw
                 </a>
-                <span className="kicker" style={{ color: "var(--color-muted)" }}>
+                <span className="text-xs" style={{ color: "var(--color-faint)" }}>
                   clean PNG · no text, no watermark
+                </span>
+                <button
+                  type="button"
+                  data-testid="take-to-city"
+                  onClick={() => {
+                    setSaved(image);
+                    setViaEditor(false);
+                    setStage("city");
+                  }}
+                  className="btn-quiet text-center"
+                >
+                  Take it into the city
+                </button>
+                <span className="text-xs" style={{ color: "var(--color-faint)" }}>
+                  the billboard · the foyer · the feed · the postcard — straight there, no editing needed
                 </span>
                 <button
                   type="button"
                   data-testid="edit-in-editor"
                   onClick={() => setStage("editing")}
-                  className="lift rule border px-6 py-4 text-center text-xs tracking-[0.2em] text-[color:var(--color-paper)] uppercase"
+                  className="btn-quiet text-center"
                 >
-                  Take it into the editor
+                  Open the editor instead
                 </button>
-                <span className="kicker" style={{ color: "var(--color-muted)" }}>
+                <span className="text-xs" style={{ color: "var(--color-faint)" }}>
                   text · filters · crop · drawing · shapes · stickers
                 </span>
                 <button
@@ -550,7 +641,7 @@ export function App() {
           </motion.section>
         ) : null}
 
-        {stage === "launch" && saved ? (
+        {stage === "city" && saved ? (
           <motion.div
             initial={reduce ? undefined : { opacity: 0, y: 14 }}
             animate={reduce ? undefined : { opacity: 1, y: 0 }}
@@ -560,14 +651,16 @@ export function App() {
             <Launch
               artworkUrl={saved}
               location={meta?.location ?? null}
-              onBackToEditor={() => setStage("editing")}
+              onBack={() => setStage(viaEditor ? "editing" : "printed")}
+              backLabel={viaEditor ? "Back to the editor" : "Back to your plate"}
             />
           </motion.div>
         ) : null}
+        </div>
       </main>
 
       <footer className="rule mx-auto mt-16 max-w-[1280px] border-t px-8 py-8">
-        <p className="kicker">Night Desk · Bahía Rosa</p>
+        <p className="kicker">Bahía Rosa · la gaviota</p>
         <p className="mt-3 max-w-[70ch] text-xs leading-relaxed text-[color:var(--color-faint)]">
           Unofficial fan-made project for the Unlayer Build with React Image Editor Challenge. Not
           affiliated with, endorsed by, or connected to Rockstar Games or Take-Two Interactive. All

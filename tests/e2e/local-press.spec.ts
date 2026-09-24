@@ -44,6 +44,9 @@ test("a photo is pressed into a plate, then the fork offers it raw or in the edi
   // which is precisely the regression that let a recolour pass for a cut-out.
   await expect(page.getByTestId("cut-line")).toContainText(/segmenter found you/i);
 
+  // And the third door: straight into the city, with no editor in the way at all.
+  await expect(page.getByTestId("take-to-city")).toBeVisible();
+
   // Door two: into the editor, where the plate is editable and downloadable again.
   await page.getByTestId("edit-in-editor").click();
   await expect(page.locator(".editor-shell")).toBeVisible({ timeout: 60_000 });

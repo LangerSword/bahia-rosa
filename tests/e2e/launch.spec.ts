@@ -30,7 +30,7 @@ test("the launch stage draws every surface and exports the postcard at spec size
   await page.goto("/?demo=launch");
   const launch = page.getByTestId("launch");
   await expect(launch).toBeVisible();
-  await expect(launch).toContainText("Take the city");
+  await expect(launch).toContainText("the city runs it");
 
   // All four surfaces are offered, and the one on screen is drawn — a blank canvas would still be a
   // canvas, so count the colours the exporter actually put down.
@@ -50,9 +50,9 @@ test("the launch stage draws every surface and exports the postcard at spec size
 
   // Switching surfaces redraws: the venue is portrait, the billboard is not.
   await page.getByTestId("place-venue").click();
-  const venueBox = await page.locator('[data-testid="launch"] .plinth canvas').boundingBox();
+  const venueBox = await page.locator('[data-testid="launch"] .plate-inset canvas').boundingBox();
   await page.getByTestId("place-billboard").click();
-  const billboardBox = await page.locator('[data-testid="launch"] .plinth canvas').boundingBox();
+  const billboardBox = await page.locator('[data-testid="launch"] .plate-inset canvas').boundingBox();
   expect(venueBox!.height).toBeGreaterThan(billboardBox!.height);
 
   mkdirSync(SHOTS, { recursive: true });

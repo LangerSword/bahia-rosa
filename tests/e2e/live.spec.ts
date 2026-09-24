@@ -23,7 +23,7 @@ test("the deployed build serves the launch stage", async ({ page }) => {
 
   await page.goto(`${LIVE}/?demo=launch`);
   await expect(page.getByTestId("launch")).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId("launch")).toContainText("Take the city");
+  await expect(page.getByTestId("launch")).toContainText("the city runs it");
 
   // The paint is async (fonts + artwork), so poll rather than assert on a canvas that may still be
   // empty: on a cold load the first frame is legitimately blank for a moment.

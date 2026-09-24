@@ -605,6 +605,24 @@ export function styliseImage(
   return canvas;
 }
 
+/**
+ * The finish, as opposed to the look.
+ *
+ * A look decides the *mood* — tone, light, how hard the palette pull is. This decides how much work
+ * the press does, and it overrides only the colour work: more colours in the palette, a gentler pull,
+ * less ink over the top, less paper over the whole thing, and a softer smoothing pass. The result is
+ * measurably closer to the photograph's own colour — the test asserts it — at roughly three times the
+ * compute, which is why it is a choice and not a default.
+ */
+export const FINE: StyliseOptions = {
+  colours: 24,
+  palette: 0.34,
+  ink: 0.16,
+  paper: 0.16,
+  smooth: 0.4,
+  exposure: 0.6,
+};
+
 /** Named presets, so the intake can offer a look instead of a wall of numbers. */
 export const LOOKS: Record<string, { label: string; blurb: string; options: StyliseOptions }> = {
   dusk: {

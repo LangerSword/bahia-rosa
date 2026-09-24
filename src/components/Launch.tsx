@@ -1,16 +1,25 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PlacementCanvas } from "./PlacementCanvas";
 import { composePlacement, downloadBlob, placementFilename } from "../world/compose";
 import { PLACEMENTS, type Placement, type PlacementCopy } from "../world/placements";
 
 /**
- * Step 3 — take the city.
+ * The payoff — the part of the product that justifies the editor.
  *
- * The payoff, and the reason the editor exists: the artwork you just made is not a file in a folder,
- * it is tonight's poster. Pick a surface, the city runs it, download the placement or the postcard.
+ * Three things changed here, all of them from the brief:
  *
- * Every preview here is drawn by the exporter (`PlacementCanvas` → `drawPlacement`), so a download is
- * the preview at full resolution and not a second rendering of it.
+ *   1. **The details are kept.** The copy you type (handle, headline, caption) and the surface you last
+ *      chose are remembered in this browser, so leaving to crop something and coming back — or closing
+ *      the tab and returning — does not throw your words away. Nothing is uploaded: it is
+ *      `localStorage`, on your machine, like everything else on this page.
+ *   2. **It is not a separate stage.** There is no "step 3" anymore. The city is a surface you can
+ *      reach straight from the fork, without going through the editor at all, and it sits in the page
+ *      rather than behind a section of its own.
+ *   3. **It fits the design.** The copy is set in the page's own voice, and the heading describes what
+ *      you are looking at instead of announcing a stage.
+ *
+ * Every preview is drawn by the exporter (`PlacementCanvas` → `drawPlacement`), so a download *is* the
+ * preview at full resolution, not a second rendering of it.
  */
 
 export interface LaunchProps {
@@ -18,19 +27,66 @@ export interface LaunchProps {
   city?: string;
   /** Where the plate was printed, used as the default headline. */
   location?: string | null;
-  onBackToEditor: () => void;
+  /** Where "back" goes — the editor if you came through it, the plate if you came from the fork. */
+  onBack: () => void;
+  backLabel?: string;
 }
 
-export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBackToEditor }: LaunchProps) {
-  const [selectedId, setSelectedId] = useState<string>(PLACEMENTS[0].id);
-  const [copy, setCopy] = useState<PlacementCopy>({
-    city,
-    handle: "@you",
-    title: location ? `printed at the ${location}` : "tonight on the coast",
-    line: "made it myself, out tonight",
-  });
+/**
+ * The payoff's own memory. Versioned and namespaced so a future shape can migrate rather than guess,
+ * and read defensively: a corrupted entry falls back to the defaults instead of breaking the page.
+ */
+const STORE = "bahia-rosa.payoff.v1";
+
+interface StoredPayoff {
+  copy?: Partial<PlacementCopy>;
+  placement?: string;
+}
+
+function defaults(city: string, location: string | null | undefined): { copy: PlacementCopy; placement: string } {
+  return {
+    copy: {
+      city,
+      handle: "@you",
+      title: location ? `printed at the ${location}` : "tonight on the coast",
+      line: "made it myself, out tonight",
+    },
+    placement: PLACEMENTS[0].id,
+  };
+}
+
+function restore(city: string, location: string | null | undefined): { copy: PlacementCopy; placement: string } {
+  const fallback = defaults(city, location);
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(STORE);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as StoredPayoff;
+    const known = PLACEMENTS.some((placement) => placement.id === parsed.placement);
+    return {
+      copy: { ...fallback.copy, ...parsed.copy },
+      placement: known ? (parsed.placement as string) : fallback.placement,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBack, backLabel = "Back to the editor" }: LaunchProps) {
+  const first = useMemo(() => restore(city, location), [city, location]);
+  const [selectedId, setSelectedId] = useState<string>(first.placement);
+  const [copy, setCopy] = useState<PlacementCopy>(first.copy);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Kept as you type: the whole point is that a detour does not cost you the words.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORE, JSON.stringify({ copy, placement: selectedId } satisfies StoredPayoff));
+    } catch {
+      // A browser with storage disabled is not a broken page: the copy simply is not remembered.
+    }
+  }, [copy, selectedId]);
 
   const selected = useMemo<Placement>(
     () => PLACEMENTS.find((placement) => placement.id === selectedId) ?? PLACEMENTS[0],
@@ -67,33 +123,28 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBackToEdi
   };
 
   return (
-    <section className="panel rule border p-8" data-testid="launch">
-      <header className="rule mb-6 flex flex-wrap items-end justify-between gap-4 border-b pb-4">
+    <section className="section" data-testid="launch" aria-labelledby="city-heading">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="kicker">Step 3 · Launch</p>
-          <h2 className="display mt-3 text-4xl">Take the city</h2>
-          <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-[color:var(--color-muted)]">
-            Your artwork is tonight&rsquo;s poster. Choose the surface the city runs it on, then take it
-            with you — each placement downloads at full resolution, drawn by the same code that draws
-            the preview.
+          <h2 id="city-heading" className="display" style={{ color: "var(--color-paper)" }}>
+            <span style={{ color: "var(--color-faint)" }}>~ </span>the city runs it
+          </h2>
+          <p className="measure mt-2 text-xs" style={{ color: "var(--color-muted)" }}>
+            Your frame is tonight&rsquo;s poster. Pick the surface, set the words on it, take it with you
+            — every download is full resolution, drawn by the same code that draws the preview.
           </p>
         </div>
-        <button
-          type="button"
-          data-testid="back-to-editor"
-          onClick={onBackToEditor}
-          className="lift rule border px-4 py-2 text-xs tracking-[0.2em] text-[color:var(--color-body)] uppercase hover:text-[color:var(--color-gold)]"
-        >
-          Back to the editor
+        <button type="button" data-testid="back-to-editor" onClick={onBack} className="btn-quiet">
+          {backLabel}
         </button>
-      </header>
+      </div>
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_minmax(260px,320px)]">
+      <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_minmax(260px,320px)]">
         <div>
-          <div className="plinth rule border">
+          <div className="plate-inset">
             <PlacementCanvas placement={selected} artworkUrl={artworkUrl} copy={copy} className="block w-full" />
           </div>
-          <p className="mt-3 font-mono text-[11px] text-[color:var(--color-faint)]">
+          <p className="mt-3 text-xs" style={{ color: "var(--color-faint)" }}>
             {selected.label} · {selected.width}×{selected.height} · {selected.blurb}
           </p>
           <p className="sr-only">{selected.caption}</p>
@@ -104,7 +155,7 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBackToEdi
               data-testid={`download-${selected.id}`}
               onClick={() => void save(selected)}
               disabled={busy !== null}
-              className="lift rule border border-[color:var(--color-gold)] px-5 py-2.5 text-xs tracking-[0.2em] text-[color:var(--color-gold)] uppercase disabled:opacity-40"
+              className="btn"
             >
               {busy === selected.id ? "rendering…" : `Download the ${selected.label.toLowerCase()}`}
             </button>
@@ -113,49 +164,69 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBackToEdi
               data-testid="download-all"
               onClick={() => void saveAll()}
               disabled={busy !== null}
-              className="lift rule border px-5 py-2.5 text-xs tracking-[0.2em] text-[color:var(--color-body)] uppercase disabled:opacity-40"
+              className="btn-quiet"
             >
               {busy === "all" ? "rendering all four…" : "Download all four"}
             </button>
-            {error ? <span className="font-mono text-[11px] text-[color:var(--color-danger)]">{error}</span> : null}
+            {error ? (
+              <span className="text-xs" style={{ color: "var(--color-danger)" }}>
+                {error}
+              </span>
+            ) : null}
           </div>
         </div>
 
-        <aside className="flex flex-col gap-6">
-          <div className="rule border p-5">
-            <p className="kicker">The copy on it</p>
+        <aside className="flex flex-col gap-8">
+          <div>
+            <h3 className="text-xs" style={{ color: "var(--color-muted)" }}>
+              the words on it
+            </h3>
             <label className="mt-4 block">
-              <span className="font-mono text-[11px] tracking-[0.2em] text-[color:var(--color-muted)] uppercase">Handle</span>
+              <span className="text-xs" style={{ color: "var(--color-muted)" }}>
+                handle
+              </span>
               <input
                 data-testid="copy-handle"
                 value={copy.handle}
                 onChange={(event) => setCopy((current) => ({ ...current, handle: event.target.value }))}
-                className="rule mt-2 w-full border bg-[color:var(--color-ink-2)] px-3 py-2 text-sm text-[color:var(--color-paper)] outline-none focus-visible:border-[color:var(--color-gold)]"
+                className="rule mt-2 w-full border px-3 py-2 text-sm outline-none"
+                style={{ background: "var(--color-ink-2)", color: "var(--color-paper)" }}
               />
             </label>
             <label className="mt-4 block">
-              <span className="font-mono text-[11px] tracking-[0.2em] text-[color:var(--color-muted)] uppercase">Headline</span>
+              <span className="text-xs" style={{ color: "var(--color-muted)" }}>
+                headline
+              </span>
               <input
                 data-testid="copy-title"
                 value={copy.title}
                 onChange={(event) => setCopy((current) => ({ ...current, title: event.target.value }))}
-                className="rule mt-2 w-full border bg-[color:var(--color-ink-2)] px-3 py-2 text-sm text-[color:var(--color-paper)] outline-none focus-visible:border-[color:var(--color-gold)]"
+                className="rule mt-2 w-full border px-3 py-2 text-sm outline-none"
+                style={{ background: "var(--color-ink-2)", color: "var(--color-paper)" }}
               />
             </label>
             <label className="mt-4 block">
-              <span className="font-mono text-[11px] tracking-[0.2em] text-[color:var(--color-muted)] uppercase">Caption</span>
+              <span className="text-xs" style={{ color: "var(--color-muted)" }}>
+                caption
+              </span>
               <input
                 data-testid="copy-line"
                 value={copy.line}
                 onChange={(event) => setCopy((current) => ({ ...current, line: event.target.value }))}
-                className="rule mt-2 w-full border bg-[color:var(--color-ink-2)] px-3 py-2 text-sm text-[color:var(--color-paper)] outline-none focus-visible:border-[color:var(--color-gold)]"
+                className="rule mt-2 w-full border px-3 py-2 text-sm outline-none"
+                style={{ background: "var(--color-ink-2)", color: "var(--color-paper)" }}
               />
             </label>
+            <p className="mt-3 text-xs" style={{ color: "var(--color-faint)" }}>
+              kept in this browser, so a detour does not lose them
+            </p>
           </div>
 
           <div>
-            <p className="kicker">Where it runs</p>
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            <h3 className="text-xs" style={{ color: "var(--color-muted)" }}>
+              where it runs
+            </h3>
+            <div className="mt-4 grid grid-cols-2 gap-3" role="group" aria-label="Where it runs">
               {PLACEMENTS.map((placement) => (
                 <button
                   key={placement.id}
@@ -163,15 +234,15 @@ export function Launch({ artworkUrl, city = "Bahía Rosa", location, onBackToEdi
                   data-testid={`place-${placement.id}`}
                   aria-pressed={placement.id === selected.id}
                   onClick={() => setSelectedId(placement.id)}
-                  className={`lift rule border p-1.5 text-left ${
-                    placement.id === selected.id
-                      ? "border-[color:var(--color-gold)] bg-[color:var(--color-ink-2)]"
-                      : "hover:border-[color:var(--color-muted)]"
-                  }`}
+                  className="lift text-left"
+                  style={{
+                    border: `1px solid ${placement.id === selected.id ? "var(--color-accent)" : "var(--color-rule)"}`,
+                    padding: "6px",
+                  }}
                 >
                   <PlacementCanvas placement={placement} artworkUrl={artworkUrl} copy={copy} className="block w-full" />
-                  <span className="mt-2 block px-1 pb-1 font-mono text-[10px] tracking-[0.14em] text-[color:var(--color-muted)] uppercase">
-                    {placement.label}
+                  <span className="mt-2 block px-1 pb-1 text-xs" style={{ color: "var(--color-muted)" }}>
+                    {placement.label.toLowerCase()}
                   </span>
                 </button>
               ))}

@@ -47,12 +47,20 @@ export function PlateGate({ onPhoto }: PlateGateProps) {
   useEffect(() => {
     let live = true;
     const root = deskRoot();
-    if (root) {
-      try {
-        setRemote(new URL(root).host);
-      } catch {
-        setRemote(root);
-      }
+    if (!root) {
+      // No desk is configured, so there is nothing to ask. Probing anyway costs a request and a console
+      // error on every visit to the deployed site — where the press is the browser's — and for every
+      // test that asserts a clean console. The desk is an opt-in this page was pointed at, so the probe
+      // follows the opt-in.
+      setDesk("down");
+      return () => {
+        live = false;
+      };
+    }
+    try {
+      setRemote(new URL(root).host);
+    } catch {
+      setRemote(root);
     }
     void deskAvailable().then((reachable) => {
       if (live) setDesk(reachable ? "up" : "down");

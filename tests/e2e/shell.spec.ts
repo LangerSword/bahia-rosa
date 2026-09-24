@@ -21,7 +21,7 @@ test("the shell renders the city's design language and stays clean", async ({ pa
 
   // One voice. The decorative faces were retired with the template language they belonged to: the
   // wordmark is the same monospaced family as the running text, and hierarchy is size and space.
-  await expect(page.locator(".wordmark").first()).toHaveText(/night desk/i);
+  await expect(page.locator(".wordmark").first()).toHaveText(/bahía rosa|bahia rosa/i);
   await expect(page.locator("h1.display")).toBeVisible();
   const type = await page.evaluate(() => {
     const style = getComputedStyle(document.body);

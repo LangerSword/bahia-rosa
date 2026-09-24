@@ -2,7 +2,7 @@ import { loadImage } from "../world/compose";
 import { bodyCut } from "./bodysegment";
 import { faceBox, subjectMask } from "./segment";
 import { SCENES, placeSubject, sceneSrc, type SceneId } from "./scenes";
-import { styliseImageData, type StyliseOptions } from "./stylise";
+import { styliseImageData, FINE, type StyliseOptions } from "./stylise";
 import { gradeFor, gradePixels } from "./timeofday";
 
 /**
@@ -23,9 +23,15 @@ export interface PortraitOptions extends StyliseOptions {
   scene?: SceneId;
   /** The look by id — which hour of the day the *world* is graded to, not just the person. */
   look?: string;
+  /**
+   * More work for a better frame: a larger output, the subject painted at a higher minimum
+   * resolution, a supersampled composite, and the colour work from `FINE` instead of the look's own.
+   * Roughly three times the compute.
+   */
+  fine?: boolean;
   /** Skip the cut-out and paint the whole frame (the fallback, and the 'no person found' path). */
   wholeFrame?: boolean;
-  /** Longest edge of the output, in pixels. */
+  /** Longest edge of the output, in pixels. Defaults by finish: 2200 fine, 1600 fast. */
   maxSize?: number;
   /** Called as each stage begins, for an honest progress line. */
   onStage?: (stage: string) => void;
@@ -58,13 +64,21 @@ export async function portraitFromImage(
   image: CanvasImageSource & { width: number; height: number },
   options: PortraitOptions = {},
 ): Promise<PortraitResult> {
-  const { scene = "beach", wholeFrame = false, maxSize = 1600, look, onStage, ...style } = options;
+  const { scene = "beach", wholeFrame = false, maxSize, look, fine = false, onStage, ...style } = options;
   const plate = SCENES[scene] ?? SCENES.beach;
+
+  // The finish decides the sizes. Fine prints bigger, paints the subject's crop at a higher minimum
+  // resolution, and composites at 1.5× before scaling down — the extra samples are what take the
+  // jagged edge off a cut-out and let the subject's own colours survive the move into the scene.
+  const outLong = Math.round(maxSize ?? (fine ? 2200 : 1600));
+  const paintEdge = fine ? 1200 : MIN_PAINT_EDGE;
+  const supersample = fine ? 1.5 : 1;
+  const paintOptions = fine ? { ...style, ...FINE } : style;
 
   // A working size that does not depend on what came in: a 500px photograph and a 6000px one both get
   // a frame with room to see detail. This is the fix for tiny images and for large ones whose subject
   // is small in the frame.
-  const photoScale = Math.min(1, maxSize / Math.max(image.width, image.height));
+  const photoScale = Math.min(1, outLong / Math.max(image.width, image.height));
   const workW = Math.max(320, Math.round(image.width * photoScale));
   const workH = Math.max(320, Math.round(image.height * photoScale));
 
@@ -103,7 +117,7 @@ export async function portraitFromImage(
   }
 
   // Paint the subject from their own crop, at their own resolution.
-  onStage?.("painting you in the city's light");
+  onStage?.(fine ? "painting you in the city's light (fine: bigger, truer colour)" : "painting you in the city's light");
   const margin = Math.round(Math.max(box.width, box.height) * 0.14);
   const cropX = Math.max(0, box.x - margin);
   const cropY = Math.max(0, box.y - margin);
@@ -114,7 +128,7 @@ export async function portraitFromImage(
   crop.ctx.drawImage(photo.canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
   const shortEdge = Math.min(cropW, cropH);
-  const upscale = shortEdge > 0 ? Math.max(1, MIN_PAINT_EDGE / shortEdge) : 1;
+  const upscale = shortEdge > 0 ? Math.max(1, paintEdge / shortEdge) : 1;
   const paintW = Math.round(cropW * upscale);
   const paintH = Math.round(cropH * upscale);
 
@@ -127,7 +141,10 @@ export async function portraitFromImage(
     toPaint = big.ctx.getImageData(0, 0, paintW, paintH).data;
   }
 
-  const paintedPixels = styliseImageData(toPaint, paintW, paintH, { ...style, light: style.light ?? 0.22 });
+  const paintedPixels = styliseImageData(toPaint, paintW, paintH, {
+    ...paintOptions,
+    light: paintOptions.light ?? 0.22,
+  });
   const painted = canvasOf(paintW, paintH);
   const paintedImage = painted.ctx.createImageData(paintW, paintH);
   paintedImage.data.set(paintedPixels);
@@ -156,8 +173,8 @@ export async function portraitFromImage(
 
   // The scene: a real plate, graded to the hour the visitor chose, cropped to the output's aspect.
   onStage?.(`setting the frame in ${plate.label.toLowerCase()}`);
-  const outW = Math.round(maxSize);
-  const outH = Math.round((maxSize * 9) / 16);
+  const outW = Math.round(outLong * supersample);
+  const outH = Math.round(((outLong * 9) / 16) * supersample);
   const out = canvasOf(outW, outH);
   const grade = gradeFor(look ?? "dusk");
   try {
@@ -224,25 +241,35 @@ export async function portraitFromImage(
     out.ctx.restore();
   }
 
+  // Fine mode composited at 1.5×: scale down to the size the caller asked for first, so the grade runs
+  // once, on the pixels that actually ship.
+  const finalW = Math.round(outLong);
+  const finalH = Math.round((outLong * 9) / 16);
+  const final = canvasOf(finalW, finalH);
+  final.ctx.imageSmoothingEnabled = true;
+  final.ctx.imageSmoothingQuality = "high";
+  final.ctx.drawImage(out.canvas, 0, 0, outW, outH, 0, 0, finalW, finalH);
+
   // The unifying pass: subject and place, one palette, one grain. Kept light on purpose — a heavy
-  // second quantisation would repaint the plate's own detail away.
-  onStage?.("grading the whole frame");
-  const composed = out.ctx.getImageData(0, 0, outW, outH);
-  const graded = styliseImageData(composed.data, outW, outH, {
+  // second quantisation would repaint the plate's own detail away — and lighter still in fine mode,
+  // where the whole point is that the colour came through.
+  onStage?.(fine ? "grading the whole frame (fine)" : "grading the whole frame");
+  const composed = final.ctx.getImageData(0, 0, finalW, finalH);
+  const graded = styliseImageData(composed.data, finalW, finalH, {
     colours: 16,
     palette: 0.18,
     ink: 0.12,
     tone: style.tone ?? 0.45,
     light: 0,
-    paper: style.paper ?? 0.28,
+    paper: fine ? (style.paper ?? 0.28) * 0.55 : (style.paper ?? 0.28),
     finish: style.finish ?? 0.5,
     smooth: 0,
     exposure: 0.35,
     seed: style.seed ?? 1,
   });
-  const gradedImage = out.ctx.createImageData(outW, outH);
+  const gradedImage = final.ctx.createImageData(finalW, finalH);
   gradedImage.data.set(graded);
-  out.ctx.putImageData(gradedImage, 0, 0);
+  final.ctx.putImageData(gradedImage, 0, 0);
 
-  return { canvas: out.canvas, share, cutOut: Boolean(mask), cutSource, scene };
+  return { canvas: final.canvas, share, cutOut: Boolean(mask), cutSource, scene };
 }
