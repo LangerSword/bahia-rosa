@@ -35,7 +35,6 @@ test("a desk at another origin prints through the front door", async ({ page }) 
   await expect(page.getByTestId("photo-input")).toBeAttached();
   await expect(page.getByText(new RegExp(`answering at ${new URL(DESK).host}`))).toBeVisible();
 
-  await page.getByTestId("choose-style").selectOption("loadingscreen");
   const photo = resolve(process.cwd(), "public/art/demo/s1-marisol-keyart.jpg");
   expect(existsSync(photo)).toBe(true);
   await page.getByTestId("photo-input").setInputFiles(photo);

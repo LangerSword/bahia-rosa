@@ -1,0 +1,292 @@
+/*
+ * The design system, as CSS. Read with DESIGN.md §2–§5.
+ *
+ * This file is the override layer: it retires the template language the first pass shipped — eyebrow
+ * labels, gradient panels, a stat strip, four decorative faces — and states the new one in one place.
+ * It loads after index.css, so what is written here wins over what the old sheet said, and the markup
+ * (App.tsx) has been rewritten to stop asking for the removed patterns in the first place.
+ *
+ * The short version: one monospaced voice, a near-black ground, one accent with two roles, generous and
+ * uneven spacing, and the photographs as the only ornament.
+ */
+
+:root {
+  --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+
+  --color-canvas: #0a0a0a;
+  --color-paper: #f5f5f5;
+  --color-body: #c9c9c9;
+  --color-muted: #8f8f8f;
+  --color-faint: #6a6a72;
+  --color-accent: #4ade80; /* the interactive accent: links, focus, chosen */
+  --color-flag: #fbbf24; /* the machine speaking: the press's state, the one primary action */
+  --color-danger: #ef6f6f;
+  --color-rule: rgba(245, 245, 245, 0.14);
+
+  --measure: 68ch;
+  --wrap: 1120px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* --- base --------------------------------------------------------------------------------------- */
+
+html {
+  background: var(--color-canvas);
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-canvas) !important;
+  color: var(--color-body) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 14px;
+  line-height: 1.75;
+  font-variant-ligatures: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The decorative faces are retired. Anything still asking for them gets the one voice instead. */
+.display,
+.wordmark,
+.kicker,
+.step,
+.step-num,
+.stat-value,
+.stat-label,
+select,
+button,
+input {
+  font-family: var(--font-mono) !important;
+}
+
+/* --- what the old sheet called a "kicker": no longer an eyebrow ---------------------------------- */
+
+/*
+ * Kept as a class so nothing breaks, but demoted: lowercase, no letter-spacing theatre, no caps, dim
+ * grey. Hierarchy now comes from size and space, which is the whole correction.
+ */
+.kicker {
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-faint) !important;
+}
+
+.display {
+  font-weight: 500 !important;
+  letter-spacing: -0.01em !important;
+  text-transform: none !important;
+  line-height: 1.15;
+}
+
+.wordmark {
+  font-weight: 600 !important;
+  font-size: 20px !important;
+  letter-spacing: 0.18em !important;
+  text-transform: uppercase !important;
+  color: var(--color-paper);
+}
+
+.deck {
+  font-family: var(--font-mono) !important;
+  font-size: 15px !important;
+  line-height: 1.8 !important;
+  max-width: var(--measure);
+  color: var(--color-body) !important;
+  text-wrap: pretty;
+}
+
+/* --- surfaces: no gradients, no rounded boxes --------------------------------------------------- */
+
+.panel,
+.panel-navy,
+.panel-plum,
+.panel-slate {
+  background: none !important;
+  border-radius: 0 !important;
+}
+
+.rule {
+  border-color: var(--color-rule) !important;
+  border-radius: 0 !important;
+}
+
+.plinth {
+  padding: 0 !important;
+  background: none !important;
+}
+
+/* The stat strip is gone from the markup; hidden here so a stale build cannot resurrect it. */
+.stat-row,
+.stat {
+  display: none !important;
+}
+
+/* --- the step rail: plain words, one dot between them ------------------------------------------- */
+
+.steprail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--color-faint);
+}
+
+.step {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0 !important;
+  border: 0 !important;
+  font-size: 12px !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  color: inherit;
+}
+
+.step-num {
+  display: none !important;
+}
+
+.step[data-state="now"] {
+  color: var(--color-flag) !important;
+}
+
+.step[data-state="done"] {
+  color: var(--color-body) !important;
+}
+
+/* --- links, buttons, focus ---------------------------------------------------------------------- */
+
+a {
+  color: inherit;
+}
+
+a:hover {
+  color: var(--color-accent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 0;
+}
+
+/* A text-weight action: square brackets, no box. The press's own primary action is the only filled
+   control on a screen. */
+.btn {
+  display: inline-block;
+  font: inherit;
+  background: var(--color-flag);
+  color: #131313 !important;
+  border: 0;
+  padding: 0.85rem 1.4rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: transform 0.35s var(--ease), filter 0.35s var(--ease);
+}
+
+.btn:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-quiet {
+  display: inline-block;
+  font: inherit;
+  background: none;
+  border: 1px solid var(--color-rule);
+  color: var(--color-paper) !important;
+  padding: 0.8rem 1.3rem;
+  cursor: pointer;
+  transition: border-color 0.35s var(--ease), color 0.35s var(--ease);
+}
+
+.btn-quiet:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent) !important;
+}
+
+/* --- plates: an image or a canvas, framed by a hairline and nothing else ------------------------ */
+
+.plate {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--color-rule);
+  background: #000;
+}
+
+.plate-inset {
+  position: relative;
+  border: 1px solid var(--color-rule);
+  overflow: hidden;
+  background: #000;
+}
+
+/* --- rhythm ------------------------------------------------------------------------------------- */
+
+.wrap {
+  max-width: var(--wrap);
+  margin-inline: auto;
+  padding-inline: 24px;
+}
+
+.measure {
+  max-width: var(--measure);
+}
+
+.section {
+  margin-top: 5.5rem;
+}
+
+.section-tight {
+  margin-top: 3.5rem;
+}
+
+h1.display {
+  font-size: clamp(2rem, 5vw, 3.25rem) !important;
+}
+
+h2.display {
+  font-size: clamp(1.35rem, 2.6vw, 1.9rem) !important;
+}
+
+/* --- motion: nothing bounces, and everything stops when asked ----------------------------------- */
+
+.lift {
+  transition: transform 0.4s var(--ease), border-color 0.4s var(--ease), color 0.4s var(--ease);
+}
+
+.lift:hover {
+  transform: translateY(-2px);
+}
+
+.skip {
+  color: var(--color-body);
+}
+
+@media (max-width: 900px) {
+  .wrap {
+    padding-inline: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lift,
+  .btn,
+  .fx-sheen::after {
+    transition: none !important;
+  }
+  .lift:hover {
+    transform: none;
+  }
+}

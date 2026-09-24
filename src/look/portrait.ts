@@ -3,6 +3,7 @@ import { bodyCut } from "./bodysegment";
 import { faceBox, subjectMask } from "./segment";
 import { SCENES, placeSubject, sceneSrc, type SceneId } from "./scenes";
 import { styliseImageData, type StyliseOptions } from "./stylise";
+import { gradeFor, gradePixels } from "./timeofday";
 
 /**
  * One photograph in, one painted frame of the city out.
@@ -20,6 +21,8 @@ import { styliseImageData, type StyliseOptions } from "./stylise";
 
 export interface PortraitOptions extends StyliseOptions {
   scene?: SceneId;
+  /** The look by id — which hour of the day the *world* is graded to, not just the person. */
+  look?: string;
   /** Skip the cut-out and paint the whole frame (the fallback, and the 'no person found' path). */
   wholeFrame?: boolean;
   /** Longest edge of the output, in pixels. */
@@ -40,7 +43,7 @@ export interface PortraitResult {
 }
 
 /** The smallest edge the subject's crop is painted at, before the paint stops seeing detail. */
-const MIN_PAINT_EDGE = 640;
+const MIN_PAINT_EDGE = 900;
 
 function canvasOf(width: number, height: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
   const canvas = document.createElement("canvas");
@@ -55,7 +58,7 @@ export async function portraitFromImage(
   image: CanvasImageSource & { width: number; height: number },
   options: PortraitOptions = {},
 ): Promise<PortraitResult> {
-  const { scene = "beach", wholeFrame = false, maxSize = 1600, onStage, ...look } = options;
+  const { scene = "beach", wholeFrame = false, maxSize = 1600, look, onStage, ...style } = options;
   const plate = SCENES[scene] ?? SCENES.beach;
 
   // A working size that does not depend on what came in: a 500px photograph and a 6000px one both get
@@ -124,7 +127,7 @@ export async function portraitFromImage(
     toPaint = big.ctx.getImageData(0, 0, paintW, paintH).data;
   }
 
-  const paintedPixels = styliseImageData(toPaint, paintW, paintH, { ...look, light: look.light ?? 0.22 });
+  const paintedPixels = styliseImageData(toPaint, paintW, paintH, { ...style, light: style.light ?? 0.22 });
   const painted = canvasOf(paintW, paintH);
   const paintedImage = painted.ctx.createImageData(paintW, paintH);
   paintedImage.data.set(paintedPixels);
@@ -151,17 +154,25 @@ export async function portraitFromImage(
     painted.ctx.restore();
   }
 
-  // The scene: a real plate, cropped to the output's aspect, then the subject placed into it.
+  // The scene: a real plate, graded to the hour the visitor chose, cropped to the output's aspect.
   onStage?.(`setting the frame in ${plate.label.toLowerCase()}`);
   const outW = Math.round(maxSize);
   const outH = Math.round((maxSize * 9) / 16);
   const out = canvasOf(outW, outH);
+  const grade = gradeFor(look ?? "dusk");
   try {
     const sceneImage = await loadImage(sceneSrc(scene));
+    // Grade the plate itself. This is what makes "neon" or "night" a change to the world rather than a
+    // tint on the person — the sky, the water and the wet asphalt all move together. Done at output
+    // size: grading a 1344px plate is cheap, and the crop throws the extra pixels away anyway.
+    const scaled = canvasOf(outW, outH);
     const sceneScale = Math.max(outW / sceneImage.width, outH / sceneImage.height);
     const drawW = sceneImage.width * sceneScale;
     const drawH = sceneImage.height * sceneScale;
-    out.ctx.drawImage(sceneImage, (outW - drawW) / 2, (outH - drawH) / 2, drawW, drawH);
+    scaled.ctx.drawImage(sceneImage, (outW - drawW) / 2, (outH - drawH) / 2, drawW, drawH);
+    const raw = scaled.ctx.getImageData(0, 0, outW, outH);
+    raw.data.set(gradePixels(raw.data, grade));
+    out.ctx.putImageData(raw, 0, 0);
   } catch {
     // No scene plate (offline, or a build shipped without the images): a dark ground keeps the subject
     // placed rather than lost.
@@ -169,15 +180,13 @@ export async function portraitFromImage(
     out.ctx.fillRect(0, 0, outW, outH);
   }
 
-  const placed = placeSubject(box, { width: workW, height: workH }, plate);
-  const target = mask
-    ? {
-        x: (placed.x / workW) * outW,
-        y: (placed.y / workH) * outH,
-        width: (placed.width / workW) * outW,
-        height: (placed.height / workH) * outH,
-      }
-    : { x: 0, y: 0, width: outW, height: outH };
+  // Centre-bottom, aspect preserved: the *crop* is placed and the subject inside it sets the scale, so
+  // the margin around them is never compressed into a stretch.
+  const placed = placeSubject(box, { x: cropX, y: cropY, width: cropW, height: cropH }, plate, {
+    width: outW,
+    height: outH,
+  });
+  const target = mask ? placed : { x: 0, y: 0, width: outW, height: outH };
 
   if (mask) {
     onStage?.("placing you in it");
@@ -223,13 +232,13 @@ export async function portraitFromImage(
     colours: 16,
     palette: 0.18,
     ink: 0.12,
-    tone: look.tone ?? 0.45,
+    tone: style.tone ?? 0.45,
     light: 0,
-    paper: look.paper ?? 0.28,
-    finish: look.finish ?? 0.5,
+    paper: style.paper ?? 0.28,
+    finish: style.finish ?? 0.5,
     smooth: 0,
     exposure: 0.35,
-    seed: look.seed ?? 1,
+    seed: style.seed ?? 1,
   });
   const gradedImage = out.ctx.createImageData(outW, outH);
   gradedImage.data.set(graded);

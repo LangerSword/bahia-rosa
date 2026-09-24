@@ -49,28 +49,27 @@ test("the deployed build serves the launch stage", async ({ page }) => {
   // must say so, with the local route and the demos, instead of failing later.
   await page.goto(LIVE);
   await expect(page.getByTestId("photo-input")).toBeAttached();
-  await expect(page.getByTestId("choose-style")).toBeVisible();
   await expect(page.getByTestId("desk-absent")).toBeVisible();
   await expect(page.getByTestId("desk-absent")).toContainText("nothing to install");
 
-  // The place has to be on the deployed page too — a missing scene plate here is the difference
-  // between a product that puts you somewhere and a recolor of a photograph.
-  const hero = await page.evaluate(async () => {
+  // The place has to be on the deployed page too — and it is a 3D scene now, so this accepts either
+  // shape: a WebGL canvas when the browser has one, the plain plate when it does not.
+  const hero = await page.evaluate(() => {
+    const host = document.querySelector('[data-testid="hero-3d"]');
+    const canvas = document.querySelector('[data-testid="hero"] canvas') as HTMLCanvasElement | null;
     const img = document.querySelector('[data-testid="hero"] img') as HTMLImageElement | null;
-    if (!img) return { present: false } as const;
-    await img.decode().catch(() => undefined);
-    const box = img.getBoundingClientRect();
+    const box = (canvas ?? img)?.getBoundingClientRect();
     return {
-      present: true,
-      loaded: img.naturalWidth > 0,
-      size: `${img.naturalWidth}x${img.naturalHeight}`,
-      sized: box.width > 200 && box.height > 100,
-    } as const;
+      host: Boolean(host),
+      canvas: Boolean(canvas),
+      img: Boolean(img),
+      painted: canvas ? canvas.width > 0 && canvas.height > 0 : Boolean(img && img.naturalWidth > 0),
+      sized: Boolean(box && box.width > 200 && box.height > 100),
+    };
   });
-  expect(hero.present, "no scene plate on the deployed hero").toBe(true);
-  expect(hero.loaded, "the scene plate did not load").toBe(true);
-  expect(hero.size).toBe("1344x768");
-  expect(hero.sized, "the hero image has no size").toBe(true);
+  expect(hero.canvas || hero.img, "the hero shows nothing at all").toBe(true);
+  expect(hero.painted, "the hero layer is empty").toBe(true);
+  expect(hero.sized, "the hero layer has no size").toBe(true);
 
   expect(problems, `console errors: ${problems.join(" | ")}`).toEqual([]);
 });

@@ -7,9 +7,12 @@ import { PrintDesk } from "./components/PrintDesk";
 import { loadImage } from "./world/compose";
 import { LOOKS } from "./look/stylise";
 import { portraitFromImage, type PortraitResult } from "./look/portrait";
-import { SCENES, SCENE_IDS, sceneSrc, type SceneId } from "./look/scenes";
+import { SCENES, SCENE_IDS, type SceneId } from "./look/scenes";
 import { BeforeAfter } from "./components/BeforeAfter";
 import { Fx, Marquee } from "./components/Fx";
+import { Hero3D } from "./components/Hero3D";
+import { SceneThumb } from "./components/SceneThumb";
+import "./type.css";
 import type { PlateSource } from "./lib/plates/plates";
 import { deskRoot, printChoices } from "./lib/printdesk/client";
 
@@ -105,6 +108,7 @@ export function App() {
         const result = await portraitFromImage(image, {
           ...preset,
           scene,
+          look,
           seed: 1 + (file.size % 997),
           onStage: (label) => setStages((seen) => (seen.includes(label) ? seen : [...seen, label])),
         });
@@ -217,11 +221,8 @@ export function App() {
                 data-state={index === stepIndex ? "now" : index < stepIndex ? "done" : "todo"}
                 aria-current={index === stepIndex ? "step" : undefined}
               >
-                <span className="step-num">{index + 1}</span>
-                {step.label}
-                <span className="hidden lg:inline" style={{ color: "var(--color-faint)", letterSpacing: "0.12em" }}>
-                  {step.hint}
-                </span>
+                {index > 0 ? <span style={{ color: "var(--color-faint)" }}>·</span> : null}
+                {step.label.toLowerCase()}
               </span>
             ))}
           </nav>
@@ -237,16 +238,10 @@ export function App() {
           data-testid="hero"
           className="rule relative mt-8 overflow-hidden border"
         >
-          <img
-            src={sceneSrc(scene)}
-            alt={`${SCENES[scene].label} — the place your frame is set in`}
-            className="absolute inset-0 h-full w-full object-cover"
-            aria-hidden="true"
-          />
+          <Hero3D scene={scene} look={look} className="absolute inset-0 h-full w-full" />
           <div className="city-scrim" aria-hidden="true" />
           <div className="relative px-10 py-20">
-            <p className="kicker">The city prints you</p>
-            <h1 className="display mt-5 text-6xl sm:text-7xl">Late Edition</h1>
+            <h1 className="display mt-5 text-5xl">Late Edition</h1>
             <p className="deck mt-7">
               Bring one photo. It becomes a painted frame in the city&rsquo;s own light — flat colour,
               ink over the lines, violet in the shadows and gold where the sun lands — then the editor
@@ -274,19 +269,9 @@ export function App() {
               </span>
             </div>
 
-            <div className="stat-row mt-12">
-              {[
-                { value: "1.3s", label: "a plate, in the browser" },
-                { value: "4", label: "surfaces it lands on" },
-                { value: "0", label: "keys, accounts, uploads" },
-                { value: String(locations.length), label: "places in the city" },
-              ].map((stat) => (
-                <div key={stat.label} className="stat">
-                  <div className="stat-value">{stat.value}</div>
-                  <div className="stat-label">{stat.label}</div>
-                </div>
-              ))}
-            </div>
+            <p className="mt-10 text-xs" style={{ color: "var(--color-faint)" }}>
+              One photo in. A plate, a fork — keep it or edit it — and then the city runs it.
+            </p>
           </div>
         </motion.section>
 
@@ -305,46 +290,49 @@ export function App() {
             style={{ scrollMarginTop: "7.5rem" }}
             className="mt-10"
           >
-            <div className="panel rule mb-6 border p-6">
-              <div className="flex flex-wrap items-baseline justify-between gap-4">
-                <div>
-                  <span className="kicker">The look</span>
-                  <p className="mt-2 text-sm text-[color:var(--color-muted)]">
-                    {LOOKS[look]?.blurb ?? ""}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2" role="group" aria-label="The look">
-                  {Object.entries(LOOKS).map(([id, preset]) => {
-                    const active = id === look;
-                    return (
-                      <button
-                        key={id}
-                        type="button"
-                        data-testid={`look-${id}`}
-                        aria-pressed={active}
-                        onClick={() => setLook(id)}
-                        className="lift rule border px-4 py-2 text-xs tracking-[0.2em] uppercase"
-                        style={{
-                          color: active ? "var(--color-ink)" : "var(--color-muted)",
-                          background: active ? "var(--color-gold)" : "transparent",
-                          borderColor: active ? "var(--color-gold)" : undefined,
-                        }}
+            <section className="section-tight" aria-labelledby="hour-heading">
+              <h2 id="hour-heading" className="display" style={{ color: "var(--color-paper)" }}>
+                <span style={{ color: "var(--color-faint)" }}>~ </span>the hour
+              </h2>
+              <p className="measure mt-2 text-xs" style={{ color: "var(--color-muted)" }}>
+                {LOOKS[look]?.blurb ?? ""} The hour grades the place — its sky, its water, its asphalt —
+                not only the person standing in it.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3" role="group" aria-label="The hour">
+                {Object.entries(LOOKS).map(([id, preset]) => {
+                  const active = id === look;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      data-testid={`look-${id}`}
+                      aria-pressed={active}
+                      onClick={() => setLook(id)}
+                      className="lift text-left"
+                      style={{ border: `1px solid ${active ? "var(--color-accent)" : "var(--color-rule)"}` }}
+                    >
+                      <SceneThumb scene={scene} look={id} className="w-[208px]" />
+                      <span
+                        className="block px-3 py-2 text-xs"
+                        style={{ color: active ? "var(--color-accent)" : "var(--color-muted)" }}
                       >
-                        {preset.label}
-                      </button>
-                    );
-                  })}
-                </div>
+                        {preset.label.toLowerCase()}
+                        {active ? " · chosen" : ""}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-            </div>
-            <div className="panel rule mb-6 border p-6">
-              <div className="flex flex-wrap items-baseline justify-between gap-4">
-                <div>
-                  <span className="kicker">Where you&rsquo;ll be</span>
-                  <p className="mt-2 text-sm text-[color:var(--color-muted)]">{SCENES[scene].blurb}</p>
-                </div>
-              </div>
-              <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" role="group" aria-label="Where you'll be">
+            </section>
+            <section className="section-tight" aria-labelledby="place-heading">
+              <h2 id="place-heading" className="display" style={{ color: "var(--color-paper)" }}>
+                <span style={{ color: "var(--color-faint)" }}>~ </span>the place
+              </h2>
+              <p className="measure mt-2 text-xs" style={{ color: "var(--color-muted)" }}>
+                {SCENES[scene].blurb}. Shown at the hour you picked, because that is what the press
+                will print.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3" role="group" aria-label="The place">
                 {SCENE_IDS.map((id) => {
                   const active = id === scene;
                   return (
@@ -354,32 +342,27 @@ export function App() {
                       data-testid={`scene-${id}`}
                       aria-pressed={active}
                       onClick={() => setScene(id)}
-                      className="lift rule overflow-hidden border text-left"
-                      style={{ borderColor: active ? "var(--color-gold)" : undefined }}
+                      className="lift text-left"
+                      style={{ border: `1px solid ${active ? "var(--color-accent)" : "var(--color-rule)"}` }}
                     >
-                      <img
-                        src={sceneSrc(id)}
-                        alt=""
-                        className="h-32 w-full object-cover"
-                        style={{ opacity: active ? 1 : 0.72 }}
-                      />
-                      <span className="flex items-baseline justify-between gap-2 px-3 py-3">
-                        <span
-                          className="text-sm"
-                          style={{ color: active ? "var(--color-gold)" : "var(--color-body)" }}
-                        >
-                          {SCENES[id].label}
-                        </span>
-                        {active ? <span className="kicker" style={{ color: "var(--color-gold)" }}>chosen</span> : null}
+                      <SceneThumb scene={id} look={look} className="w-[208px]" />
+                      <span
+                        className="block px-3 py-2 text-xs"
+                        style={{ color: active ? "var(--color-accent)" : "var(--color-muted)" }}
+                      >
+                        {SCENES[id].label.toLowerCase()}
+                        {active ? " · chosen" : ""}
                       </span>
                     </button>
                   );
                 })}
               </div>
-            </div>
+            </section>
             <PlateGate
-              onPhoto={(file, picked) => {
-                setChoice(picked);
+              onPhoto={(file) => {
+                // The press decides the print: the desk keeps its own defaults, and the visitor's only
+                // choices are the place and the hour, which live on the section above.
+                setChoice({ surface: "debut", quality: false });
                 if (deskRoot()) {
                   // This page was pointed at a desk on purpose (?desk=…), so print there, with the model.
                   setPendingPhoto(file);
@@ -435,7 +418,6 @@ export function App() {
             className="panel rule mt-10 border p-8"
             data-testid="printed-fork"
           >
-            <p className="kicker">Off the press</p>
             <h2 className="display mt-3 text-4xl">
               There you are, in {SCENES[cut?.scene ?? scene].label.toLowerCase()}
             </h2>
@@ -518,8 +500,7 @@ export function App() {
           >
             <div className="rule mb-5 flex items-center justify-between border-b pb-4">
               <div>
-                <p className="kicker">Step 2</p>
-                <h2 className="display mt-2 text-3xl">{plan.title}</h2>
+                <h2 className="display text-3xl">{plan.title}</h2>
               </div>
               <button
                 type="button"

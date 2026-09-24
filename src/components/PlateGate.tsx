@@ -1,44 +1,48 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { describeUploadProblem } from "../lib/plates/plates";
-import { deskAvailable, deskRoot, printChoices } from "../lib/printdesk/client";
+import { deskAvailable, deskRoot } from "../lib/printdesk/client";
 
 /**
- * Intake — one image in, one image into the editor. Everything is local: an uploaded photo is
- * read straight from the file object in the page and framed by the desk on this machine.
+ * Intake: one photograph in.
  *
- * The choices here (surface, location, quality) are the ones the desk actually understands, and
- * they come from the look spec rather than a hand-written list, so the UI cannot drift from it.
+ * The desk's own options used to live here — a surface picker, a location picker, a "rotate" default, a
+ * quality checkbox — and every one of them was a question the visitor should never have been asked.
+ * They were scaffolding for a GPU process, not decisions about their own photograph, and they made the
+ * first screen read like a print-shop order form. The press decides the print; the visitor's two real
+ * choices are the place and the hour, and both live on the sections above this one, where they can be
+ * seen rather than read off a dropdown.
+ *
+ * What is left is the drop zone, the picker, and the honesty: where the file is read, that it stays
+ * there, and — when this page has been pointed at a desk on another machine — that the photo goes
+ * there, because a visitor is entitled to know when their photograph leaves the machine it was read on.
  */
 
+interface PlateGateProps {
+  /** A photo from the visitor. Read in the page; never uploaded to a server of ours. */
+  onPhoto: (file: File) => void;
+}
+
+/**
+ * What the desk prints with. The intake no longer asks — the press decides — but the desk still needs
+ * the shape, so it stays exported from here.
+ */
 export interface PrintChoice {
   /** Which surface style to print: character shot, loading screen, poster, press photo. */
   surface: string;
-  /** Where the subject stands; undefined means the desk rotates through the city. */
+  /** Where the subject stands; undefined means the desk rotates through the city's places. */
   location?: string;
   /** Base model at 26 steps instead of the fast 4-step distilled one. */
   quality: boolean;
 }
 
-interface PlateGateProps {
-  /** A photo from the player — handed to the print desk, never uploaded to a server of ours. */
-  onPhoto: (file: File, choice: PrintChoice) => void;
-}
-
-const { surfaces, locations } = printChoices();
-
 export function PlateGate({ onPhoto }: PlateGateProps) {
   const [problem, setProblem] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
-  const [surface, setSurface] = useState("debut");
-  const [location, setLocation] = useState("");
-  const [quality, setQuality] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  // The desk is a GPU process on the machine running the app. On a static host there is none, and the
-  // visitor should learn that from the intake, not from a failure after they have chosen a photo.
-  const [desk, setDesk] = useState<"checking" | "up" | "down">("checking");
-  // A desk that is not on this origin is somewhere else on the network — the visitor should know
-  // their photo is leaving the machine it was read on.
+  // A desk that is not on this origin is somewhere else on the network. The visitor should learn that
+  // from the intake, not from a surprise after they have chosen a photo.
   const [remote, setRemote] = useState<string | null>(null);
+  const [desk, setDesk] = useState<"checking" | "up" | "down">("checking");
 
   useEffect(() => {
     let live = true;
@@ -66,97 +70,16 @@ export function PlateGate({ onPhoto }: PlateGateProps) {
         return;
       }
       setProblem(null);
-      onPhoto(file, { surface, location: location || undefined, quality });
+      onPhoto(file);
     },
-    [onPhoto, surface, location, quality],
+    [onPhoto],
   );
 
   return (
-    <section className="panel rule border p-8">
-      <p className="kicker">Step 1</p>
-      <h2 className="display mt-3 text-4xl">The plate</h2>
-      <p className="mt-3 max-w-[62ch] text-sm leading-relaxed text-[color:var(--color-muted)]">
-        Bring a photo. Your file is read in this page and sent only to the desk —{" "}
-        {remote ? (
-          <>
-            which is answering at <span className="text-[color:var(--color-body)]">{remote}</span>{" "}
-            right now. Nothing is stored there.
-          </>
-        ) : (
-          <>the one on this machine. There is no server of ours in the path.</>
-        )}
-      </p>
-
-      {desk === "down" ? (
-        <div
-          data-testid="desk-absent"
-          className="rule mt-6 border p-5"
-          style={{ background: "var(--color-ink-3)" }}
-        >
-          <p className="kicker" style={{ color: "var(--color-gold)" }}>
-            What happens when you press
-          </p>
-          <ol className="mt-3 max-w-[62ch] space-y-2 text-sm leading-relaxed text-[color:var(--color-body)]">
-            <li>1 — your photo is read in this page, and stays in this page</li>
-            <li>2 — the person in it is found, painted in the city&rsquo;s light, and placed in front of the sky you picked</li>
-            <li>3 — you get a clean frame, editable here and downloadable with no text on it</li>
-          </ol>
-          <p className="mt-4 text-xs leading-relaxed text-[color:var(--color-muted)]">
-            No account, no key, no upload, and nothing to install.
-          </p>
-        </div>
-      ) : null}
-
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <label className="block">
-          <span className="kicker">Style</span>
-          <select
-            data-testid="choose-style"
-            value={surface}
-            onChange={(event) => setSurface(event.target.value)}
-            className="rule mt-2 w-full border bg-[color:var(--color-ink-3)] px-3 py-2 text-sm text-[color:var(--color-body)]"
-          >
-            {surfaces.map((option) => (
-              <option key={option.id} value={option.id} className="text-black">
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block">
-          <span className="kicker">Location</span>
-          <select
-            data-testid="choose-location"
-            value={location}
-            onChange={(event) => setLocation(event.target.value)}
-            className="rule mt-2 w-full border bg-[color:var(--color-ink-3)] px-3 py-2 text-sm text-[color:var(--color-body)]"
-          >
-            <option value="" className="text-black">
-              Rotate ({locations.length} places)
-            </option>
-            {locations.map((option) => (
-              <option key={option.id} value={option.id} className="text-black">
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex items-end gap-3 pb-2">
-          <input
-            data-testid="choose-quality"
-            type="checkbox"
-            checked={quality}
-            onChange={(event) => setQuality(event.target.checked)}
-            className="h-4 w-4 accent-[color:var(--color-gold)]"
-          />
-          <span className="text-sm text-[color:var(--color-body)]">
-            Quality print
-            <span className="block text-xs text-[color:var(--color-faint)]">base model, 26 steps — slower, sharper</span>
-          </span>
-        </label>
-      </div>
+    <section className="section" aria-labelledby="intake-heading">
+      <h2 id="intake-heading" className="display" style={{ color: "var(--color-paper)" }}>
+        <span style={{ color: "var(--color-faint)" }}>~ </span>bring a photo
+      </h2>
 
       <div
         onDragOver={(event) => {
@@ -170,18 +93,14 @@ export function PlateGate({ onPhoto }: PlateGateProps) {
           const file = event.dataTransfer.files?.[0];
           if (file) accept(file);
         }}
-        className={`lift mt-6 flex flex-col items-center justify-center gap-3 border-2 border-dashed p-10 ${
-          dragging ? "border-[color:var(--color-gold)] bg-[color:var(--color-ink-3)]" : "rule"
-        }`}
+        className="mt-5 flex flex-col items-start gap-4"
+        style={{
+          border: `1px dashed ${dragging ? "var(--color-accent)" : "var(--color-rule)"}`,
+          padding: "2.5rem 2rem",
+        }}
       >
-        <p className="text-sm text-[color:var(--color-body)]">Drop a photo here, or</p>
-        <button
-          type="button"
-          data-testid="choose-photo"
-          onClick={() => inputRef.current?.click()}
-          className="lift rule border px-6 py-3 text-xs tracking-[0.2em] text-[color:var(--color-paper)] uppercase hover:text-[color:var(--color-gold)]"
-        >
-          Choose a photo
+        <button type="button" data-testid="choose-photo" className="btn" onClick={() => inputRef.current?.click()}>
+          [ choose a photo ]
         </button>
         <input
           ref={inputRef}
@@ -194,29 +113,46 @@ export function PlateGate({ onPhoto }: PlateGateProps) {
             if (file) accept(file);
           }}
         />
-        <p className="max-w-[52ch] text-center text-xs text-[color:var(--color-faint)]">
-          Face the camera, plain background, shoulders up — the desk finds the face and frames it itself.
+        <p className="measure text-xs" style={{ color: "var(--color-faint)" }}>
+          or drop one onto this box. Shoulders up, face the light — the press finds the person itself.
+          jpg, png or webp, up to 12MB.
         </p>
       </div>
 
       {problem ? (
-        <p data-testid="upload-status" role="status" className="mt-4 text-sm" style={{ color: "#ef6f6f" }}>
+        <p
+          data-testid="upload-status"
+          role="status"
+          className="mt-4 text-sm"
+          style={{ color: "var(--color-danger)" }}
+        >
           {problem}
         </p>
       ) : null}
 
-      <div className="rule mt-8 flex flex-wrap items-center justify-between gap-4 border-t pt-6">
-        <p className="max-w-[46ch] text-xs leading-relaxed text-[color:var(--color-faint)]">
-          Your photo is framed on this machine, printed on this machine, and never uploaded anywhere.
-          Nothing here needs an account or a key.
+      <div data-testid="desk-absent" className="mt-6">
+        <p className="measure text-xs" style={{ color: "var(--color-muted)" }}>
+          Your photo is read in this page, and stays in this page: the person in it is cut out by a
+          segmentation model running in this page, and the frame is composited here too — then it is
+          downloadable with no text on it. No account, no key, no upload, and nothing to install.
         </p>
-        <a
-          href="?demo=launch"
-          className="lift rule border px-4 py-2 text-xs tracking-[0.2em] text-[color:var(--color-body)] uppercase hover:text-[color:var(--color-gold)]"
-        >
-          See the payoff first
-        </a>
+        {remote ? (
+          <p className="measure mt-3 text-xs" style={{ color: "var(--color-flag)" }}>
+            You have pointed this page at a print desk answering at {remote}: your photo is sent to that
+            machine and nowhere else. Nothing is stored there.
+          </p>
+        ) : desk === "up" ? (
+          <p className="measure mt-3 text-xs" style={{ color: "var(--color-muted)" }}>
+            The print desk on this machine is up and answering.
+          </p>
+        ) : null}
       </div>
+
+      <p className="mt-6 text-xs">
+        <a href="?demo=launch" className="fx-link" style={{ color: "var(--color-muted)" }}>
+          see the payoff first →
+        </a>
+      </p>
     </section>
   );
 }

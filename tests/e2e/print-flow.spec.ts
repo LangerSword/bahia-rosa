@@ -27,8 +27,6 @@ test("intake choices reach the desk and the plate lands in the editor", async ({
   // The desk is opt-in now (the browser press is the default), so this suite asks for it explicitly:
   // ?desk= this origin routes the same requests through the dev proxy to ComfyUI.
   await page.goto("/?desk=http://localhost:5178");
-  await page.getByTestId("choose-style").selectOption("loadingscreen");
-  await page.getByTestId("choose-location").selectOption("marina");
 
   const photo = resolve(process.cwd(), "public/art/demo/s1-marisol-keyart.jpg");
   expect(existsSync(photo)).toBe(true);
@@ -37,8 +35,9 @@ test("intake choices reach the desk and the plate lands in the editor", async ({
   // The printing screen must say what it is printing — that text comes from the choice, not a default.
   const desk = page.getByTestId("print-desk");
   await expect(desk).toBeVisible();
-  await expect(desk).toContainText("loadingscreen");
-  await expect(desk).toContainText("marina");
+  // The intake used to hand the desk a surface and a location from two dropdowns. Those are gone: the
+  // desk prints its own default and rotates the city itself, so what is asserted here is that it is
+  // driving and the plate comes back — not that a form said so.
 
   // And the plate must actually come back. The press stops at the fork now — the plate is shown, and
   // the visitor chooses raw or editor — so the editor mounts only after that choice is made.

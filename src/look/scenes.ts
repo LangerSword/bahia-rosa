@@ -30,8 +30,8 @@ export const SCENES: Record<SceneId, Scene> = {
     label: "Bahía beach",
     blurb: "golden hour on the sand, the towers behind you",
     file: "beach.jpg",
-    ground: 0.88,
-    height: 0.6,
+    ground: 0.94,
+    height: 0.84,
     light: "behind",
   },
   mall: {
@@ -50,24 +50,24 @@ export const SCENES: Record<SceneId, Scene> = {
     label: "The marina",
     blurb: "yachts and masts, sun going down over the water",
     file: "marina.jpg",
-    ground: 0.87,
-    height: 0.62,
+    ground: 0.94,
+    height: 0.86,
     light: "right",
   },
   rooftop: {
     label: "Rooftop pool",
     blurb: "the city lit up behind you, water glowing",
     file: "rooftop.jpg",
-    ground: 0.92,
-    height: 0.72,
+    ground: 0.95,
+    height: 0.88,
     light: "behind",
   },
   boulevard: {
     label: "Palm boulevard",
     blurb: "neon on wet asphalt, a long way from here",
     file: "boulevard.jpg",
-    ground: 0.91,
-    height: 0.68,
+    ground: 0.95,
+    height: 0.87,
     light: "left",
   },
 };
@@ -83,28 +83,33 @@ export function sceneSrc(id: SceneId): string {
 /**
  * Where the painted subject goes.
  *
- * Pure arithmetic, so it is unit-tested: the subject is scaled to the scene's own figure height,
- * anchored to the scene's own ground line, and kept on the side of the frame the photograph put them
- * on (a person on the left of a portrait should not be teleported to the middle of a beach).
+ * Three rules, all of them from the brief:
+ *
+ *   1. **The subject's own aspect ratio is preserved.** The painted crop carries a margin around the
+ *      subject; placing the *subject's* box and then drawing the *crop* into it squashes the margin and
+ *      visibly stretches the person. So the crop is what gets placed, and the subject's height inside
+ *      it sets the scale.
+ *   2. **Size up.** The subject fills `scene.height` of the frame — a presence, not a sticker.
+ *   3. **Connected to centre-bottom.** The subject is centred horizontally, and their feet sit on the
+ *      bottom edge of the frame. Always, for every scene: no scene-specific ground line to get wrong.
+ *
+ * Pure arithmetic, so it is unit-tested.
  */
 export function placeSubject(
   subject: { x: number; y: number; width: number; height: number },
-  frame: { width: number; height: number },
-  scene: { ground: number; height: number },
-  margin = 0.06,
+  crop: { x: number; y: number; width: number; height: number },
+  scene: { height: number },
+  out: { width: number; height: number },
 ): { x: number; y: number; width: number; height: number } {
-  const targetHeight = Math.max(24, frame.height * scene.height);
-  const scale = targetHeight / Math.max(1, subject.height);
+  const scale = (out.height * scene.height) / Math.max(1, subject.height);
 
-  const width = subject.width * scale;
-  const height = targetHeight;
-  const groundY = frame.height * scene.ground;
+  // The subject's centre, measured inside the crop, lands on the frame's centre line.
+  const subjectCentreInCrop = subject.x - crop.x + subject.width / 2;
+  const x = out.width / 2 - subjectCentreInCrop * scale;
 
-  // Horizontal: where the subject sat in the frame, expressed as a fraction, then clamped so a person
-  // at the very edge is not half off the plate.
-  const centreFraction = (subject.x + subject.width / 2) / Math.max(1, frame.width);
-  const wanted = frame.width * (centreFraction * 0.6 + 0.5 * 0.5) - width / 2;
-  const x = Math.min(Math.max(wanted, frame.width * margin), frame.width - width - frame.width * margin);
+  // The subject's feet, measured inside the crop, land on the frame's bottom edge.
+  const feetInCrop = subject.y - crop.y + subject.height;
+  const y = out.height - feetInCrop * scale;
 
-  return { x, y: Math.max(0, groundY - height), width, height };
+  return { x, y, width: crop.width * scale, height: crop.height * scale };
 }

@@ -19,14 +19,21 @@ test("the shell renders the city's design language and stays clean", async ({ pa
 
   await page.goto("/");
 
-  // Wordmark, kicker and display type all come from the self-hosted faces.
+  // One voice. The decorative faces were retired with the template language they belonged to: the
+  // wordmark is the same monospaced family as the running text, and hierarchy is size and space.
   await expect(page.locator(".wordmark").first()).toHaveText(/late edition/i);
   await expect(page.locator("h1.display")).toBeVisible();
-  await expect(page.locator(".fx-marquee")).toContainText("Marina pier");
+  const type = await page.evaluate(() => {
+    const style = getComputedStyle(document.body);
+    const heading = document.querySelector("h1.display");
+    return {
+      family: style.fontFamily,
+      weight: heading ? getComputedStyle(heading).fontWeight : "",
+    };
+  });
+  expect(type.family, `body is not monospaced: ${type.family}`).toMatch(/mono/i);
 
-  // The self-hosted fonts must actually load (a 404 here would silently fall back to system type).
-  const fonts = await page.evaluate(() => document.fonts.check('16px "Limelight"') && document.fonts.check('16px "Pinyon Script"'));
-  expect(fonts).toBe(true);
+  await expect(page.locator(".fx-marquee")).toContainText("Marina pier");
 
   // The app talks to nothing but its own origin (the desk is proxied through it).
   expect(external).toEqual([]);
@@ -55,8 +62,9 @@ test("reduced motion turns the reveals off", async ({ page }) => {
   // With reduced motion the hero has no transform applied by the reveal.
   const transform = await page.getByTestId("hero").evaluate((node) => getComputedStyle(node).transform);
   expect(["none", "matrix(1, 0, 0, 1, 0, 0)"]).toContain(transform);
-  // The place is decoration in the shell: the hero must carry the chosen scene as an image, marked
-  // decorative, and the picker must offer the scenes rather than a row of buttons.
-  await expect(page.locator('[data-testid="hero"] img')).toHaveAttribute("aria-hidden", "true");
+  // The hero is a 3D scene now. Either it renders (a WebGL canvas) or the component falls back to the
+  // plate itself — both are the place, neither is a flat field, and decoration stays out of the
+  // accessibility tree either way.
+  await expect(page.locator('[data-testid="hero"] [aria-hidden="true"]').first()).toBeAttached();
   await expect(page.getByTestId("scene-beach")).toBeVisible();
 });
