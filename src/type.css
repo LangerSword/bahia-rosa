@@ -26,6 +26,17 @@
   --measure: 68ch;
   --wrap: 1120px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /*
+   * The old tokens still appear in inline styles across the editor, the fork and the launch surfaces.
+   * Rather than leave a second palette loose in the markup, they are aliased onto the new system here:
+   * everything that was gold is now the one amber "the press is talking" colour, and the old ink ramp
+   * collapses onto the canvas. One palette, one place.
+   */
+  --color-gold: #fbbf24;
+  --color-ink: #0a0a0a;
+  --color-ink-2: #111111;
+  --color-ink-3: #161616;
 }
 
 /* --- base --------------------------------------------------------------------------------------- */
@@ -85,7 +96,11 @@ input {
   font-size: 20px !important;
   letter-spacing: 0.18em !important;
   text-transform: uppercase !important;
-  color: var(--color-paper);
+  /* Flat paper. The first pass filled the wordmark with a gold gradient, which is the exact kind of
+     decoration this rewrite removed — a fill standing in for hierarchy. */
+  background: none !important;
+  -webkit-text-fill-color: currentColor !important;
+  color: var(--color-paper) !important;
 }
 
 .deck {
