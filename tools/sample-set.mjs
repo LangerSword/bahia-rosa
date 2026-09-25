@@ -6,7 +6,11 @@
  * this drives the real press in a real browser — the same doors a visitor takes — and keeps the downloads,
  * not screenshots of them:
  *
- *   docs/samples/plate-fast.png        the press's frame, fast finish
+ * The fixture set — pressed from the demo images in `public/art/demo/`, which is what a pipeline document
+ * wants and what the README no longer shows: its gallery is real photographs (`tools/real-samples.mjs`).
+ * It writes to /tmp by default so running it cannot quietly re-add fixtures to a curated gallery.
+ *
+ *   /tmp/samples/plate-fast.png        the press's frame, fast finish
  *   docs/samples/plate-fine.png        the press's frame, fine finish
  *   docs/samples/plate-as-it-is.png    the whole photograph, repainted (no cut, no layers)
  *   docs/samples/frame-outline.png     the arrangement in the editing phase, outline and corners visible
@@ -21,7 +25,7 @@ import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 const url = process.argv[2] ?? "http://localhost:4180";
-const outDir = resolve(process.argv[3] ?? "docs/samples");
+const outDir = resolve(process.argv[3] ?? "/tmp/samples");
 mkdirSync(outDir, { recursive: true });
 
 const browser = await chromium.launch();
