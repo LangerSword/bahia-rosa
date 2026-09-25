@@ -16,25 +16,29 @@ Nothing is uploaded, there is no account and no API key. Every pixel is drawn in
 
 ## What it makes
 
-These are downloads from the app, not mock-ups — `node tools/sample-set.mjs <url>` re-makes the whole set by
-driving the real press through the doors a visitor takes.
+These are **real photographs** pressed by the real product — no mock-ups. The two NASA portraits are public
+domain; `docs/samples/CREDITS.md` says where every file came from and why.
 
 | | |
 |---|---|
-| ![the fast finish](docs/samples/plate-fast.png) | ![the fine finish](docs/samples/plate-fine.png) |
-| **fast** — 1280×720, twenty colours, one edge pass, your photograph's own detail kept where it has any (~10s) | **fine** — 1900×1080, thirty-two colours, three edge passes |
-| ![as it is](docs/samples/plate-as-it-is.png) | ![the outline](docs/samples/frame-outline.png) |
-| **as it is** — the whole photograph repainted, no cut, no layers (~7s) | **the frame** — the subject's box, with corners that size them |
+| ![the photograph](docs/samples/lovell-photo.jpg) | ![the press's frame](docs/samples/lovell-plate.png) |
+| **in** — NASA's 1964 portrait of astronaut Jim Lovell | **out** — the press's frame, fine finish: cut, painted, placed, in one pass in the browser |
+| ![the photograph](docs/samples/kerwin-photo.jpg) | ![as it is](docs/samples/kerwin-plate.png) |
+| **in** — NASA's portrait of astronaut Joseph Kerwin | **out** — *as it is*: the whole photograph repainted and graded, no cut, no layers |
 
-| | | | |
-|---|---|---|---|
-| ![billboard](docs/samples/city-billboard.png) | ![venue](docs/samples/city-venue.png) | ![feed](docs/samples/city-feed.png) | ![postcard](docs/samples/city-postcard.png) |
-| billboard 1600×600 | venue 900×1200 | feed 1080×1350 | postcard 1500×1000 |
+![the city's billboard](docs/samples/lovell-billboard.png)
 
-![the frame on its own](docs/samples/frame-alone.png)
+*The city runs it* — the roadside billboard, 1600×600, out of the same arrangement. The venue foyer, the
+coast's feed and the printed postcard are the same frame at their own sizes.
 
-*The frame on its own* — no surface, no mount, no words: the picture you made, with whatever you did to it in
-the editor.
+| | |
+|---|---|
+| ![a finished plate](docs/samples/hamilton-poster.png) | ![the arrangement](docs/samples/frame-outline.png) |
+| **the lettering survives** — the paint over a press photograph of Lewis Hamilton: the sponsor marks and his number come through the palette | **the arrangement** — the person's own box in the frame, with corners that size them and cut lines that crop |
+
+`node tools/sample-set.mjs <url>` re-makes a set from the fixtures that ship with the repo;
+`node tools/real-samples.mjs <url> <outDir> <photo> <name> [fine|fast|asit] [city]` does it for any
+photograph you point it at, which is how the four above were made.
 
 ## The pipeline
 
