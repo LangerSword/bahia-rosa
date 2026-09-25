@@ -21,3 +21,15 @@ pressing photographs.
 If you are looking for safe material for your own samples, NASA's image library and Wikimedia Commons'
 public-domain categories are the shortest path: no model release, no licence to carry, no attribution
 required (credited here anyway, because it is right).
+
+## the gallery (`docs/gallery/`)
+
+The five images in the gallery were supplied by the repository's author, from photographs he chose, and are
+published here as examples of what the press does rather than as licensed stock. Two notes, because a public
+repository should be straight about this:
+
+- the subjects are **public figures** (and in one case a group of private individuals, photographed with the
+  author) — the source photographs are third-party material and remain the property of their owners; what
+  this repository claims is the *render*, which it made;
+- if you are looking for material you can safely reuse for your own samples, the NASA and Wikimedia
+  public-domain route described above is still the shortest path — it is what this folder's other files are.

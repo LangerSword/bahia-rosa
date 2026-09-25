@@ -11,6 +11,32 @@ workstation rather than a dependency of convenience.
 
 live: **https://langersword.github.io/bahia-rosa/**
 
+## gallery
+
+![Lewis Hamilton through the press](docs/gallery/hamilton-at-the-pool.jpg)
+
+*Lewis Hamilton, pressed and set at the pool. Every sponsor mark on the suit survives the palette — hp,
+Shell, UniCredit, CEVA, Richard Mille — which is the whole reason the detail pass exists.*
+
+![the group at the beach](docs/gallery/the-group-at-the-beach.jpg)
+
+*a group on the beach plate. A group is **one layer**: it moves, sizes and crops together, because splitting
+it would break the continuity of the redraw.*
+
+![the marina at golden hour](docs/gallery/the-marina-at-golden-hour.jpg)
+
+*the marina at golden hour — a subject the press placed in the scene, not one photographed in it.*
+
+### one photograph, and what the press does with it
+
+| in | out |
+|---|---|
+| ![the photograph as it arrived](docs/gallery/one-photograph-original.jpg) | ![the frame the press made](docs/gallery/one-photograph-pressed.jpg) |
+| **in** — the photograph as it arrived: a portrait, 736×1104, stage light already pink | **out** — the frame the press made of it: cut, painted in the hour's light, placed on the neon street, 1600×900 |
+
+*every one of these is a download from the app.* `node tools/paint-photo.mjs <photo>` makes your own, and
+[docs/samples/CREDITS.md](docs/samples/CREDITS.md) records where each photograph in this repository came from.
+
 ## stack
 
 | | |
@@ -115,18 +141,6 @@ npm run build          # tsc --noEmit, then vite build
 
 **if your shell runs `NODE_ENV=production`**, any `npm install` — even with `-D` — prunes the dev
 dependencies this repo needs to build and test. use `npm install --include=dev`.
-
-## examples
-
-![an example lands here](docs/samples/placeholder-frame.svg)
-![an example lands here](docs/samples/placeholder-frame.svg)
-
-![an example lands here](docs/samples/placeholder-frame.svg)
-![an example lands here](docs/samples/placeholder-frame.svg)
-
-*photographs of the press in action land here.* `node tools/paint-photo.mjs <photo>` writes them —
-the plate, the billboard, the foyer, the feed, the postcard — and `docs/samples/CREDITS.md` records where
-each photograph came from, because a public repo's sample gallery should say so.
 
 ## the editor
 
