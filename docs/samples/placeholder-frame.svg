@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img" aria-label="an example lands here">
+  <rect width="800" height="450" fill="#0d0d12"/>
+  <rect x="26" y="26" width="748" height="398" fill="none" stroke="#fcaf17" stroke-opacity="0.34" stroke-width="2" stroke-dasharray="12 9"/>
+  <g transform="translate(400 178)" stroke="#fcaf17" stroke-opacity="0.62" stroke-width="5" fill="none" stroke-linejoin="round">
+    <rect x="-62" y="-38" width="124" height="86" rx="10"/>
+    <path d="M-26 -38 l14 -18 h24 l14 18"/>
+    <circle cx="0" cy="3" r="26"/>
+  </g>
+  <text x="400" y="292" text-anchor="middle" fill="#f2efe9" fill-opacity="0.72" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="27" letter-spacing="2">an example lands here</text>
+  <text x="400" y="336" text-anchor="middle" fill="#fcaf17" fill-opacity="0.78" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19" letter-spacing="1">node tools/paint-photo.mjs photo.jpg</text>
+</svg>

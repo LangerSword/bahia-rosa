@@ -1,46 +1,26 @@
-# BAHÍA ROSA
+# bahía rosa
 
-**The city prints you. Then your poster takes the city.**
+**the city prints you. then your poster takes the city.**
 
-A GTA VI-inspired experience built for the
-[Unlayer "Build with React Image Editor" Challenge](https://github.com/unlayer/react-image-editor).
+one photo in, a painted character portrait out — entirely in the browser. no upload, no account, no api key,
+no server in the request path: the segmentation model, the palette, the compositor and the editor all run on
+the visitor's machine, and the photograph never leaves the page.
 
-You bring one photo. It does not leave your browser: a segmentation model finds you **in the frame**
-(MediaPipe, self-hosted — no key, no account, no upload), the press paints you in the city's light and sets
-you in a place — a Bahía beach at golden hour, the marina, a rooftop pool, a palm boulevard, or simply your
-own room, redrawn as it is. Then the fork: **keep the frame**, or take it **into the editor** and make
-tonight's poster. And then the payoff: **the city runs it** — roadside billboard, venue foyer, the coast's
-feed, a printed postcard — each at full resolution, plus the frame on its own with nothing around it.
+built for unlayer's *build with react image editor* challenge, where `@unlayer/react-image-editor` is the
+workstation rather than a dependency of convenience.
 
-Nothing is uploaded, there is no account and no API key. Every pixel is drawn in your browser.
+live: **https://langersword.github.io/bahia-rosa/**
 
-## What it makes
-
-These are **real photographs** pressed by the real product — no mock-ups. The two NASA portraits are public
-domain; `docs/samples/CREDITS.md` says where every file came from and why.
+## stack
 
 | | |
 |---|---|
-| ![the photograph](docs/samples/lovell-photo.jpg) | ![the press's frame](docs/samples/lovell-plate.png) |
-| **in** — NASA's 1964 portrait of astronaut Jim Lovell | **out** — the press's frame, fine finish: cut, painted, placed, in one pass in the browser |
-| ![the photograph](docs/samples/kerwin-photo.jpg) | ![as it is](docs/samples/kerwin-plate.png) |
-| **in** — NASA's portrait of astronaut Joseph Kerwin | **out** — *as it is*: the whole photograph repainted and graded, no cut, no layers |
+| app | react 19 · typescript · vite 8 · tailwind 4 · motion · three (hero canvas only) |
+| cut | `@mediapipe/tasks-vision` 1.0 — six-class selfie segmentation, models served from our own origin |
+| editor | `@unlayer/react-image-editor` 1.0 — tool sets gated per surface |
+| tests | vitest (unit, 154) · playwright (e2e, 16 including a real-touch phone walk) |
 
-![the city's billboard](docs/samples/lovell-billboard.png)
-
-*The city runs it* — the roadside billboard, 1600×600, out of the same arrangement. The venue foyer, the
-coast's feed and the printed postcard are the same frame at their own sizes.
-
-| | |
-|---|---|
-| ![a finished plate](docs/samples/hamilton-poster.png) | ![the arrangement](docs/samples/frame-outline.png) |
-| **the lettering survives** — the paint over a press photograph of Lewis Hamilton: the sponsor marks and his number come through the palette | **the arrangement** — the person's own box in the frame, with corners that size them and cut lines that crop |
-
-`node tools/sample-set.mjs <url>` re-makes a set from the fixtures that ship with the repo;
-`node tools/real-samples.mjs <url> <outDir> <photo> <name> [fine|fast|asit] [city]` does it for any
-photograph you point it at, which is how the four above were made.
-
-## The pipeline
+## the pipeline
 
 ```
 photo → cut ──────────► paint ──────► place ──────────────► FORK ─────────► editor ──────► city
@@ -50,91 +30,149 @@ photo → cut ──────────► paint ──────► plac
                                                             └─ arrange the subject, in the frame, in the editing phase
 ```
 
-The rules the press keeps, each one written down because it was learned the hard way:
+the invariants, each learned the hard way and each one asserted somewhere in `tests/`:
 
-- **The photograph decides the light, before anything else looks at colour.** A tungsten room and a street in
-  shade both lie about colour; the cast is pulled back toward neutral first, and a dim frame is lifted by its
-  own histogram rather than by a constant. Measured: a tungsten room's colour error drops 79%.
-- **The cut keeps everybody above a noise floor** and, when the model's answer swallows the frame (which is
-  what an illustration does to it), the *confidences* are re-read strictly before the press gives up.
-- **Colour work happens in Oklab**, not RGB — a perceptual space, so the palette spends its colours where the
-  eye can see the difference. Measured on a photograph-like frame: 12 colours land within ΔE 0.05 on **96.7%**
-  of pixels, 32 on 99.9%.
-- **The frame is two layers**: the place with nobody in it, and the person, painted, on nothing. That is what
-  lets the person be moved over their own background instead of the whole picture sliding — and it is why the
-  ground must never contain a second copy of them.
-- **A preview is the exporter.** The canvas on screen and the file you download call the same
-  `drawPlacement()`, so a download *is* the preview at full resolution, not a second rendering of it.
-- **Everything is measured, or it is not claimed.** `docs/accuracy.txt` and `docs/lighting.txt` are written by
-  the test suite on every run, and the numbers in this README come from them.
+- **light is decided before anything looks at colour.** a tungsten room and shade both lie about white; the
+  cast is pulled toward neutral against the brightest tenth, then a dim frame is lifted by its own histogram
+  rather than a constant. measured: a tungsten room's colour error drops 79% (`docs/lighting.txt`).
+- **everybody above the noise floor survives the cut** — including a group — and when the model's answer
+  swallows the frame (an illustration does this to a photo-trained model), the *confidences* are re-read
+  strictly before the press gives up and paints flat.
+- **colour work is Oklab, never RGB.** the palette spends its colours where the eye can see the difference.
+  measured on a photograph-like frame: 20 colours land within ΔE 0.05 on 97%+ of pixels, 32 on 99.9%
+  (`docs/accuracy.txt`).
+- **the frame is two layers**: the place with nobody in it, and the person painted on nothing. that is what
+  makes a drag move the person instead of the picture, and why the ground must never hold a second copy of
+  them.
+- **a preview is the exporter.** the canvas on screen and the file you download run the same
+  `drawPlacement()`, so a download is the preview at full resolution, not a second rendering of it.
+- **the cut is applied to the source, before the fit** — and it is enforced with a floor, because two
+  maximum cuts on one axis would otherwise leave a source rect with no extent: a crash inside the painter,
+  not a crop (`tests/unit/crop.test.ts`).
 
-## The finishes
+## layout
+
+```
+src/look/         the press itself
+  bodysegment.ts    MediaPipe segmentation → soft alpha, edge refinement, group handling
+  stylise.ts        the paint: Oklab palette, ink, grain, the detail pass, all pure functions
+  portrait.ts       the compositor: cut, paint, place, the two layers, the final grade
+  timeofday.ts      the hour: how a plate is graded for dusk / night / neon
+  scenes.ts         the plates, and where a person lands in each
+
+src/world/        the printed world
+  compose.ts        layerGeometry / drawPlacement — the one geometry preview and export share
+  placements.ts     billboard · venue · feed · postcard, and the arrange FRAME
+
+src/components/   the surfaces a visitor touches
+  Arrange.tsx       the arrangement, its outline, and the crop mode
+  EditorSurface.tsx Unlayer's editor, tool sets gated per surface
+  PlacementCanvas.tsx   a live preview that is the exporter
+  PhotoDrop.tsx     drop / paste anywhere, with a hold-and-ask before replacing work
+
+src/lib/          payoff.ts (the remembered arrangement) · photo.ts (intake)
+public/models/    selfie_multiclass.tflite (16.4MB) · selfie_segmenter.tflite (249KB)
+public/mediapipe/ the wasm runtime (11.7MB), self-hosted so nothing is fetched from a CDN
+tests/            unit (vitest) · e2e (playwright) · mobile (touch, 390×844)
+tools/            measurement scripts — see below
+docs/             accuracy.txt · lighting.txt · look.md · editor-contract.md · print-desk.md
+```
+
+## finishes
 
 | | fast | fine | as it is |
 |---|---|---|---|
 | frame | 1280×720 | 1900×1080 | 1400×788 |
-| palette | 16 colours, 8 rounds | 32 colours, 8 rounds | 40 colours, 5 rounds |
-| edge | one pass | three passes | — (no cut) |
-| finder | six-class segmenter | six-class segmenter | none |
-| warm press | **≈12s** | ≈20s | **≈8s** |
+| palette | 20 colours, 8 rounds | 32 colours, 6 rounds | 40 colours, ink 0.06 |
+| edge refinement | one pass | three passes | — (no cut at all) |
+| subject painted at | 1350px edge | 1500px edge | the frame itself |
+| detail pass | 0.92 | off | off |
 
-The report line under the frame prints the finish *and* the width, because those are the two things that
-change what you get.
+the same **six-class finder** for both finishes — a cheaper single-class model was tried and its edge is a
+blob's edge; speed comes from the palette rounds, the edge passes and the frame size, never from the quality
+of the cut. fast's warm press is ~10s and the other two are slower by design; `node tools/press-time.mjs
+<url> fast` prints the stage timeline rather than a guess.
 
-## Run it
+## run it
 
 ```bash
 npm install
-npm run dev          # the app, on :5178
-npm run test         # unit tests; rewrites docs/accuracy.txt and docs/lighting.txt
-npx playwright test  # the suite, in a real browser — it needs memory to spare
-node tools/sample-set.mjs http://localhost:5178   # re-make the pictures above
+npm run dev            # vite, on :5178 (strictPort)
+npm run test           # unit; rewrites docs/accuracy.txt and docs/lighting.txt on every run
+npm run test:e2e       # playwright — a real browser, the real press; give it memory
+npm run build          # tsc --noEmit, then vite build
 ```
 
-**The optional print desk.** A local GPU renderer (`tools/desk/desk.sh`, ComfyUI + FLUX.2 [klein]) that can
-print a plate in a minute instead of in a browser. It is *not* required: the deployed app prints entirely in
-the page. Point the app at one with `?desk=<url>` and it is remembered — see
-[`docs/print-desk.md`](docs/print-desk.md) for costs, quota and the self-stop watchdog.
+| tool | what it answers |
+|---|---|
+| `tools/paint-photo.mjs <photo>` | press one photograph and keep everything: the plate and all four city surfaces |
+| `tools/press-time.mjs <url> <finish>` | where the seconds go, stage by stage |
+| `tools/layer-check.mjs <url>` | did the person move, or the whole picture? |
+| `tools/asis-check.mjs <url>` | the "as it is" ground, sampled against the visitor's own room |
+| `tools/editor-layers.mjs <url>` | what the editor's layer control actually is, and when it enables |
+| `tools/design-check.mjs <url>` | the chrome, measured against the design contract |
+| `tools/paint-time.ts` | each paint lever's milliseconds, in isolation |
 
-## The editor
+**if your shell runs `NODE_ENV=production`**, any `npm install` — even with `-D` — prunes the dev
+dependencies this repo needs to build and test. use `npm install --include=dev`.
 
-The arrangement has a **crop button**. Pressing it turns the frame into a crop: the cut lines sit on the
-person where the cut will land, any of the four drags straight to where you want it, and the same four
-numbers are on sliders for anyone who would rather type — because "I don't want the full body in this one" is a
-decision about the picture, not a percentage. The lines are drawn on the *uncropped* extent, which is the
-part that is otherwise invisible: the cut is applied before the fit, so what is drawn is the cropped
-person, and the only honest way to show what a cut takes away is to draw the box it is taking it from.
+## examples
 
-React Image Editor (`@unlayer/react-image-editor`) is the workstation. Each surface hands it a different tool
-set (`features.imageEditor.tools`), so "the editor is core" is structural rather than a claim — and the
-arrangement lives in the same phase, in the frame above the tools: drag the subject, drag a corner to size
-them, cut from the top or bottom, let them run off the edge. The frame is drawn from the same geometry the
-exporter uses, so the box in the outline is the box you get.
+![an example lands here](docs/samples/placeholder-frame.svg)
+![an example lands here](docs/samples/placeholder-frame.svg)
 
-The editor's own chrome is theirs, including **Flatten layers**, which stays disabled until there is more than
-one layer to flatten (add text, a sticker or a shape and it enables). The tool rail has no layers tool; the
-measurement is in [`docs/editor-contract.md`](docs/editor-contract.md).
+![an example lands here](docs/samples/placeholder-frame.svg)
+![an example lands here](docs/samples/placeholder-frame.svg)
 
-## On a phone
+*photographs of the press in action land here.* `node tools/paint-photo.mjs <photo>` writes them —
+the plate, the billboard, the foyer, the feed, the postcard — and `docs/samples/CREDITS.md` records where
+each photograph came from, because a public repo's sample gallery should say so.
 
-The whole flow works on a phone: choose a place, press, compare, arrange, crop, download — no sideways
-scroll at any stage, and the drag surfaces sized for a fingertip rather than a cursor (the handles grow
-under a coarse pointer, and the frame and its cut lines carry `touch-action: none`, so a press-and-drag is
-a drag and not a scroll). `tests/e2e/mobile.spec.ts` walks 390×844 with **real touch events** and asserts
-all three.
+## the editor
 
-The one deliberate exception is Unlayer's editor, a 1024×700 desktop surface by contract
-(`docs/editor-contract.md`): on a phone it keeps that size inside a scroller of its own rather than pushing
-the page — and the arrangement above it — sideways.
+the arrangement sits in the same phase as the editor, in the frame above the tools: drag the subject, drag a
+corner to size them, drag a cut line to crop. it is drawn from `layerGeometry()` — the same function, the
+same arguments, that the exporter draws the person with, so the box in the outline is the box you get.
 
-## Design
+the **crop button** turns the frame into a crop: cut lines sit on the person where the cut will land, any of
+the four drags straight to where you want it, and the same four numbers are on sliders. the lines are drawn
+on the *uncropped* extent, which is the part otherwise invisible — the cut is applied to the source before
+the fit, so what is drawn is already the cropped person.
 
-The chrome is measured from the studio's own site rather than guessed at, and the contract every component
-answers to is [`DESIGN.md`](DESIGN.md) — tokens, type roles, and the rules about what may be a gradient, a
-panel or a kicker (the short version: none of the last three unless it has a job).
+each surface hands `@unlayer/react-image-editor` a different tool set (`features.imageEditor.tools`), so
+"the editor is core" is structural rather than a claim. its own chrome is theirs, including **flatten
+layers**, which stays disabled until there is more than one layer to flatten — measured, not assumed
+(`docs/editor-contract.md`).
 
----
+## on a phone
 
-Unofficial fan-made project for the Unlayer Build with React Image Editor Challenge. Not affiliated with,
-endorsed by, or connected to Rockstar Games or Take-Two Interactive. All visuals are original work; the city
-(Bahía Rosa) and its newspaper (LA GAVIOTA) are invented.
+the flow works on a phone: place, press, compare, arrange, crop, download. no sideways scroll at any stage,
+handles and cut lines sized for a fingertip (44px of hit area, a 12px mark), `touch-action: none` on the drag
+surfaces so a press-and-drag is a drag and not a scroll. `tests/e2e/mobile.spec.ts` walks 390×844 with
+**real touch events** and asserts each of those.
+
+one deliberate exception: unlayer's editor is a 1024×700 desktop surface by contract. on a phone it keeps
+that size inside a scroller of its own instead of pushing the page sideways, and the editing phase offers
+the arrangement and the city first.
+
+## deployment
+
+github pages, built and published by `.github/workflows/pages.yml` on pushes to `main` only. nothing else
+deploys anywhere: no branch previews, no CDN, no functions, no server.
+
+## limits
+
+- **the first press pays for the model**: ~28MB of model and wasm, cached by the browser afterwards. the
+  progress line says "loading the segmenter" while it happens.
+- **software renderers are slow.** headless chromium without a GPU paints several times slower than a phone
+  does; the numbers above are from the machine this was built on.
+- **"as it is" prints at the fine finish** because a repainted photograph shows a coarse palette far more
+  than a stylised plate does.
+- **a group stays one layer.** splitting it would break continuity; the group moves, sizes and crops as one,
+  and the line under the frame says "the group" when more than one person was found.
+
+## credits
+
+unofficial, fan-made, not affiliated with or endorsed by rockstar games or take-two interactive. the city
+(bahía rosa) and its newspaper (la gaviota) are invented; all visuals are original work. licence:
+[LICENSE](LICENSE). sample photographs and their provenance: [docs/samples/CREDITS.md](docs/samples/CREDITS.md).
