@@ -175,4 +175,4 @@ deploys anywhere: no branch previews, no CDN, no functions, no server.
 
 unofficial, fan-made, not affiliated with or endorsed by rockstar games or take-two interactive. the city
 (bahía rosa) and its newspaper (la gaviota) are invented; all visuals are original work. licence:
-[LICENSE](LICENSE). sample photographs and their provenance: [docs/samples/CREDITS.md](docs/samples/CREDITS.md).
+MIT ([LICENSE](LICENSE)). sample photographs and their provenance: [docs/samples/CREDITS.md](docs/samples/CREDITS.md).
