@@ -114,7 +114,7 @@ refuses more than 12 prints an hour per address. Cloudflare reaches it outbound,
 and no certificate is needed. Point the deployed app at the printed URL:
 
 ```
-https://langersword.github.io/bahia-rosa/?desk=https://<something>.trycloudflare.com
+https://bahia.langersword.in/?desk=https://<something>.trycloudflare.com
 ```
 
 The address is remembered in `localStorage`, and the intake says where the photo is going. Caveats,

@@ -28,8 +28,9 @@ jobs:
           cache: npm
       - run: npm ci --include=dev
       - run: npm run test
-      # The base path is the repository's own name — repository metadata, not user input.
-      - run: npm run build -- --base=/${{ github.event.repository.name }}/
+      # The site is served from the domain root — bahia.langersword.in, a custom domain on this Pages
+      # site — so the base is `/`. The project URL still works: Pages redirects it to the custom domain.
+      - run: npm run build -- --base=/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

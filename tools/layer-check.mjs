@@ -15,7 +15,7 @@
  * The arrangement lives in the editing phase now, so the tool drags there and then walks out to the city to
  * sample what the surfaces actually print.
  *
- *   node tools/layer-check.mjs https://langersword.github.io/bahia-rosa/ [outDir]
+ *   node tools/layer-check.mjs https://bahia.langersword.in/ [outDir]
  */
 
 import { chromium } from "playwright";

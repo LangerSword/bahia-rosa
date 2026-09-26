@@ -6,7 +6,7 @@ import { expect, test } from "@playwright/test";
  * against the live URL, on the machine's own browser.
  */
 
-const LIVE = process.env.LIVE_URL ?? "https://langersword.github.io/bahia-rosa";
+const LIVE = process.env.LIVE_URL ?? "https://bahia.langersword.in";
 
 test("the deployed build serves the launch stage", async ({ page }) => {
   test.setTimeout(90_000);

@@ -28,7 +28,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 
-const BASE = process.env.GRADE_BASE ?? "https://langersword.github.io/bahia-rosa";
+const BASE = process.env.GRADE_BASE ?? "https://bahia.langersword.in";
 const REPO = process.cwd();
 const DEMO = "public/art/demo/s1-marisol-keyart.jpg";
 const args = process.argv.slice(2);

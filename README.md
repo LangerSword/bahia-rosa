@@ -9,7 +9,7 @@ the visitor's machine, and the photograph never leaves the page.
 built for unlayer's *build with react image editor* challenge, where `@unlayer/react-image-editor` is the
 workstation rather than a dependency of convenience.
 
-live: **https://langersword.github.io/bahia-rosa/**
+live: **https://bahia.langersword.in/**
 
 ## gallery
 

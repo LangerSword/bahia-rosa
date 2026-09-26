@@ -26,7 +26,7 @@ const PORT = Number(process.env.FRONT_PORT ?? 8790);
 const PRINTS_PER_HOUR = Number(process.env.FRONT_PRINTS_PER_HOUR ?? 12);
 const ALLOWED = (
   process.env.FRONT_ORIGINS ??
-  "https://langersword.github.io,http://localhost:5178,http://127.0.0.1:5178,http://[::1]:5178"
+  "https://bahia.langersword.in,https://langersword.github.io,http://localhost:5178,http://127.0.0.1:5178,http://[::1]:5178"
 )
   .split(",")
   .map((origin) => origin.trim())
