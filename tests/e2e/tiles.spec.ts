@@ -86,6 +86,38 @@ test.describe("the choices", () => {
     expect(caption.toLowerCase()).toContain("night");
   });
 
+  test("the rows hold still: the hour strip does not re-render when the place changes", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForSelector('[data-testid="look-dusk"]');
+    // Each hour tile's own drawing, as bytes. A strip whose thumbnails re-render when the *other* row
+    // changes cannot be compared, because the thing being compared moves.
+    const hourStrip = async (): Promise<string> =>
+      page.evaluate(() =>
+        Array.from(document.querySelectorAll('[data-testid^="look-"]'))
+          .map((tile) => {
+            const canvas = tile.querySelector("canvas") as HTMLCanvasElement | null;
+            return canvas ? canvas.toDataURL().slice(-28) : "none";
+          })
+          .join("|"),
+      );
+    const previewOf = async (): Promise<string> =>
+      page
+        .locator('[data-testid="pick-preview-canvas"]')
+        .evaluate((el) => (el as HTMLCanvasElement).toDataURL().slice(-28));
+
+    const hoursBefore = await hourStrip();
+    const previewBefore = await previewOf();
+    expect(previewBefore).not.toBe("none");
+
+    await page.locator('[data-testid="scene-marina"]').click();
+    await expect(page.locator('[data-testid="scene-marina"]')).toHaveAttribute("aria-pressed", "true");
+    // The strip holds still through the change...
+    await page.waitForTimeout(1200);
+    expect(await hourStrip(), "the hour strip re-drew when the place changed").toBe(hoursBefore);
+    // ...and the preview follows it, so the stillness is the strip's design and not a dead page.
+    await expect.poll(previewOf, { timeout: 10_000 }).not.toBe(previewBefore);
+  });
+
   test("the tiles are touch-sized on a phone", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");

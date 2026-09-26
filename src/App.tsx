@@ -668,8 +668,9 @@ export function App() {
                 <span style={{ color: "var(--color-faint)" }}>~ </span>the hour
               </h2>
               <p className="measure mt-2 text-xs" style={{ color: "var(--color-muted)" }}>
-                {LOOKS[look]?.blurb ?? ""} The hour grades the place — its sky, its water, its asphalt —
-                not only the person standing in it.
+                four hours, every one of them shown on the same place — the beach — so they can be compared
+                against each other. the hour grades the whole plate: its sky, its water, its asphalt, not only
+                the person standing in it.
               </p>
               <div
                 className="mt-4 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap"
@@ -686,7 +687,9 @@ export function App() {
                     onClick={() => setLook(id)}
                     label={preset.label.toLowerCase()}
                     note={preset.blurb}
-                    media={<SceneThumb scene={scene} look={id} className="w-full sm:w-[220px]" />}
+                    /* One fixed place for the whole row. A thumbnail that re-renders when the *other* row
+                       changes is a strip you cannot compare, because the thing you are comparing moves. */
+                    media={<SceneThumb scene="beach" look={id} className="w-full sm:w-[220px]" />}
                   />
                 ))}
               </div>
@@ -696,8 +699,9 @@ export function App() {
                 <span style={{ color: "var(--color-faint)" }}>~ </span>the place
               </h2>
               <p className="measure mt-2 text-xs" style={{ color: "var(--color-muted)" }}>
-                {SCENES[scene].blurb}. Shown at the hour you picked, because that is what the press
-                will print.
+                the places the press prints into, every one of them shown at dusk so they can be compared
+                against each other. the plate above is your place at your hour — pick one here and it changes
+                there. “as it is” is no place at all: your photograph, on its own.
               </p>
               <div
                 className="mt-4 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap"
@@ -714,7 +718,13 @@ export function App() {
                     onClick={() => setScene(id)}
                     label={SCENES[id].label.toLowerCase()}
                     note={SCENES[id].blurb}
-                    media={<SceneThumb scene={id} look={look} className="w-full sm:w-[220px]" />}
+                    /* One fixed hour for the whole row, and no thumbnail for “as it is”: it has no scene to
+                       show, and a blank frame among four drawings reads as the broken one. */
+                    media={
+                      id === "asis" ? undefined : (
+                        <SceneThumb scene={id} look="dusk" className="w-full sm:w-[220px]" />
+                      )
+                    }
                   />
                 ))}
               </div>

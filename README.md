@@ -44,7 +44,7 @@ it would break the continuity of the redraw.*
 | app | react 19 · typescript · vite 8 · tailwind 4 · motion · three (hero canvas only) |
 | cut | `@mediapipe/tasks-vision` 1.0 — six-class selfie segmentation, models served from our own origin |
 | editor | `@unlayer/react-image-editor` 1.0 — tool sets gated per surface |
-| tests | vitest (unit, 199) · playwright (e2e, 53 including a real-touch phone walk) |
+| tests | vitest (unit, 199) · playwright (e2e, 54 including a real-touch phone walk) |
 
 ## the pipeline
 
@@ -266,9 +266,11 @@ the hero's own box and the height of the document, measured after the ease has r
 
 the hour, the place and the finish are the same act, so they are the same object: a **tile** — a mat, a
 caption in the open, one gold mark that travels between neighbours — built from the same parts as the contact
-sheet below it. the hour and the place show themselves before anyone commits a photograph (each scene, graded
-by the press's own code, so if a thumbnail and the printed frame ever disagreed that would be a bug), and the
-finish says what it prints in pixels: bars to scale, labelled 1280 and 1900, rather than two words in a box.
+sheet below it. Each row holds a **fixed reference** so it can be compared: the hour strip is always the beach,
+the place strip is always at dusk, and “as it is” carries no thumbnail because it has no scene to show. The
+**preview** above them is the one thing that answers “what will I get” — the place you chose at the hour you
+chose, drawn by the press's own code — and a tile that re-rendered when the *other* row changed would be a
+strip you cannot read: that is asserted, not assumed.
 
 the gallery sits *after* the choices now, and reads as evidence rather than decoration: the plates are what
 the picker above them produces. `tests/e2e/tiles.spec.ts` holds both halves — one chosen tile per group,
