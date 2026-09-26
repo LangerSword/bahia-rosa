@@ -116,22 +116,27 @@ test("the wordmark hands over to its dust, with no frame where neither is there"
     const record = { overlapFrames: 0, holes: 0, dustWithLetters: 0, canvasSeen: false };
     (window as unknown as { __handoff: typeof record }).__handoff = record;
     window.setInterval(() => {
+      const sheet = document.querySelector('[data-testid="entry"]');
       const h1 = document.querySelector(".entry-wordmark");
       const canvas = document.querySelector(".vapour-host canvas");
       const letters = [...document.querySelectorAll(".entry-letter")];
       if (!h1 || !letters.length) return;
+      // Only while the dissolve is the thing on stage: through the *lift* the letters are hidden and the
+      // canvas is gone by design, which is the sheet leaving, not a hole.
+      const phase = sheet ? sheet.getAttribute("data-phase") : null;
+      const playing = phase === "vapour";
       const dusting = h1.getAttribute("data-vapour") === "on";
       if (canvas) record.canvasSeen = true;
-      if (canvas && !dusting) record.overlapFrames += 1;
-      // A hole: the DOM copy hidden with no canvas in its place.
-      if (dusting && !canvas) record.holes += 1;
-      if (dusting) {
+      if (playing && canvas && !dusting) record.overlapFrames += 1;
+      // A hole: the DOM copy hidden with no canvas in its place, while the dust is supposed to be playing.
+      if (playing && dusting && !canvas) record.holes += 1;
+      if (playing && dusting) {
         record.dustWithLetters = Math.max(
           record.dustWithLetters,
           letters.filter((el) => Number(getComputedStyle(el).opacity) > 0.05).length,
         );
       }
-    }, 25);
+    }, 15);
   });
 
   await page.goto("/?entry=1");
@@ -192,4 +197,74 @@ test("a face that never arrives costs seconds, not the page", async ({ page }) =
   await expect(sheet).toBeVisible();
   await expect(sheet).toHaveAttribute("data-face", "ready", { timeout: 6_000 });
   await expect(sheet).toHaveCount(0, { timeout: 15_000 });
+});
+
+test("the dust is drawn in the title's own shape — line for line", async ({ page }) => {
+  /**
+   * The fault a reader caught: the wordmark wraps onto two lines in its box, and the canvas drew it as one
+   * long line — wider than the canvas, so it clipped, and at a different size and shape from the type it
+   * replaced. Same face, different typography, which reads as the font changing as the title vaporises.
+   *
+   * So the dust's geometry is held against the DOM's letters: the same width, two lines deep, in the face it
+   * was asked for.
+   */
+  await page.goto("/?entry=1");
+  const sheet = page.getByTestId("entry");
+  await expect(sheet).toBeVisible();
+
+  const host = page.getByTestId("vapour-host");
+  await expect(host).toHaveCount(1, { timeout: 20_000 });
+  await expect.poll(async () => host.getAttribute("data-ink"), { timeout: 10_000 }).not.toBe("");
+
+  const shape = (await page.evaluate(`(() => {
+    const host = document.querySelector('[data-testid="vapour-host"]');
+    const h1 = document.querySelector(".entry-wordmark");
+    const nodes = h1 ? [...h1.querySelectorAll(".entry-letter")] : [];
+    const hostRect = host.getBoundingClientRect();
+    const boxes = nodes.map((el) => el.getBoundingClientRect()).filter((box) => box.width > 0.5);
+    const tops = [...new Set(boxes.map((box) => Math.round(box.top)))];
+    const ink = (host.getAttribute("data-ink") || "").split(",").map(Number);
+    const lines = boxes.length
+      ? [...new Set(boxes.map((box) => Math.round(box.top / 8)))].length
+      : 0;
+    void tops;
+    return {
+      letters: boxes.length,
+      domLines: lines,
+      domLeft: boxes.length ? Math.round(Math.min(...boxes.map((b) => b.left)) - hostRect.left) : null,
+      domRight: boxes.length ? Math.round(Math.max(...boxes.map((b) => b.right)) - hostRect.left) : null,
+      lineHeight: boxes.length ? Math.round(Math.max(...boxes.map((b) => b.height))) : 0,
+      ink: ink.length === 4 ? { left: ink[0], top: ink[1], right: ink[2], bottom: ink[3] } : null,
+      drawnLines: Number(host.getAttribute("data-lines") || 0),
+      font: host.getAttribute("data-font"),
+      limelight: document.fonts.check('20px "Limelight"'),
+    };
+  })()`)) as {
+    letters: number;
+    domLines: number;
+    domLeft: number | null;
+    domRight: number | null;
+    lineHeight: number;
+    ink: { left: number; top: number; right: number; bottom: number } | null;
+    drawnLines: number;
+    font: string | null;
+    limelight: boolean;
+  };
+
+  expect(shape.limelight, "the face is loaded when the dust is drawn").toBe(true);
+  expect(shape.font, "and it is the face the title is set in").toBe("Limelight");
+  expect(shape.ink, "the dust reported its own shape").not.toBeNull();
+  expect(shape.domLeft, "the letters are measurable").not.toBeNull();
+
+  // The dust spans the letters, edge to edge. The tolerance is a glyph's own side bearing — the letters'
+  // boxes are advance boxes, and the ink starts inside them — plus the letter-spacing the canvas cannot
+  // carry: at this size that is ~14px on each side, against the hundreds a one-line canvas was out by.
+  const slack = Math.round(shape.lineHeight * 0.12);
+  expect(Math.abs((shape.ink?.left ?? 0) - (shape.domLeft ?? 0)), "left edge").toBeLessThanOrEqual(slack);
+  expect(Math.abs((shape.ink?.right ?? 0) - (shape.domRight ?? 0)), "right edge").toBeLessThanOrEqual(slack);
+
+  // Two lines of type make ink taller than one line: the wrapped title was drawn wrapped.
+  expect(shape.drawnLines, "the canvas drew the title's lines").toBeGreaterThanOrEqual(2);
+  const inkHeight = (shape.ink?.bottom ?? 0) - (shape.ink?.top ?? 0);
+  expect(inkHeight, "and the dust is as tall as two lines, not one").toBeGreaterThan(shape.lineHeight * 1.4);
 });

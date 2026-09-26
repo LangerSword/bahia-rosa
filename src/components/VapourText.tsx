@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactElement } from "react";
+import type { LineBox } from "../lib/lines";
 
 /**
  * Type that turns to dust.
@@ -8,28 +9,36 @@ import { useEffect, useRef, type ReactElement } from "react";
  * wave reaches takes a velocity, damps toward rest, and fades. Roughly two thousand specks, a second of it,
  * and the wordmark is gone.
  *
- * Two faults of the first cut are fixed here, and both were *alignment*:
+ * Three faults of the first cuts are fixed here, and every one of them was *alignment*:
  *
  *   the dust was sampled centred in the box the DOM text occupied with no margin, so it sat a hair off the
  *   letters it replaced and an accented Í could have its accent cut by the canvas edge. The canvas is now
- *   that box *plus a margin*, offset negatively, with the type drawn into the middle of the padded canvas:
- *   nothing clips, and the first sample lands where the first letter was.
+ *   that box *plus a margin*, offset negatively, with the type drawn into the middle of the padded canvas.
  *
- *   the sampled width was whatever the canvas measured, while the DOM text carries `letter-spacing`. The two
- *   are reconciled — the font is scaled by the ratio between them — because dust that does not start on its
- *   own lettering reads as a glitch rather than as type coming apart.
+ *   the sampled width was whatever the canvas measured, while the DOM text carries `letter-spacing`; the two
+ *   are reconciled by measuring the canvas against the DOM's own line widths.
  *
- * Three things are deliberately *not* carried over, because they are about a component library rather than
- * about this page: it renders at **device resolution, capped at 2**, so the specks are dust on a retina
- * screen instead of a few thousand hard squares; it never runs under `prefers-reduced-motion` (it reports
- * done immediately, so the sheet lifts as it always has for those visitors); and it **reports when it is
- * finished** — the sheet's lift waits for the last particle rather than racing it.
+ *   and the one a reader noticed first: **a wrapped title was drawn as a single line.** The DOM sets
+ *   "BAHÍA ROSA" over two lines in its box, while the canvas drew it as one line at a fitted size — wider
+ *   than the canvas, so `fillText` clipped it, and at a different size and shape from the type it replaced.
+ *   Same *face*, different *typography*: it reads as the font changing as the title vaporises. So the caller
+ *   measures the title's lines from the DOM (`mergeLineRects` over the letter boxes) and the canvas draws
+ *   those lines, at those offsets, at that size — line for line, and the dust starts where the letters were.
+ *
+ * Two things are deliberately *not* carried over: it renders at **device resolution, capped at 2**, so the
+ * specks are dust on a retina screen instead of a few thousand hard squares; and it never runs under
+ * `prefers-reduced-motion` (it reports done immediately, so the sheet lifts as it always has for those
+ * visitors). It **reports when it is finished** — the sheet's lift waits for the last particle rather than
+ * racing it — and it reports the shape it drew (`data-ink` on the host) so a test can hold the dust's
+ * geometry against the DOM's.
  */
 
 interface VapourTextProps {
   text: string;
   font: { family: string; size: number; weight?: number };
   color: string;
+  /** The title's lines, in host coordinates — measured from the DOM so the dust matches the letters. */
+  lines?: LineBox[];
   /** Seconds for the wave to cross the text. */
   duration?: number;
   /** 0–1: how many particles spend themselves quickly rather than drifting. */
@@ -54,6 +63,7 @@ export function VapourText({
   text,
   font,
   color,
+  lines,
   duration = 1.05,
   density = 0.72,
   spread = 46,
@@ -130,27 +140,51 @@ export function VapourText({
       surface.style.left = `${-pad}px`;
       surface.style.top = `${-pad}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-      // Reconcile the canvas's idea of the word with the DOM's, which carries letter-spacing.
-      const size0 = Math.max(8, Math.round(font.size));
-      ctx.font = `${font.weight ?? 400} ${size0}px ${font.family}`;
-      const measured = ctx.measureText(text).width || 1;
-      const fit = Math.min(1.08, Math.max(0.92, boxWidth / measured));
-      const size = Math.max(8, Math.round(size0 * fit));
-
-      ctx.font = `${font.weight ?? 400} ${size}px ${font.family}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.imageSmoothingEnabled = true;
       ctx.fillStyle = color;
-      ctx.fillText(text, width / 2, height / 2);
+
+      const size0 = Math.max(8, Math.round(font.size));
+      const weight = font.weight ?? 400;
+      let drawn = 0;
+
+      /**
+       * Draw the title the way the DOM has it: line by line, at the size the browser actually set. Each
+       * line is fitted the way the single line used to be — the canvas is scaled by the ratio between the
+       * DOM's line width and the canvas's measurement of the same string, because the DOM carries
+       * `letter-spacing` and a canvas does not — but the ground truth is now the line, not the block.
+       */
+      if (lines && lines.length > 0) {
+        for (const line of lines) {
+          if (!line.text) continue;
+          ctx.font = `${weight} ${size0}px ${font.family}`;
+          const measured = ctx.measureText(line.text).width || 1;
+          const fit = Math.min(1.08, Math.max(0.92, line.width / measured));
+          const size = Math.max(8, Math.round(size0 * fit));
+          ctx.font = `${weight} ${size}px ${font.family}`;
+          ctx.fillText(line.text, pad + line.left + line.width / 2, pad + line.top + line.height / 2);
+          drawn += 1;
+        }
+      }
+
+      if (drawn === 0) {
+        // Nothing measured to go on (an older caller, or a title that could not be read): one line, fitted
+        // to the box — the behaviour this had before the lines were handed in.
+        ctx.font = `${weight} ${size0}px ${font.family}`;
+        const measured = ctx.measureText(text).width || 1;
+        const fit = Math.min(1.08, Math.max(0.92, boxWidth / measured));
+        const size = Math.max(8, Math.round(size0 * fit));
+        ctx.font = `${weight} ${size}px ${font.family}`;
+        ctx.fillText(text, width / 2, height / 2);
+      }
 
       const image = ctx.getImageData(0, 0, deviceWidth, deviceHeight).data;
       ctx.clearRect(0, 0, width, height);
 
       // Sampled off the device grid, stored in CSS pixels: the wave and the particle homes must be in the
       // same space as the box they are crossing.
-      const step = Math.max(2, Math.round(size / 34)) * dpr;
+      const step = Math.max(2, Math.round(size0 / 34)) * dpr;
       const particles: Particle[] = [];
       for (let y = 0; y < deviceHeight; y += step) {
         for (let x = 0; x < deviceWidth; x += step) {
@@ -169,6 +203,27 @@ export function VapourText({
           }
         }
       }
+
+      /**
+       * What the dust actually is, in host coordinates: the sampled ink's own bounding box. Reported on the
+       * host so the suite can hold the dust's geometry against the DOM's lines — the assertion that would
+       * have caught the one-line title before a reader did.
+       */
+      let ink = { left: Number.POSITIVE_INFINITY, top: Number.POSITIVE_INFINITY, right: Number.NEGATIVE_INFINITY, bottom: Number.NEGATIVE_INFINITY };
+      for (const particle of particles) {
+        ink = {
+          left: Math.min(ink.left, particle.homeX - pad),
+          top: Math.min(ink.top, particle.homeY - pad),
+          right: Math.max(ink.right, particle.homeX - pad),
+          bottom: Math.max(ink.bottom, particle.homeY - pad),
+        };
+      }
+      node.dataset.font = font.family;
+      node.dataset.lines = String(drawn || 1);
+      node.dataset.ink = particles.length
+        ? [ink.left, ink.top, ink.right, ink.bottom].map((value) => Math.round(value)).join(",")
+        : "";
+
       if (particles.length === 0) {
         finish();
         return;
@@ -238,10 +293,10 @@ export function VapourText({
       cancelled = true;
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [text, font.family, font.size, font.weight, color, duration, density, spread, onDone]);
+  }, [text, font.family, font.size, font.weight, color, lines, duration, density, spread, onDone]);
 
   return (
-    <div ref={host} className="vapour-host" aria-hidden="true">
+    <div ref={host} className="vapour-host" aria-hidden="true" data-testid="vapour-host">
       <canvas ref={canvas} className="vapour-canvas" />
     </div>
   );

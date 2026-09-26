@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } 
 import { motion } from "motion/react";
 import { SCENE_IDS, sceneSrc } from "../look/scenes";
 import { markEntryPlayed } from "../lib/entry";
+import { mergeLineRects } from "../lib/lines";
 import { VapourText } from "./VapourText";
 import "./entry.css";
 
@@ -108,8 +109,21 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
     height: number;
     size: number;
   } | null>(null);
+  /** The title's lines, measured off the DOM, so the dust is drawn in the shape the type actually has. */
+  const [vapourLines, setVapourLines] = useState<ReturnType<typeof mergeLineRects>>([]);
 
-  /** Two or three frames of overlap between the DOM letters and the canvas that replaces them. */
+  /**
+   * The DOM letters stay hidden one beat *after* the dust begins, not at the same instant.
+   *
+   * The canvas paints the whole wordmark on its first frame and eats into it as the wave crosses, so for
+   * those frames the type exists twice — sampled on the canvas and set in the DOM. Cutting the DOM copy at
+   * the same moment the phase flips left a hole where the canvas had not painted yet: the un-dusted side of
+   * the wordmark simply missing for a frame or two. A beat of overlap is what makes it a hand-off instead.
+   *
+   * Eight frames, not four: the canvas has to wait for its own face and one paint before it draws, and on a
+   * loaded machine those frames are not cheap. The overlap costs nothing visible — both copies are the same
+   * wordmark — and it is the difference between a hand-off and a flicker.
+   */
   useEffect(() => {
     if (phase !== "vapour") {
       setVapourSettled(false);
@@ -119,7 +133,7 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
     let handle = 0;
     const step = (): void => {
       frames += 1;
-      if (frames >= 4) {
+      if (frames >= 8) {
         setVapourSettled(true);
         return;
       }
@@ -129,7 +143,7 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
     return () => cancelAnimationFrame(handle);
   }, [phase]);
 
-  /** Where the wordmark actually is, so the dust starts where the type was instead of near it. */
+  /** Where the wordmark actually is, and where its lines are, so the dust starts where the type was. */
   useEffect(() => {
     if (phase !== "vapour") return;
     const node = wordmark.current;
@@ -146,6 +160,25 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
       height: type.height,
       size: parseFloat(getComputedStyle(node).fontSize) || 96,
     });
+
+    /**
+     * The letters, grouped into lines.
+     *
+     * The wordmark is a wrapped `h1` — "BAHÍA ROSA" over two lines in its box — and a canvas that draws it as
+     * one long line clips itself and changes the type's shape. So the lines are measured from the DOM (each
+     * letter's own box, merged by line) and handed to the sampler, which draws them where they are.
+     */
+    const letters = [...node.querySelectorAll<HTMLElement>(".entry-letter")].map((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        text: element.textContent ?? "",
+        left: rect.left - type.left,
+        top: rect.top - type.top,
+        width: rect.width,
+        height: rect.height,
+      };
+    });
+    setVapourLines(mergeLineRects(letters));
   }, [phase]);
 
   /** The warm-up: the plates in parallel, the faces in one go, counted in units of work that happened. */
@@ -293,6 +326,7 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
               text="BAHÍA ROSA"
               font={{ family: "Limelight", size: vapourBox.size, weight: 400 }}
               color="#f2efe9"
+              lines={vapourLines}
               onDone={() => setPhase("lift")}
             />
           </div>
