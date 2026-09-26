@@ -44,7 +44,7 @@ it would break the continuity of the redraw.*
 | app | react 19 · typescript · vite 8 · tailwind 4 · motion · three (hero canvas only) |
 | cut | `@mediapipe/tasks-vision` 1.0 — six-class selfie segmentation, models served from our own origin |
 | editor | `@unlayer/react-image-editor` 1.0 — tool sets gated per surface |
-| tests | vitest (unit, 190) · playwright (e2e, 37 including a real-touch phone walk) |
+| tests | vitest (unit, 199) · playwright (e2e, 41 including a real-touch phone walk) |
 
 ## the pipeline
 
