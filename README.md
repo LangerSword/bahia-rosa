@@ -44,7 +44,7 @@ it would break the continuity of the redraw.*
 | app | react 19 · typescript · vite 8 · tailwind 4 · motion · three (hero canvas only) |
 | cut | `@mediapipe/tasks-vision` 1.0 — six-class selfie segmentation, models served from our own origin |
 | editor | `@unlayer/react-image-editor` 1.0 — tool sets gated per surface |
-| tests | vitest (unit, 154) · playwright (e2e, 16 including a real-touch phone walk) |
+| tests | vitest (unit, 190) · playwright (e2e, 37 including a real-touch phone walk) |
 
 ## the pipeline
 
@@ -241,6 +241,51 @@ border, one gold mark. No coloured rails — a coloured rail is decoration prete
 It speaks when the plate is ready (with the place and the finish), when the desk comes back with one, and on
 a download — naming the file, because a download that does not tell you what it saved is a leap of faith.
 `tests/e2e/card-reveal.spec.ts` asserts the press's own notice, in the same test that watches the card land.
+
+## the plates, and the story
+
+nine frames, every one of them printed by this press: five plates pressed from photographs and the four
+places the press prints into. no stock photography — a gallery of proofs that borrowed a catalogue's pictures
+would be the one thing on this site that is not evidence. it is a contact sheet that stands up as the visitor
+scrolls past it: the structure is the 21st.dev unfurling gallery, rebuilt in `motion`/rAF, with two
+deliberate departures. **nothing is hijacked** — the wall pins inside a section a little over one screen
+tall, so the unfurl happens beside the visitor's reading rather than instead of it — and **the plates stay
+legible**: the wall is narrower than the box that clips it (`overflow: clip`, because `hidden` would kill the
+sticky), the tilt settles near flat, and each frame wears a mat with a hairline and a caption in the open,
+because on a near-black ground weight comes from light, not shadow, and a caption behind a hover is a label
+nobody reads.
+
+on the city stage the visitor's own three artefacts are walked the same way: the photograph, the plate, and
+the place it was printed into. the walk's window and the panels' fade windows are the *same* window — the
+story's own lead and tail divided by three — and that is a fix, not a detail: a first cut gave each panel its
+own arbitrary slice of raw scroll progress, so the active moment was fully visible for a single instant and
+the rest of its moment read as an empty room. `tests/e2e/story.spec.ts` now asserts the decisive thing:
+while the section reports a moment as active, that moment's panel is at full opacity.
+
+the comparison between a photograph and its plate is separated by a **tear** rather than a ruled line — torn
+paper, drawn from a seeded path in `src/lib/tear.ts`, deterministic so the same tear is drawn every render and
+wide enough to actually read as a tear at print size (a narrow one is a straight line with extra steps). the
+handle underneath is still a range input.
+
+## the ring
+
+a gold ring accompanies the pointer on devices that have one, and leans toward whatever is near — the hero's
+door, the finish control, the site's own buttons. it is decoration *over* normal input: the native cursor
+stays, clicks land where the visitor aimed, nothing intercepts a pointer event, and `pointer: coarse` or
+`prefers-reduced-motion` gets no ring at all. two things it learned the hard way: `pointerout` **bubbles** —
+listening for it on `window` marks the pointer gone every time it crosses any element, so the ring never
+appears — and a magnet selector must include controls that are actually on screen, which is why the hero's
+door carries `data-magnet` and the pull is asserted against a magnet inside the viewport. it fades after a
+couple of seconds of stillness, so it can never sit parked over the page while the visitor reads.
+
+## the stack
+
+`src/lib/alerts.ts` is a second, smaller store beside the toasts, for the opposite kind of message: a toast is
+a moment, an alert is a *condition*. a photograph that cannot be pressed waits until the visitor dismisses it
+or a later press succeeds — one stable id, so a second failure replaces the first, and the successful press
+clears it. three at a time, `role="alert"` for a stop and `role="status"` for a warning. a stop is red: the
+city's `--color-flag` token renders amber, and an amber edge on the one alert that is already a warning reads
+as a nudge. `tests/e2e/alerts.spec.ts` walks it with a file that claims to be a photograph and is not.
 
 ## on a phone
 
