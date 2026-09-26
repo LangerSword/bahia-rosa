@@ -15,7 +15,7 @@ import { BeforeAfter } from "./components/BeforeAfter";
 import { Fx, Marquee } from "./components/Fx";
 import { Hero3D } from "./components/Hero3D";
 import { Entry } from "./components/Entry";
-import { SteelCard } from "./components/SteelCard";
+import { PressCard } from "./components/PressCard";
 import { SceneThumb } from "./components/SceneThumb";
 import "./type.css";
 import type { PlateSource } from "./lib/plates/plates";
@@ -737,22 +737,28 @@ export function App() {
               Everything below happens inside this page. Your photo is not uploaded anywhere, and there
               is no key or account in the path.
             </p>
-            <ol className="mt-6 space-y-2" aria-live="polite">
-              {stages.map((label) => (
-                <li key={label} className="flex items-baseline gap-3 text-sm text-[color:var(--color-body)]">
-                  <span style={{ color: "var(--color-gold)" }}>✓</span>
-                  {label}
-                </li>
-              ))}
-            </ol>
-            <div className="rule mt-6 h-[3px] w-full overflow-hidden border" aria-hidden="true">
-              <motion.div
-                className="h-full"
-                style={{ background: "var(--color-gold)" }}
-                initial={{ width: "6%" }}
-                animate={{ width: `${Math.min(94, 18 + stages.length * 19)}%` }}
-                transition={{ duration: 0.45, ease: EASE }}
-              />
+            <div className="mt-7 grid gap-8 lg:grid-cols-[minmax(240px,360px)_minmax(0,1fr)] lg:items-start">
+              {/* The card turns over in here while the press runs — and it is gone when the press is. */}
+              <PressCard />
+              <div>
+                <ol className="space-y-2" aria-live="polite">
+                  {stages.map((label) => (
+                    <li key={label} className="flex items-baseline gap-3 text-sm text-[color:var(--color-body)]">
+                      <span style={{ color: "var(--color-gold)" }}>✓</span>
+                      {label}
+                    </li>
+                  ))}
+                </ol>
+                <div className="rule mt-6 h-[3px] w-full overflow-hidden border" aria-hidden="true">
+                  <motion.div
+                    className="h-full"
+                    style={{ background: "var(--color-gold)" }}
+                    initial={{ width: "6%" }}
+                    animate={{ width: `${Math.min(94, 18 + stages.length * 19)}%` }}
+                    transition={{ duration: 0.45, ease: EASE }}
+                  />
+                </div>
+              </div>
             </div>
           </motion.section>
         ) : null}
@@ -772,11 +778,8 @@ export function App() {
               {cutLine}
             </p>
 
-            {/* The ceremony: the plate, minted onto a card. Then the two doors for what to do with it. */}
-            <SteelCard plate={image} scene={SCENES[cut?.scene ?? scene].label.toUpperCase()} />
-
             <div className="mt-7 grid gap-7 lg:grid-cols-[minmax(0,1fr)_320px]">
-              <div className="rule overflow-hidden border">
+              <div className="rule plate-sweep overflow-hidden border">
                 <img
                   src={image}
                   alt="Your plate, freshly printed"

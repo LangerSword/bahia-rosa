@@ -7,10 +7,20 @@
  * the masthead carries — which leaves the screen as the sheet lifts.
  */
 
+/* The gold sheet under the ink one, a beat behind it on the way out. */
+.entry-under {
+  position: fixed;
+  inset: 0;
+  z-index: 69;
+  background: var(--color-gold);
+  will-change: transform;
+}
+
 .entry-sheet {
   position: fixed;
   inset: 0;
   z-index: 70;
+  overflow: hidden;
   display: grid;
   grid-template-rows: auto 1fr auto;
   gap: 1rem;
@@ -63,8 +73,21 @@
   letter-spacing: 0.015em;
 }
 
+/*
+ * Each letter sits in its own mask and rises from behind it. The mask bleeds upward — and pulls that
+ * bleed back with a negative margin — so an accented Í has somewhere to be while its letter is hidden.
+ */
+.entry-letter-mask {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  padding-top: 0.24em;
+  margin-top: -0.24em;
+}
+
 .entry-letter {
   display: inline-block;
+  will-change: transform;
 }
 
 .entry-rule {
@@ -119,4 +142,34 @@
 .entry-skip:hover,
 .entry-skip:focus-visible {
   color: var(--color-gold);
+}
+
+/* One roll of light down the sheet as it arrives — the site's press hairline, at the scale of the door. */
+.entry-sheen {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 42%;
+  background: linear-gradient(180deg, transparent, rgb(252 175 23 / 10%), transparent);
+  animation: entry-sheen 1.7s cubic-bezier(0.22, 1, 0.36, 1) 0.15s 1 both;
+}
+
+@keyframes entry-sheen {
+  from {
+    transform: translateY(-120%);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  to {
+    transform: translateY(260%);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entry-sheen {
+    animation: none;
+    opacity: 0;
+  }
 }

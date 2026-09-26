@@ -96,11 +96,11 @@ src/components/   the surfaces a visitor touches
   PlacementCanvas.tsx   a live preview that is the exporter
   PhotoDrop.tsx     drop / paste anywhere, with a hold-and-ask before replacing work
   Entry.tsx         the way in: the title sheet, and what it warms while it is up
-  SteelCard.tsx     the card the plate is minted onto, in three.js — with a flat-print fallback
+  PressCard.tsx     the loading screen's card: rendered once in three.js, spun by CSS while the press runs
   Hero3D.tsx        the hero, as a floor and a sky at two depths
 
 src/lib/          payoff.ts (the remembered arrangement) · photo.ts (intake)
-                  card.ts (the card's serial and stamp) · entry.ts (whether the title plays)
+                  entry.ts (whether the title plays) · tips.ts (what the loading screen says)
 public/models/    selfie_multiclass.tflite (16.4MB) · selfie_segmenter.tflite (249KB)
 public/mediapipe/ the wasm runtime (11.7MB), self-hosted so nothing is fetched from a CDN
 tests/            unit (vitest) · e2e (playwright) · mobile (touch, 390×844)
@@ -164,35 +164,43 @@ layers**, which stays disabled until there is more than one layer to flatten —
 
 ## the way in
 
-the first visit opens on a title sheet: the wordmark assembled letter by letter, and a counter beside it
-reading *real* work — the four plates the picker draws from and the five faces the page is set in, warmed
-while the title is up, so the picker is instant when it goes. the sheet lifts rather than the page fading up,
-and the hero's own reveal waits for it (`entered`, in `src/App.tsx`) rather than performing behind a covered
-screen.
+every visit opens on a title sheet: the wordmark assembling letter by letter — each letter rising from
+behind its own mask, so it reads as type being *set* rather than text fading in — a counter beside it reading
+*real* work (the four plates the picker draws from and the five faces the page is set in, warmed while the
+title is up, so the picker is instant when it goes), and one roll of light down the sheet as it arrives. it
+leaves as two sheets rather than one: the ink, and the gold a beat behind it, the press's own hairline
+chasing the page into view. the hero's reveal waits for it (`entered`, in `src/App.tsx`) rather than
+performing behind a covered screen.
 
-it is skipped for `prefers-reduced-motion`, for a session that has already watched it, and for automation;
-`?entry=1` forces it, which is how its own suite watches it. the decision is a pure function in
-`src/lib/entry.ts` (`tests/unit/entry.test.ts`), and `tests/e2e/entry.spec.ts` walks it: the title plays and
-holds the hero back, a click skips it early, and it is absent by default — that last one is what every other
-spec in the directory depends on.
+it plays for **everyone, every time** — the title is part of the piece, and there is no "seen it already"
+state for it to consult. what still skips it: `prefers-reduced-motion`, the `?demo=` links, and automation
+(a title card that blocked clicks would cost every spec in the directory seconds and a class of flaky
+failures — `?entry=1` overrules even that, which is how the entry's own suite watches it). the decision is a
+pure function in `src/lib/entry.ts` (`tests/unit/entry.test.ts`), and `tests/e2e/entry.spec.ts` walks it: the
+title plays and holds the hero back, a click skips it early, it is absent under automation — and it plays
+*again* on a second visit.
 
 the lift's clock starts at the first *painted* frame, not at mount. measured, not assumed: this page spends
 its first second building a WebGL hero, and a floor measured from mount lifted the sheet the instant the
 letters landed — or before they did.
 
-## the card
+## the loading screen
 
-when the press finishes it does not just print. the plate is minted onto a stainless card: a three.js scene
-with `metalness: 1` lit by a room environment, so every highlight on the metal is a reflection rather than a
-painted gradient. the face is drawn into a canvas and used twice — once in colour, once as a **bump map** —
-which is why the engraving reads the sweep of light that crosses it. the visitor's own plate is set into a
-cut window with a groove around it, and the card turns once, takes one sweep, and settles.
+while the press runs, the card turns over on screen — rapidly, once every 0.85s — and it exists **only**
+while the press runs: when the art is ready the card is unmounted and what the visitor is shown is the art.
+(a first cut of this left the card sitting in the output, which is not what a card is for.)
 
-the serial is minted from the plate itself (`src/lib/card.ts`): the same plate mints the same serial, because
-a "one of one" that changes when you reload is one you can watch stop being one. the stamp is the real press
-time. with no WebGL the same card renders as a flat print rather than nothing — a ceremony must not be able
-to take the fork down with it — and `tests/e2e/steel-card.spec.ts` asserts the wrapper rather than the canvas
-for exactly that reason. under `prefers-reduced-motion` it is a single still frame.
+two decisions in there are about the press rather than about looks. the metal is rendered **once**,
+off-screen — three.js with `metalness: 1` lit by a room environment, one frame into an image — and then the
+renderer and its context are disposed; the spin itself is a CSS transform, which runs on the compositor.
+a JavaScript-driven spin would be competing with the press for the same main thread, and the press always
+wins that fight, so it would stutter exactly when it is meant to be saying that something is happening. and
+with no WebGL the same card is drawn in CSS — and still spins.
+
+the tip under the card rotates, and every tip is a true sentence (`src/lib/tips.ts`). when the art lands, one
+sweep of light crosses the plate (`.plate-sweep`, `effects.css`) — the same metal the loading screen just
+showed, arriving on the picture. `tests/e2e/press-card.spec.ts` asserts the spin by its CSS animation, and
+that the card is *gone* once the plate is up; under `prefers-reduced-motion` it is a still card.
 
 ## on a phone
 

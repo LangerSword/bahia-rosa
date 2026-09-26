@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { motion } from "motion/react";
 import { SCENE_IDS, sceneSrc } from "../look/scenes";
-import { markEntrySeen } from "../lib/entry";
 import "./entry.css";
 
 /**
@@ -44,7 +43,6 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
   const finish = useCallback((): void => {
     if (finished.current) return;
     finished.current = true;
-    markEntrySeen();
     onDone();
   }, [onDone]);
 
@@ -148,18 +146,29 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
   }, [leaving, finish]);
 
   return (
-    <motion.div
-      className="entry-sheet"
-      data-testid="entry"
-      aria-hidden="true"
-      initial={false}
-      animate={leaving ? { y: "-101%" } : { y: 0 }}
-      transition={{ duration: 0.95, ease: LIFT }}
-      onAnimationComplete={(): void => {
-        if (leaving) finish();
-      }}
-    >
-      <div className="entry-top">
+    <>
+      {/* Two sheets, in sequence: the ink one, and the gold one a beat behind it — so the way out is the
+          press's own hairline chasing the page into view, rather than a panel sliding off it. */}
+      <motion.div
+        className="entry-under"
+        aria-hidden="true"
+        initial={false}
+        animate={leaving ? { y: "-101%" } : { y: 0 }}
+        transition={{ duration: 0.85, ease: LIFT, delay: leaving ? 0.07 : 0 }}
+      />
+      <motion.div
+        className="entry-sheet"
+        data-testid="entry"
+        aria-hidden="true"
+        initial={false}
+        animate={leaving ? { y: "-101%" } : { y: 0 }}
+        transition={{ duration: 0.95, ease: LIFT }}
+        onAnimationComplete={(): void => {
+          if (leaving) finish();
+        }}
+      >
+        <div className="entry-sheen" aria-hidden="true" />
+        <div className="entry-top">
         <span className="kicker">la gaviota · the coast edition</span>
         <span className="entry-count" data-testid="entry-count">
           {String(Math.round(progress * 100)).padStart(3, "0")}
@@ -178,18 +187,21 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
         >
           welcome to
         </motion.p>
-        <h1 className="entry-wordmark">
+        <h1 className="entry-wordmark" aria-label="welcome to bahía rosa">
+          {/* Letters, not a word: each one rises from behind its own baseline, in reading order. The mask
+              is what makes it read as type being *set* rather than text fading in — the letter cannot be
+              seen before its turn because there is nowhere for it to be seen from. */}
           {"BAHÍA ROSA".split("").map((letter, index) => (
-            <motion.span
-              // Letters, not a word: the wordmark assembles in reading order.
-              key={`${letter}-${index}`}
-              className="entry-letter"
-              initial={{ opacity: 0, y: "0.45em" }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.72, ease: EASE, delay: 0.22 + index * 0.045 }}
-            >
-              {letter === " " ? "\u00A0" : letter}
-            </motion.span>
+            <span key={`${letter}-${index}`} className="entry-letter-mask" aria-hidden="true">
+              <motion.span
+                className="entry-letter"
+                initial={{ y: 160 }}
+                animate={{ y: 0 }}
+                transition={{ duration: 0.9, ease: EASE, delay: 0.24 + index * 0.05 }}
+              >
+                {letter === " " ? "\u00A0" : letter}
+              </motion.span>
+            </span>
           ))}
         </h1>
         <motion.div
@@ -222,6 +234,7 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
           skip →
         </button>
       </div>
-    </motion.div>
+      </motion.div>
+    </>
   );
 }

@@ -57,3 +57,21 @@ test("the entry stays out of the way unless it is asked for", async ({ page }) =
   await expect(page.getByTestId("entry")).toHaveCount(0);
   await expect(page.getByTestId("hero")).toBeVisible();
 });
+
+test("the entry plays again on a second visit, not only for a stranger", async ({ page }) => {
+  // Mask the automation flag for this one: the test is about what a *person* gets, and a person's browser
+  // does not announce itself as a test runner.
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => false, configurable: true });
+  });
+
+  await page.goto("/");
+  await expect(page.getByTestId("entry")).toBeVisible();
+  await page.getByTestId("entry-skip").click();
+  await expect(page.getByTestId("entry")).toHaveCount(0, { timeout: 15_000 });
+
+  // The same tab, a second arrival: the title plays again. There is no "seen it already" state left for it
+  // to consult — the requirement, encoded.
+  await page.reload();
+  await expect(page.getByTestId("entry")).toBeVisible();
+});

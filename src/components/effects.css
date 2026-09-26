@@ -135,6 +135,42 @@
   transform: scaleX(1);
 }
 
+/*
+ * The plate's arrival: one sweep of light across it as it lands, tying the metal the loading screen just
+ * showed to the art that replaced it. One pass, on mount, and nothing at all under reduced motion.
+ */
+.plate-sweep {
+  position: relative;
+}
+
+.plate-sweep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgb(255 255 255 / 22%) 50%,
+    transparent 62%
+  );
+  transform: translateX(-130%);
+  animation: plate-sweep 1.15s cubic-bezier(0.22, 1, 0.36, 1) 0.12s 1 both;
+}
+
+@keyframes plate-sweep {
+  to {
+    transform: translateX(130%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plate-sweep::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .fx-roll,
   .fx-progress,
