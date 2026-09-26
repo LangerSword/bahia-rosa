@@ -10,7 +10,10 @@
  *
  *   `prefers-reduced-motion`  a visitor who asked not to be moved is not shown moving type;
  *   a `?demo=` link           the tour links exist to show a stage, and tours do not open with a title;
- *   automation                a test runner has nobody watching it and a dozen suites paying for it.
+ *   automation                a test runner has nobody watching it and a dozen suites paying for it;
+ *   already played            it has run *in this page load* already. A title sequence that can start over
+ *                             because a component remounted — a hot reload while iterating, a re-render
+ *                             from above — is the same title twice, and the second one is a bug.
  *
  * `?entry=1` forces it even under automation, and is how the suite that *tests* the entry watches it.
  */
@@ -22,11 +25,34 @@ export interface EntryContext {
   demo: boolean;
   /** A browser under automation, which is not a person arriving. */
   automated: boolean;
-  /** `?entry=1` — the one way to overrule all of the above. */
+  /** `?entry=1` — the one way to overrule the skips above. */
   forced: boolean;
+  /** It has already run since this page loaded. */
+  played?: boolean;
+}
+
+/**
+ * Played-once-per-load, held in module scope: a fresh visit is a fresh load, and a remount inside one load
+ * is not a fresh visit. Marked when the title *starts*, not when it ends — an intro interrupted by a
+ * remount should not begin again from the top, which is the replay this exists to stop.
+ */
+let played = false;
+
+export function entryHasPlayed(): boolean {
+  return played;
+}
+
+export function markEntryPlayed(): void {
+  played = true;
+}
+
+/** Only for tests: forget that it played, so a suite can watch it more than once in a run. */
+export function resetEntryPlayed(): void {
+  played = false;
 }
 
 export function entryShouldPlay(context: EntryContext): boolean {
+  if (context.played) return false;
   if (context.forced) return true;
   if (context.reducedMotion) return false;
   if (context.demo) return false;
@@ -44,5 +70,6 @@ export function readEntryContext(): EntryContext {
     demo: [...params.keys()].some((key) => key === "demo"),
     automated: typeof navigator !== "undefined" && navigator.webdriver === true,
     forced: params.get("entry") === "1",
+    played: entryHasPlayed(),
   };
 }

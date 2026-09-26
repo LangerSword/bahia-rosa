@@ -20,10 +20,10 @@ import { useEffect, useRef, type ReactElement } from "react";
  *   own lettering reads as a glitch rather than as type coming apart.
  *
  * Three things are deliberately *not* carried over, because they are about a component library rather than
- * about this page: it renders at device-pixel-ratio 1 (the visitor's machine is running the press, and dust
- * does not need retina), it never runs under `prefers-reduced-motion` (it reports done immediately, so the
- * sheet lifts as it always has for those visitors), and it **reports when it is finished** — the sheet's
- * lift waits for the last particle rather than racing it.
+ * about this page: it renders at **device resolution, capped at 2**, so the specks are dust on a retina
+ * screen instead of a few thousand hard squares; it never runs under `prefers-reduced-motion` (it reports
+ * done immediately, so the sheet lifts as it always has for those visitors); and it **reports when it is
+ * finished** — the sheet's lift waits for the last particle rather than racing it.
  */
 
 interface VapourTextProps {
@@ -113,12 +113,23 @@ export function VapourText({
       const pad = Math.round(font.size * 0.45);
       const width = boxWidth + pad * 2;
       const height = boxHeight + pad * 2;
-      surface.width = width;
-      surface.height = height;
+
+      /**
+       * At device resolution, not at 1: a one-pixel speck is a hard square on a retina screen, and a few
+       * thousand hard squares read as glitch rather than as dust. The canvas is drawn in CSS pixels (so the
+       * geometry here is unchanged) with the context scaled, and the specks are sampled off the device grid
+       * — capped at 2, because the visitor's machine is the one paying for this.
+       */
+      const dpr = Math.min(2, Math.max(1, Math.round(window.devicePixelRatio || 1)));
+      const deviceWidth = Math.round(width * dpr);
+      const deviceHeight = Math.round(height * dpr);
+      surface.width = deviceWidth;
+      surface.height = deviceHeight;
       surface.style.width = `${width}px`;
       surface.style.height = `${height}px`;
       surface.style.left = `${-pad}px`;
       surface.style.top = `${-pad}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       // Reconcile the canvas's idea of the word with the DOM's, which carries letter-spacing.
       const size0 = Math.max(8, Math.round(font.size));
@@ -134,20 +145,22 @@ export function VapourText({
       ctx.fillStyle = color;
       ctx.fillText(text, width / 2, height / 2);
 
-      const image = ctx.getImageData(0, 0, width, height).data;
+      const image = ctx.getImageData(0, 0, deviceWidth, deviceHeight).data;
       ctx.clearRect(0, 0, width, height);
 
-      const step = Math.max(2, Math.round(size / 34));
+      // Sampled off the device grid, stored in CSS pixels: the wave and the particle homes must be in the
+      // same space as the box they are crossing.
+      const step = Math.max(2, Math.round(size / 34)) * dpr;
       const particles: Particle[] = [];
-      for (let y = 0; y < height; y += step) {
-        for (let x = 0; x < width; x += step) {
-          const alpha = image[(y * width + x) * 4 + 3];
+      for (let y = 0; y < deviceHeight; y += step) {
+        for (let x = 0; x < deviceWidth; x += step) {
+          const alpha = image[(y * deviceWidth + x) * 4 + 3];
           if (alpha > 24) {
             particles.push({
-              x,
-              y,
-              homeX: x,
-              homeY: y,
+              x: x / dpr,
+              y: y / dpr,
+              homeX: x / dpr,
+              homeY: y / dpr,
               velocityX: 0,
               velocityY: 0,
               opacity: (alpha / 255) * 0.9,

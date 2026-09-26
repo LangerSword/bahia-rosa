@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { motion } from "motion/react";
 import { SCENE_IDS, sceneSrc } from "../look/scenes";
+import { markEntryPlayed } from "../lib/entry";
 import { VapourText } from "./VapourText";
 import "./entry.css";
 
@@ -17,6 +18,12 @@ import "./entry.css";
  *
  * It is skipped entirely for `prefers-reduced-motion`, for a session that has already seen it, and for
  * automation — see `src/lib/entry.ts`, which is where that decision lives so it can be tested.
+ *
+ * **The letters do not appear until the display face has.** On a cold load the title's own animation used
+ * to start on a clock, so the wordmark assembled in the *fallback* face and swapped to Limelight whenever
+ * the font arrived — measured at ~1.1s in, with the face still absent — which is the "proper font takes
+ * very long" glitch. The masks were already there; the letters now wait inside them, and the hold's clock
+ * starts when the title is actually set rather than when the sheet arrived.
  */
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -26,11 +33,16 @@ const LIFT = [0.76, 0, 0.24, 1] as const;
  *
  * Two seconds, not one: the wordmark's own assembly (staggered letters, last one landing at ~1.3s) runs
  * inside this clock, so at 1.5s the sheet was lifting the instant the title finished — a title you never
- * get to read. Two seconds leaves about half a second where the assembled title is simply there.
+ * get to read. Two seconds leaves about half a second where the assembled title is simply there. The clock
+ * starts when the letters do, which is when the face is ready.
  */
 const FLOOR_MS = 2000;
-/** …and a title that will not end is a hostage situation: the sheet lifts regardless of everything. */
-const CEILING_MS = 4500;
+/**
+ * …and a title that will not end is a hostage situation: the sheet lifts regardless of everything. This is
+ * the absolute guard, measured from mount, so a font that never arrives (a blocked CDN, a hostile network)
+ * costs the visitor a few seconds of a counter and a skip button — never a stuck page.
+ */
+const CEILING_MS = 9000;
 const FACES = ["Limelight", "Poiret One", "Inter", "Pinyon Script", "Italianno"];
 
 export function Entry({ onDone }: { onDone: () => void }): ReactElement {
@@ -44,9 +56,26 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
   const [phase, setPhase] = useState<"hold" | "vapour" | "lift">("hold");
   const leaving = phase === "lift";
   const finished = useRef(false);
+  const [faceReady, setFaceReady] = useState(false);
+  const faceReadyRef = useRef(false);
+  /**
+   * The DOM letters stay hidden one beat *after* the dust begins, not at the same instant.
+   *
+   * The canvas paints the whole wordmark on its first frame and eats into it as the wave crosses, so for
+   * those two or three frames the type exists twice — sampled on the canvas and set in the DOM. Cutting the
+   * DOM copy at the same moment the phase flips left a hole where the canvas had not painted yet: the
+   * un-dusted side of the wordmark simply missing for a frame or two. A beat of overlap is what makes it a
+   * hand-off instead.
+   */
+  const [vapourSettled, setVapourSettled] = useState(false);
 
   const plates = useMemo(() => SCENE_IDS.map((id) => sceneSrc(id)).filter(Boolean), []);
   const units = plates.length + 1;
+
+  /** The title has started in this page load; a remount must not start it again. */
+  useEffect(() => {
+    markEntryPlayed();
+  }, []);
 
   const finish = useCallback((): void => {
     if (finished.current) return;
@@ -54,10 +83,15 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
     onDone();
   }, [onDone]);
 
-  /** The title has had its time: the wordmark turns to dust, and the lift waits for the last particle. */
+  /**
+   * The title has had its time: the wordmark turns to dust, and the lift waits for the last particle.
+   *
+   * Unless the face never arrived — then there is no set title to dissolve, and dust sampled from a
+   * fallback face would be dust in the wrong shape. Skipping means skipping the dust, so it lifts.
+   */
   const leave = useCallback((): void => {
     setProgress(1);
-    setPhase("vapour");
+    setPhase(faceReadyRef.current ? "vapour" : "lift");
   }, []);
 
   /** Out, now. Skipping means skipping the dust too — a skip button that makes you watch is not a skip. */
@@ -74,6 +108,26 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
     height: number;
     size: number;
   } | null>(null);
+
+  /** Two or three frames of overlap between the DOM letters and the canvas that replaces them. */
+  useEffect(() => {
+    if (phase !== "vapour") {
+      setVapourSettled(false);
+      return undefined;
+    }
+    let frames = 0;
+    let handle = 0;
+    const step = (): void => {
+      frames += 1;
+      if (frames >= 4) {
+        setVapourSettled(true);
+        return;
+      }
+      handle = requestAnimationFrame(step);
+    };
+    handle = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(handle);
+  }, [phase]);
 
   /** Where the wordmark actually is, so the dust starts where the type was instead of near it. */
   useEffect(() => {
@@ -103,8 +157,17 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
       if (!cancelled) setProgress(Math.min(1, done / units));
     };
 
+    const faceLanded = (): void => {
+      if (cancelled) return;
+      faceReadyRef.current = true;
+      setFaceReady(true);
+    };
+
     const fonts = Promise.all(FACES.map((face) => document.fonts.load(`1em "${face}"`)))
       .then(() => document.fonts.ready)
+      // A face that cannot load must not hold the title hostage: the letters show in whatever the stack
+      // gives, and the clock below still ends the sheet.
+      .then(faceLanded, faceLanded)
       .then(bump, bump);
 
     const warmPlates = plates.map((src) =>
@@ -124,7 +187,8 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
      * main thread does that, the title's own animations have not started — so a floor measured from mount
      * lifted the sheet the instant the letters landed, and on a fast connection sometimes before they
      * did. Two frames is enough to know the browser is actually painting the sheet; from there, the floor
-     * is time the visitor had the title in front of them.
+     * is time the visitor had the title in front of them — and it begins once the face has landed, so it is
+     * time the visitor had the *set* title, not the fallback.
      */
     const painted = new Promise<void>((resolve) => {
       if (typeof requestAnimationFrame !== "function") {
@@ -133,15 +197,14 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
       }
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     });
-    const floor = painted.then(
+    const floor = Promise.all([fonts, painted]).then(
       () =>
         new Promise<void>((resolve) => {
           window.setTimeout(resolve, FLOOR_MS);
         }),
     );
 
-    void Promise.all([fonts, ...warmPlates]).then(async () => {
-      await floor;
+    void Promise.all([floor, ...warmPlates]).then(() => {
       if (!cancelled) leave();
     });
 
@@ -202,6 +265,8 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
       <motion.div
         className="entry-sheet"
         data-testid="entry"
+        data-phase={phase}
+        data-face={faceReady ? "ready" : "waiting"}
         aria-hidden="true"
         initial={false}
         animate={leaving ? { y: "-101%" } : { y: 0 }}
@@ -255,17 +320,19 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
           ref={wordmark}
           className="entry-wordmark"
           aria-label="welcome to bahía rosa"
-          data-vapour={phase === "hold" ? undefined : "on"}
+          data-vapour={phase === "hold" || !vapourSettled ? undefined : "on"}
         >
           {/* Letters, not a word: each one rises from behind its own baseline, in reading order. The mask
               is what makes it read as type being *set* rather than text fading in — the letter cannot be
-              seen before its turn because there is nowhere for it to be seen from. */}
+              seen before its turn because there is nowhere for it to be seen from. And the turn does not
+              come until the face has: a wordmark assembled in the fallback and swapped later is a glitch,
+              which is exactly what this waits out. */}
           {"BAHÍA ROSA".split("").map((letter, index) => (
             <span key={`${letter}-${index}`} className="entry-letter-mask" aria-hidden="true">
               <motion.span
                 className="entry-letter"
                 initial={{ y: 160 }}
-                animate={{ y: 0 }}
+                animate={faceReady ? { y: 0 } : { y: 160 }}
                 transition={{ duration: 0.9, ease: EASE, delay: 0.24 + index * 0.05 }}
               >
                 {letter === " " ? "\u00A0" : letter}
