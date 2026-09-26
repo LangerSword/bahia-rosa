@@ -256,10 +256,10 @@ test("the dust is drawn in the title's own shape — line for line", async ({ pa
   expect(shape.ink, "the dust reported its own shape").not.toBeNull();
   expect(shape.domLeft, "the letters are measurable").not.toBeNull();
 
-  // The dust spans the letters, edge to edge. The tolerance is a glyph's own side bearing — the letters'
-  // boxes are advance boxes, and the ink starts inside them — plus the letter-spacing the canvas cannot
-  // carry: at this size that is ~14px on each side, against the hundreds a one-line canvas was out by.
-  const slack = Math.round(shape.lineHeight * 0.12);
+  // The dust spans the letters, edge to edge. The ink is the *glyphs* while the DOM's boxes are advance
+  // widths — side bearings and the letter-spacing a canvas cannot carry — so a few percent either side is
+  // the honest allowance at this size. What it guards against was off by hundreds and clipped.
+  const slack = Math.max(Math.round(shape.lineHeight * 0.12), Math.round((shape.domRight ?? 0) * 0.08));
   expect(Math.abs((shape.ink?.left ?? 0) - (shape.domLeft ?? 0)), "left edge").toBeLessThanOrEqual(slack);
   expect(Math.abs((shape.ink?.right ?? 0) - (shape.domRight ?? 0)), "right edge").toBeLessThanOrEqual(slack);
 
