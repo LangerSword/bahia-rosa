@@ -185,6 +185,20 @@ function detectDeploy(deploy) {
   };
 }
 
+/** A slow face must be waited out: the sheet says so, and the letters stay inside their masks. */
+function detectSlowFace(waiting) {
+  const problems = [];
+  if (waiting.face !== "waiting") problems.push(`the sheet reports the face as "${waiting.face}" while it is in flight`);
+  if (!waiting.buried) problems.push("letters were out of their masks while the face was still loading");
+  if (waiting.letters === 0) problems.push("no letters were found to check");
+  return {
+    ok: problems.length === 0,
+    detail: problems.length
+      ? problems.join("; ")
+      : `seven-second font: sheet reports "${waiting.face}", all ${waiting.letters} letters still buried`,
+  };
+}
+
 /** The ring exists for fine pointers, and does not exist for a visitor who asked for less motion. */
 function detectRing(ring) {
   const problems = [];
@@ -253,6 +267,9 @@ const CONTROLS = [
   })],
   ["ring (mounted under reduced motion)", () => detectRing({
     present: true, visible: "no", presentUnderReducedMotion: true,
+  })],
+  ["slow face (letters out while loading)", () => detectSlowFace({
+    face: "ready", buried: false, letters: 10,
   })],
   ["alert (a warning where a stop belongs)", () => detectAlert({
     title: "Something happened", tone: "warn", countAfterDismiss: 1,
@@ -489,13 +506,7 @@ async function main() {
       });
       return { face: sheet?.getAttribute("data-face"), buried, letters: letters.length };
     });
-    record("slow face", {
-      ok: waiting.face === "waiting" && waiting.buried && waiting.letters > 0,
-      detail:
-        waiting.face === "waiting" && waiting.buried
-          ? `seven-second font: sheet reports "${waiting.face}", all ${waiting.letters} letters still buried`
-          : `sheet reports "${waiting.face}", letters buried: ${waiting.buried}`,
-    });
+    record("slow face", detectSlowFace(waiting));
     await slowContext.close();
 
     /* --- the ring -------------------------------------------------------------------------------- */
@@ -689,7 +700,8 @@ async function main() {
     }
 
     /* --- the suite's own totals, and what the README claims about them ---------------------------- */
-    const unitOut = execFileSync("npm", ["run", "test"], { cwd: REPO, shell: true }).toString();
+    const npmBin = process.platform === "win32" ? "npm.cmd" : "npm";
+    const unitOut = execFileSync(npmBin, ["run", "test"], { cwd: REPO, shell: false }).toString();
     const unitLine = unitOut.match(/Tests\s+(\d+) passed(?:\s*\|\s*(\d+) skipped)?\s*\((\d+)\)/) ?? [];
     // Counted in Node, not by shelling out to grep: an unquoted `^test(` reached the shell as a syntax
     // error the first time this ran, and a grader that dies is not a grader.
