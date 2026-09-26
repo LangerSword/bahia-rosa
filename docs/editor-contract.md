@@ -59,7 +59,9 @@ mid-session option patching.
 
 **Confirmed in practice (2026-09-24).** Visitors reported a "layer button" that could not be clicked. There
 is no layers tool in the rail — Unlayer's own demo lists exactly eight (`crop`, `resize`, `filter`, `draw`,
-`text`, `shapes`, `stickers`, `frame`), and this project's gating enables the ones each surface needs. What
+`text`, `shapes`, `stickers`, `frame`), and **all eight are enabled on every surface** (changed 2026-09-26:
+they were gated per surface, which read from the inside as an editor that was missing things the visitor could
+see they wanted; the per-surface *brief* is still shown, but a brief is not a locked cupboard). What
 the visitor was clicking is in the editor's **chrome**, beside undo and redo: a stacked-squares control named
 **"Flatten layers"**, and it is *disabled* — `disabled=true`, `opacity: 0.5`, `pointer-events: none` — while
 the document has a single layer. Add a text layer (Text → Heading) and it enables: `disabled=false`,

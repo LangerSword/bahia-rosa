@@ -58,10 +58,10 @@ test("editor mounts with loading-screen gating", async ({ page }) => {
   const tools = await visibleToolNames(page);
   console.log("tools visible:", tools.join(", "));
 
-  // Gating contract for surface 1 — see docs/editor-contract.md
-  expect(tools).toContain("crop");
-  expect(tools).not.toContain("stickers");
-  expect(tools).not.toContain("filter");
+  // Gating contract — see docs/editor-contract.md. Every surface offers every tool: this used to assert the
+  // front page had *no* stickers and *no* filter, which was the product decision that made the editor read
+  // as basic. It now asserts the full rail, so removing a tool is a deliberate act that fails a test.
+  expect(tools.sort()).toEqual(["crop", "draw", "filter", "frame", "resize", "shapes", "stickers", "text"]);
 
   await page.screenshot({ path: "docs/boot-build.png" });
   expect(consoleErrors.filter((e) => !/favicon/i.test(e))).toEqual([]);
@@ -104,4 +104,43 @@ test("the editor wears the city's colours", async ({ page }) => {
   expect(resolved?.background).toBe("240 18% 3%");
   expect(resolved?.primary).toBe("40 97% 54%");
   expect(resolved?.radius).toBe("2px");
+});
+
+/**
+ * The rail is complete, and nothing in the editor is off-palette.
+ *
+ * These two are the shape of "the editor feels basic": whichever door a visitor came through, the rail was
+ * missing tools they could see they wanted, and one button was still the component library's default blue.
+ * Both are measured here — the eight tools by their names in the DOM, the colour by what the browser
+ * actually resolved, because a stylesheet that loads is not a stylesheet that wins.
+ */
+test("every tool is on the rail, and no button is off-palette", async ({ page }) => {
+  test.setTimeout(240_000);
+
+  await page.goto("/");
+  await page.getByTestId("photo-input").setInputFiles("public/art/demo/s1-marisol-keyart.jpg");
+  await expect(page.getByTestId("printed-fork")).toBeVisible({ timeout: 180_000 });
+  await page.getByTestId("edit-in-editor").click();
+  await page.getByTestId("arrange").waitFor({ state: "visible", timeout: 60_000 });
+  await page.waitForSelector(".image-editor-root", { timeout: 90_000 });
+  await page.waitForTimeout(2000);
+
+  const report = await page.evaluate(() => {
+    const host = document.querySelector('[data-testid^="editor-surface-"]');
+    if (!host) throw new Error("the editor surface is not on the page");
+    const names = [...host.querySelectorAll("button")]
+      .map((b) => (b.getAttribute("aria-label") || b.title || b.textContent || "").trim())
+      .filter(Boolean);
+    const wanted = ["Crop", "Resize", "Filter", "Draw", "Text", "Shapes", "Stickers", "Frame"];
+    const blue = [...host.querySelectorAll(".bg-blue-600")].map((el) =>
+      getComputedStyle(el).backgroundColor,
+    );
+    return { names, missing: wanted.filter((w) => !names.includes(w)), blue };
+  });
+
+  expect(report.missing, `tools missing from the rail: ${report.missing.join(", ")}`).toEqual([]);
+  // The site has one accent and it is gold: #fcaf17, rgb(252, 175, 23).
+  for (const colour of report.blue) {
+    expect(colour, "an editor button is still the library's blue").toBe("rgb(252, 175, 23)");
+  }
 });

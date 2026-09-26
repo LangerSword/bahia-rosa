@@ -29,9 +29,28 @@ import { deskRoot, printChoices } from "./lib/printdesk/client";
  * in the editor — that gating is the level design (docs/editor-contract.md).
  */
 
-const TITLE_GATING: ToolGating = { crop: true, resize: true, frame: true, text: true, filter: false, draw: false, shapes: false, stickers: false };
-const PAGE_GATING: ToolGating = { crop: true, resize: true, filter: true, text: true, frame: false, draw: false, shapes: false, stickers: false };
-const POSTER_GATING: ToolGating = { crop: true, resize: true, filter: true, text: true, frame: true, draw: true, shapes: true, stickers: true };
+/**
+ * Every tool, on every surface.
+ *
+ * These used to be gated per surface — a title had no filter, a front page had no stickers — on the theory
+ * that each surface should ask for one thing. What that produced was an editor that felt basic: whichever
+ * door a visitor came through, the rail was missing something they could see they wanted. The eight tools
+ * Unlayer ships (crop, resize, filter, draw, text, shapes, stickers, frame) are all on everywhere now; the
+ * *brief* is still per surface, and a brief is not a locked cupboard.
+ */
+const EVERY_TOOL: ToolGating = {
+  crop: true,
+  resize: true,
+  filter: true,
+  draw: true,
+  text: true,
+  shapes: true,
+  stickers: true,
+  frame: true,
+};
+const TITLE_GATING: ToolGating = EVERY_TOOL;
+const PAGE_GATING: ToolGating = EVERY_TOOL;
+const POSTER_GATING: ToolGating = EVERY_TOOL;
 
 /** Which editor surface a printed style leads into, and what that surface asks for. */
 const PLANS: Record<string, { surfaceId: string; title: string; brief: string; gating: ToolGating }> = {

@@ -595,6 +595,14 @@ html {
   font-family: "Inter", system-ui, sans-serif;
 }
 
+/* The one utility that stayed blue after the variable theme: measured, not guessed — a probe of the editor's
+   DOM found `bg-blue-600` (rgb(59,130,246)) surviving on its "New text" button while everything else was the
+   city's. The site has exactly one accent, and it is gold. */
+.editor-scroll .bg-blue-600 {
+  background-color: var(--color-gold) !important;
+  color: var(--color-ink) !important;
+}
+
 /* The utilities it uses directly, and the two fonts it asks for. */
 .editor-scroll .bg-gray-900 {
   background-color: var(--color-ink) !important;

@@ -46,8 +46,31 @@ export function EditorSurface({ surfaceId, image, gating, onSaved, onCancelled, 
     [onSaved],
   );
 
+  /**
+   * The city's typefaces, inside the editor's text tool.
+   *
+   * This is the one typed extension point the shipped package offers for the *look* of what a visitor writes
+   * (`Fonts = { showDefaultFonts, customFonts }`, and `CustomFont` carries `label`, `value` and `url`), and
+   * it is the difference between a poster that reads as ours and one that reads as someone's web form: the
+   * headlines set in Limelight, the kickers in Poiret One, the script in Pinyon. The files are already
+   * self-hosted for the rest of the site, so nothing is fetched from a font CDN.
+   *
+   * Absolute URLs, built from the page's own origin: the editor's runtime resolves them itself, and a
+   * relative path would be resolved against whatever it considers its base.
+   */
+  const fontUrl = (file: string) => new URL(`/fonts/${file}`, window.location.origin).href;
   const options = {
     theme: "dark" as const,
+    fonts: {
+      showDefaultFonts: true,
+      customFonts: [
+        { label: "Limelight · the display face", value: "Limelight", url: fontUrl("Limelight-Regular.ttf") },
+        { label: "Poiret One · the kicker", value: "Poiret One", url: fontUrl("PoiretOne-Regular.ttf") },
+        { label: "Pinyon Script · the signature", value: "Pinyon Script", url: fontUrl("PinyonScript-Regular.ttf") },
+        { label: "Italianno · the script", value: "Italianno", url: fontUrl("Italianno-Regular.ttf") },
+        { label: "Inter · the body", value: "Inter", url: fontUrl("Inter[opsz,wght].ttf") },
+      ],
+    },
     // Cast: the shipped @unlayer/types declarations do not model every runtime-supported key
     // (see docs/editor-contract.md §"Typing gaps").
     features: { imageEditor: { tools: buildTools(gating) } },
