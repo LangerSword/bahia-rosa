@@ -11,6 +11,10 @@ test-results
 playwright-report
 .DS_Store
 
+# The e2e suite's own latest summary, read by tools/grade-claims.mjs to count skips. A local receipt,
+# not source: written by the run, so it must never dirty the worktree.
+.grade-last-e2e.txt
+
 # Generated plates, framed references and comparison sheets — outputs, not source.
 print-desk-out
 
