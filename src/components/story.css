@@ -1,0 +1,170 @@
+/* The story — three of the visitor's own artefacts, walked by scrolling.
+
+   Same ground rules as the plates: ink, hairlines, mats, gold only where it is doing a job. The rail on the
+   left is the press's own device, reused so the site has one way of saying "this is where you are". */
+
+.story {
+  margin-top: 5rem;
+  min-height: 240vh;
+  padding-bottom: 1rem;
+}
+
+.story-intro {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-rule, rgba(242, 239, 233, 0.14));
+}
+
+.story-intro .display {
+  color: var(--color-paper);
+}
+
+.story-stage {
+  margin-top: 2rem;
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+.story[data-motion="walk"] .story-stage {
+  position: sticky;
+  top: 12vh;
+}
+
+/* The rail. The active name is lit by one CSS rule reading the section's own reported state — the same
+   fact the test asserts, so the styling cannot drift from the behaviour. */
+.story-rail {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1.1rem;
+}
+
+.story-rail-name {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.story-rail-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: var(--color-paper);
+}
+
+.story-rail-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-rule, rgba(242, 239, 233, 0.2));
+  transition: background 0.4s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+  order: -1;
+}
+
+.story[data-active-moment="photograph"] .story-rail-name[data-moment="photograph"] .story-rail-dot,
+.story[data-active-moment="plate"] .story-rail-name[data-moment="plate"] .story-rail-dot,
+.story[data-active-moment="city"] .story-rail-name[data-moment="city"] .story-rail-dot {
+  background: var(--color-gold);
+}
+
+/* The room: three panels share one place, and the scroll decides which one is in front. */
+.story-room {
+  position: relative;
+  min-height: 58vh;
+}
+
+.story-panel {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.9rem;
+  will-change: transform, opacity;
+}
+
+.story-panel img {
+  max-width: 100%;
+  max-height: 46vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border: 1px solid rgba(242, 239, 233, 0.18);
+  padding: 0.4rem;
+  background: var(--color-ink-2, #101014);
+  box-shadow:
+    0 1px 0 rgba(242, 239, 233, 0.07) inset,
+    0 26px 50px -32px rgba(0, 0, 0, 0.9);
+}
+
+.story-caption {
+  display: grid;
+  gap: 0.25rem;
+  max-width: 46ch;
+  text-align: center;
+}
+
+.story-note {
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--color-paper, #f2efe9);
+  opacity: 0.8;
+}
+
+/* No motion: the three moments are three stacked figures and the story is the order. No transforms, no
+   stickiness, no panel hidden behind a scroll the visitor may never finish. */
+.story[data-motion="still"] {
+  min-height: 0;
+}
+
+.story[data-motion="still"] .story-stage {
+  position: static;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+}
+
+.story[data-motion="still"] .story-rail {
+  grid-auto-flow: column;
+  justify-content: start;
+  gap: 1.25rem;
+}
+
+.story[data-motion="still"] .story-room {
+  min-height: 0;
+  display: grid;
+  gap: 2.5rem;
+}
+
+.story[data-motion="still"] .story-panel {
+  position: static;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+@media (max-width: 720px) {
+  .story {
+    min-height: 200vh;
+  }
+
+  .story-stage {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .story-rail {
+    grid-auto-flow: column;
+    justify-content: start;
+    gap: 1rem;
+  }
+
+  .story-room {
+    min-height: 52vh;
+  }
+
+  .story-panel img {
+    max-height: 38vh;
+  }
+}

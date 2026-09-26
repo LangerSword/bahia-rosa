@@ -11,7 +11,7 @@ import { loadImage, composePlacement, isDefaultLayer } from "./world/compose";
 import { FRAME } from "./world/placements";
 import { LOOKS } from "./look/stylise";
 import { portraitFromImage, type PortraitResult } from "./look/portrait";
-import { SCENES, SCENE_IDS, type SceneId } from "./look/scenes";
+import { SCENES, SCENE_IDS, sceneSrc, type SceneId } from "./look/scenes";
 import { BeforeAfter } from "./components/BeforeAfter";
 import { Fx, Marquee } from "./components/Fx";
 import { Hero3D } from "./components/Hero3D";
@@ -20,6 +20,10 @@ import { CardReveal } from "./components/CardReveal";
 import { PressTips } from "./components/PressTips";
 import { Toasts } from "./components/Toasts";
 import { SceneThumb } from "./components/SceneThumb";
+import { StoryScroll } from "./components/StoryScroll";
+import { Alerts } from "./components/Alerts";
+import { MagneticCursor } from "./components/MagneticCursor";
+import { dismissAlert, pushAlert } from "./lib/alerts";
 import "./type.css";
 import type { PlateSource } from "./lib/plates/plates";
 import { usePayoff } from "./lib/payoff";
@@ -289,6 +293,8 @@ export function App() {
           description: `${SCENES[result.scene].label} · ${quality === "fine" || scene === "asis" ? "fine" : "fast"} · printed in this tab`,
         });
         setStage("printed");
+        // The condition that this press just fixed is no longer true, so it leaves the stack with it.
+        dismissAlert("press-failure");
       } catch (failure) {
         if (token !== runToken.current) {
           URL.revokeObjectURL(url);
@@ -305,6 +311,14 @@ export function App() {
           return;
         }
         setPressError(failure instanceof Error ? failure.message : "the press could not read that photo");
+        // A refusal is a condition, not a moment: it waits in the stack until the visitor dismisses it or a
+        // later press succeeds. One stable id, so a second failure replaces the first instead of stacking.
+        pushAlert({
+          id: "press-failure",
+          tone: "stop",
+          title: "That photograph could not be pressed",
+          detail: failure instanceof Error ? failure.message : undefined,
+        });
         setStage("gate");
       }
     },
@@ -482,6 +496,8 @@ export function App() {
     <div className="grain vignette min-h-screen">
       <Fx />
       <Toasts />
+      <Alerts />
+      <MagneticCursor />
       {entered ? null : <Entry onDone={() => setEntered(true)} />}
       <a href="#intake" className="skip">
         Skip to the press
@@ -574,6 +590,7 @@ export function App() {
             <div className="mt-9 flex flex-wrap items-center gap-3">
               <a
                 href="#intake"
+                data-magnet="hero-door"
                 data-testid="hero-cta"
                 onClick={goHome}
                 className="lift border px-6 py-3 text-xs tracking-[0.2em] uppercase"
@@ -1031,6 +1048,11 @@ export function App() {
               onBack={() => setStage(viaEditor ? "editing" : "printed")}
               backLabel={viaEditor ? "Back to the editor" : "Back to your plate"}
             />
+
+            {/* Their own three artefacts, walked by scroll: the photograph, the plate, the place. */}
+            {source && image ? (
+              <StoryScroll images={{ photograph: source, plate: image, city: sceneSrc(scene) }} />
+            ) : null}
           </motion.div>
         ) : null}
         </div>

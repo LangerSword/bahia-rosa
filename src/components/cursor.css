@@ -1,0 +1,45 @@
+/* The magnet ring — a companion to the pointer, on devices that have one.
+
+   Gold, hairline, and quiet: it marks nearness, it does not decorate the whole screen. No `cursor: none`
+   anywhere — the native pointer stays, because a custom cursor that hides the real one breaks every
+   expectation the visitor has about where their click will land. */
+
+.magnet-ring {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 1px solid var(--color-gold, #fcaf17);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 60;
+  opacity: 0;
+  transition:
+    opacity 0.3s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    width 0.22s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    height 0.22s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    margin 0.22s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+  will-change: transform;
+}
+
+.magnet-ring[data-visible="yes"] {
+  opacity: 0.85;
+}
+
+/* Over something magnetic, the ring opens up and softens: the same gesture as leaning in. */
+.magnet-ring[data-pulled="yes"] {
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  opacity: 0.45;
+}
+
+/* Belt and braces: even if the component is mounted somewhere the media query was not consulted, a visitor
+   who asked for less motion sees no ring. */
+@media (prefers-reduced-motion: reduce) {
+  .magnet-ring {
+    display: none;
+  }
+}

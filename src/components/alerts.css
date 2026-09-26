@@ -1,0 +1,80 @@
+/* The alert stack — conditions, not moments. Top centre, under the site's hairline header, and out of the
+   way of the work: the press, the plate and the editor all live in the middle of the page. */
+
+.alert-stack {
+  position: fixed;
+  top: 4.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 55;
+  display: grid;
+  gap: 0.6rem;
+  width: min(32rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.alert {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  padding: 0.85rem 0.85rem 0.85rem 1rem;
+  background: var(--color-ink-2, #101014);
+  border: 1px solid var(--color-rule, rgba(242, 239, 233, 0.16));
+  /* The accent edge carries the severity: the city's flag for something that stopped the work, gold for
+     something the visitor should know. */
+  border-left: 2px solid var(--color-gold, #fbbf24);
+  box-shadow: 0 1px 0 rgba(242, 239, 233, 0.05) inset, 0 24px 60px -40px rgba(0, 0, 0, 0.95);
+}
+
+/* A stop is the one place this palette spends a colour it does not otherwise use — and it has to be legible
+   as a stop at a glance, not another shade of the city's gold. The flag token in the type system renders
+   amber here, which reads as a warning on the same alert that already is one. */
+.alert[data-tone="stop"] {
+  border-left-color: #e5484d;
+}
+
+.alert[data-tone="stop"] .alert-title {
+  color: #ffd9da;
+}
+
+.alert-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.alert-title {
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--color-paper, #f2efe9);
+}
+
+.alert-detail {
+  margin-top: 0.2rem;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--color-muted, #9a9aa2);
+  overflow-wrap: anywhere;
+}
+
+.alert-dismiss {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted, #9a9aa2);
+  border: 1px solid var(--color-rule, rgba(242, 239, 233, 0.16));
+  padding: 0.28rem 0.5rem;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    color 0.25s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color 0.25s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.alert-dismiss:hover,
+.alert-dismiss:focus-visible {
+  color: var(--color-paper, #f2efe9);
+  border-color: var(--color-gold, #fcaf17);
+}
