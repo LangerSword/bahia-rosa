@@ -18,11 +18,19 @@ if (!root) throw new Error("#root missing from index.html");
  * eliminated from the deployed bundle.
  */
 if (import.meta.env.MODE === "development") {
-  void Promise.all([import("./look/portrait"), import("./look/stylise"), import("./look/scenes")]).then(
-    ([portrait, stylise, scenes]) => {
-      (window as unknown as { __press?: unknown }).__press = { ...portrait, ...stylise, ...scenes };
-    },
-  );
+  void Promise.all([
+    import("./look/portrait"),
+    import("./look/stylise"),
+    import("./look/scenes"),
+    import("./look/timeofday"),
+  ]).then(([portrait, stylise, scenes, timeofday]) => {
+    (window as unknown as { __press?: unknown }).__press = {
+      ...portrait,
+      ...stylise,
+      ...scenes,
+      ...timeofday,
+    };
+  });
 }
 
 createRoot(root).render(

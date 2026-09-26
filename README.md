@@ -168,14 +168,17 @@ layers**, which stays disabled until there is more than one layer to flatten —
 
 ## the way in
 
-the title sheet opens with a **film** — the press at work. Eighteen frames: one photograph as it arrived, the
-two layers the press reads and cuts out of it, the same canvas flattened at rising colour counts, and then
-every plate the gallery ships in a fast flip. The frames are not drawn by hand and no art was commissioned:
-`tools/make-film.mjs` drives *this app's own* `portraitFromImage` through a dev-server handle and lays the
-outputs into one sprite, so the film is the pipeline rather than a picture of it — and the plate list comes
-from `src/lib/gallery.ts`, so its second half cannot drift from the gallery. The title's floor clock waits on
-the film (the film is not the title), the letters wait for both the face and the film, and a sprite that fails
-or is slow skips the film entirely rather than holding the sheet. `?film=0` skips it for a probe.
+the title sheet opens with a **film** — the city plate being generated, full-bleed. Fifteen frames, dissolved
+one into the next, and every one of them the city's own drawing: the beach as it arrives, the hour's grade,
+then the same canvas flattened at 3, 4, 6, 9, 13 and 20 colours, and the other places at other hours. **No
+faces** — these are the plates the city draws of itself. The step names itself on screen while it runs, because
+the point of the film is how a plate is generated: `the city's own drawing`, `the hour — dusk`, `4 colours`,
+`the marina, at golden hour`. The frames are not drawn by hand and no art was commissioned: `tools/make-film.mjs`
+opens the dev server and calls *this app's* `gradePixels`, `gradeFor` and `styliseImageData` through a dev-only
+handle, laying the outputs into one sprite — so the film is the pipeline rather than a picture of it, and running
+the script again regenerates it from code. The title's floor clock waits on the film (the film is not the title),
+the letters wait for both the face and the film, and a sprite that fails or is slow skips the film entirely
+rather than holding the sheet. `?film=0` skips it for a probe.
 
 every visit opens on a title sheet: the wordmark assembling letter by letter — each letter rising from
 behind its own mask, so it reads as type being *set* rather than text fading in — a counter beside it reading

@@ -174,38 +174,64 @@
   }
 }
 
-/* The film: the press at work, on its own mat, before the title is set. A mat here means what it means on
-   every plate in the gallery — a hairline and a shade of its own, lifted off the sheet. */
+/* The film: the city plate being generated, full-bleed. While it runs the sheet gives it the whole screen —
+   the sheet drops its padding, and the bars that stay (where the paper is from, the counter, the skip) carry
+   their own. The cell is cover-fitted, so it fills any viewport rather than letterboxing in a mat. */
 .entry-film-wrap {
   position: absolute;
-  left: 50%;
-  top: 45%;
+  inset: 0;
   margin: 0;
-  width: min(78vw, 640px);
-  transform: translate(-50%, -50%);
   animation: entry-film-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.entry-sheet[data-phase="film"] {
+  padding: 0;
+}
+
+.entry-sheet[data-phase="film"] .entry-top,
+.entry-sheet[data-phase="film"] .entry-foot {
+  padding: 0 clamp(1.25rem, 4vw, 2.75rem);
+  /* The film is whatever the city happens to be that second — bright sand, a neon sky. The sheet's own
+     furniture sits over it, so it carries a shadow rather than trusting the frame to be dark. */
+  text-shadow: 0 1px 14px rgb(7 7 10 / 90%);
+}
+
+/* The film says what is happening, so the sheet's own status line stands down rather than sitting under it. */
+.entry-sheet[data-phase="film"] .entry-warming {
+  opacity: 0;
 }
 
 .entry-film-wrap .entry-film {
   display: block;
   width: 100%;
-  height: auto;
-  aspect-ratio: 16 / 9;
+  height: 100%;
   background: #07070a;
-  border: 1px solid rgb(242 239 233 / 18%);
-  box-shadow:
-    0 0 0 6px #101016,
-    0 0 0 7px rgb(242 239 233 / 10%);
 }
 
+/* The step's name, over the film: the point of the film is how a plate is generated, so the generation says
+   what it is doing. Placed where the sheet's own padding would be, with a shadow so it reads over any sky. */
 .entry-film-wrap figcaption {
-  margin-top: 1rem;
+  position: absolute;
+  left: clamp(1.25rem, 4vw, 2.75rem);
+  bottom: clamp(1.1rem, 3vw, 2rem);
+  display: flex;
+  gap: 0.9rem;
+  align-items: baseline;
   font-family: var(--font-kicker);
-  font-size: 0.66rem;
-  letter-spacing: 0.26em;
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--color-muted);
-  text-align: center;
+  color: var(--color-paper);
+  text-shadow: 0 1px 14px rgb(7 7 10 / 90%);
+}
+
+.entry-film-label {
+  min-width: 12ch;
+}
+
+.entry-film-step {
+  color: var(--color-gold);
+  font-variant-numeric: tabular-nums;
 }
 
 /* While the film runs, the title block is not there yet — it is set after the press, not behind it. */
@@ -216,11 +242,9 @@
 @keyframes entry-film-in {
   from {
     opacity: 0;
-    transform: translate(-50%, -47%);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, -50%);
   }
 }
 

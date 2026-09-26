@@ -42,9 +42,11 @@ const FLOOR_MS = 2000;
 /**
  * …and a title that will not end is a hostage situation: the sheet lifts regardless of everything. This is
  * the absolute guard, measured from mount, so a font that never arrives (a blocked CDN, a hostile network)
- * costs the visitor a few seconds of a counter and a skip button — never a stuck page.
+ * costs the visitor a few seconds of a counter and a skip button — never a stuck page. It has to clear the
+ * film as well: the film is watched first, then the title's own floor runs, and a guard that fired between
+ * the two would cut the title short on exactly the slow connection that needed the film skipped.
  */
-const CEILING_MS = 9000;
+const CEILING_MS = 15000;
 const FACES = ["Limelight", "Poiret One", "Inter", "Pinyon Script", "Italianno"];
 
 export function Entry({ onDone }: { onDone: () => void }): ReactElement {
