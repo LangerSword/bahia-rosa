@@ -559,3 +559,102 @@ html {
       0 0 3px rgba(6, 6, 12, 0.95);
   }
 }
+
+/* ---------------------------------------------------------------- the editor ---- */
+
+/*
+ * Unlayer's editor is styled with shadcn's semantic variables — `--primary`, `--background`, `--border` and
+ * friends — plus two Tailwind greys baked into a handful of class names. Measured from its own DOM rather
+ * than guessed: `bg-gray-900` (#111827), `bg-gray-800` (#1f2937), `border-gray-700` (#374151),
+ * `bg-primary` (#0f172a), `bg-secondary` (#f1f5f9), and the font stack `Inter, "Open Sans"`.
+ *
+ * So it is themed by re-declaring those variables (and those few utilities) rather than by fighting it: its
+ * own rules win for its own subtree, hence `!important` on the values. The point is that the workstation
+ * belongs to the same city as everything around it — same ink, same paper, same single gold accent.
+ */
+.editor-scroll {
+  --background: var(--color-ink) !important;
+  --foreground: var(--color-paper) !important;
+  --card: var(--color-ink-2) !important;
+  --card-foreground: var(--color-paper) !important;
+  --popover: var(--color-ink-2) !important;
+  --popover-foreground: var(--color-paper) !important;
+  --primary: var(--color-gold) !important;
+  --primary-foreground: #0d0d12 !important;
+  --secondary: var(--color-ink-2) !important;
+  --secondary-foreground: var(--color-paper) !important;
+  --muted: var(--color-ink-3) !important;
+  --muted-foreground: var(--color-muted) !important;
+  --accent: var(--color-ink-3) !important;
+  --accent-foreground: var(--color-gold) !important;
+  --destructive: var(--color-flag) !important;
+  --border: var(--color-rule) !important;
+  --input: var(--color-rule) !important;
+  --ring: var(--color-gold) !important;
+  --radius: 2px !important;
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+/* The utilities it uses directly, and the two fonts it asks for. */
+.editor-scroll .bg-gray-900 {
+  background-color: var(--color-ink) !important;
+}
+.editor-scroll .bg-gray-800 {
+  background-color: var(--color-ink-2) !important;
+}
+.editor-scroll .border-gray-700,
+.editor-scroll .border-gray-800 {
+  border-color: var(--color-rule) !important;
+}
+.editor-scroll .text-gray-100,
+.editor-scroll .text-gray-200,
+.editor-scroll .text-gray-300 {
+  color: var(--color-paper) !important;
+}
+.editor-scroll .text-gray-400,
+.editor-scroll .text-gray-500 {
+  color: var(--color-muted) !important;
+}
+.editor-scroll button:hover {
+  color: var(--color-gold);
+}
+/* Its titles get the city's own display face, the same one the sections wear. */
+.editor-scroll h1,
+.editor-scroll h2,
+.editor-scroll h3 {
+  font-family: var(--font-kicker);
+  letter-spacing: 0.03em;
+}
+
+/*
+ * The editor, in the city's colours — in the convention it actually consumes.
+ *
+ * Measured, twice, because the first attempt got it wrong: the editor's own root
+ * (`div.image-editor-root`) declares these variables on **itself**, and a custom property declared on an
+ * element beats anything inherited into it, so a block further up the tree loses no matter how important it
+ * is. And the values it consumes are **hsl triplets** (`hsl(var(--background))`), not hex — a hex value there
+ * is quietly invalid. Both facts came out of its DOM, not its documentation.
+ *
+ * Every value below is derived from this site's own tokens, so the workstation belongs to the same city as
+ * the page it sits in.
+ */
+.editor-scroll .image-editor-root {
+  --background: 240 18% 3% !important;
+  --foreground: 40 26% 93% !important;
+  --card: 240 16% 6% !important;
+  --card-foreground: 40 26% 93% !important;
+  --popover: 240 16% 6% !important;
+  --popover-foreground: 40 26% 93% !important;
+  --primary: 40 97% 54% !important;
+  --secondary: 240 13% 9% !important;
+  --secondary-foreground: 40 26% 93% !important;
+  --muted: 240 13% 9% !important;
+  --muted-foreground: 0 0% 60% !important;
+  --accent: 240 13% 9% !important;
+  --accent-foreground: 40 26% 93% !important;
+  --border: 240 10% 16% !important;
+  --input: 240 10% 16% !important;
+  --ring: 40 97% 54% !important;
+  --primary-foreground: 240 18% 3% !important;
+  --radius: 2px !important;
+}

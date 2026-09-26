@@ -276,8 +276,25 @@ export async function portraitFromImage(
   // two to the slower of the two — which is the "find the edges, then process the colour in parallel" half
   // of this press, done with the concurrency the platform actually has: the paint is synchronous and the
   // plate is I/O, so one overlaps the other without a worker.
-  const outW = Math.round(outLong * supersample);
-  const outH = Math.round(((outLong * 9) / 16) * supersample);
+  /**
+   * The frame's shape. A city plate is 16:9 and the person is placed *into* it, so a fixed frame is right
+   * there — but "as it is" prints the visitor's own photograph, and printing it into a shape we chose is how
+   * the picture gets cut off. It takes the photograph's own aspect instead, and a very tall photograph is
+   * scaled down rather than cropped: nothing is ever cut to fit.
+   */
+  const photoAspect = workW > 0 && workH > 0 ? workH / workW : 9 / 16;
+  const asItIsFrame = (() => {
+    const width = outLong;
+    const height = Math.max(1, Math.round(width * photoAspect));
+    const tallest = 2400;
+    if (height <= tallest) return { width, height };
+    const shrink = tallest / height;
+    return { width: Math.max(1, Math.round(width * shrink)), height: tallest };
+  })();
+  const frameW = asItIs ? asItIsFrame.width : outLong;
+  const frameH = asItIs ? asItIsFrame.height : Math.round((outLong * 9) / 16);
+  const outW = Math.round(frameW * supersample);
+  const outH = Math.round(frameH * supersample);
   const grade = gradeFor(look ?? "dusk");
   // The cover transform for the "as it is" ground, computed before the work that uses it: the ground is the
   // visitor's photograph drawn with a cover fit, and the mask has to be mapped through the same numbers or
@@ -644,8 +661,8 @@ export async function portraitFromImage(
 
   // Fine mode composited at 1.5×: scale down to the size the caller asked for first, so the grade runs
   // once, on the pixels that actually ship.
-  const finalW = Math.round(outLong);
-  const finalH = Math.round((outLong * 9) / 16);
+  const finalW = Math.round(frameW);
+  const finalH = Math.round(frameH);
   const gradeOptions = {
     colours: 16,
     palette: 0.18,

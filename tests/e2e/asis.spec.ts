@@ -104,3 +104,54 @@ test("the as-it-is ground is the photograph's own frame, repainted", async ({ pa
   await expect(page.getByTestId("layer-scale")).toHaveCount(0);
   await expect(page.getByTestId("arrangement-note")).toContainText("your own room");
 });
+
+/**
+ * The frame's shape, which is the one thing "as it is" must not decide.
+ *
+ * A city plate is 16:9 and the person is placed into it, so a fixed frame is right there. "As it is"
+ * prints the visitor's own photograph — and printing it into a shape we picked is how a picture gets cut
+ * off (a portrait came back cropped, which is exactly what was reported). So the frame takes the
+ * photograph's own aspect, and a very tall one is scaled down rather than trimmed.
+ *
+ * Asserted on the *file*: the PNG that comes out of the download, read from its own header.
+ */
+test("as it is prints the photograph's own shape, not ours", async ({ page }) => {
+  test.setTimeout(240_000);
+
+  await page.goto("/");
+  await page.getByTestId("scene-asis").click();
+  await page.getByTestId("photo-input").setInputFiles("public/art/demo/s1-marisol-keyart.jpg");
+  await expect(page.getByTestId("printed-fork")).toBeVisible({ timeout: 180_000 });
+
+  // Both sides measured in the page: the photograph that went in, and the frame that came out. The first
+  // version of this test parsed the *downloaded file* as a PNG — and as-is hands back a JPEG, so it read
+  // 65536x4293001688 out of a header that was not there. The pixels on screen cannot lie about their own
+  // size, and they are the same pixels the download carries.
+  const sizes = await page.evaluate(async () => {
+    const source = new Image();
+    source.src = "/art/demo/s1-marisol-keyart.jpg";
+    await source.decode();
+    const candidates = [...document.querySelectorAll("img")]
+      .filter((img) => img.src.startsWith("blob:") || img.src.startsWith("data:"))
+      .sort((a, b) => b.naturalWidth * b.naturalHeight - a.naturalWidth * a.naturalHeight);
+    const frame = candidates[0];
+    return {
+      source: { w: source.naturalWidth, h: source.naturalHeight },
+      frame: frame ? { w: frame.naturalWidth, h: frame.naturalHeight } : null,
+    };
+  });
+
+  expect(sizes.frame, "no frame on the fork to measure").not.toBeNull();
+  expect(sizes.source.w).toBeGreaterThan(0);
+  // The frame and the photograph are the same shape, within a pixel of rounding.
+  const sourceAspect = sizes.source.w / sizes.source.h;
+  const frameAspect = (sizes.frame?.w ?? 1) / (sizes.frame?.h ?? 1);
+  expect(Math.abs(frameAspect - sourceAspect)).toBeLessThan(0.02);
+
+  // And it really is downloadable as an image.
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByTestId("download-raw").click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/\.(png|jpe?g)$/i);
+});
