@@ -711,7 +711,10 @@ async function main() {
     let e2eSkipped = 0;
     for (const file of specFiles.filter((name) => name.endsWith(".spec.ts"))) {
       const text = await readFile(path.join(specDir, file), "utf8");
-      e2eTotal += (text.match(/^test\(/gm) || []).length;
+      // Any indentation: a test declared inside a `test.describe` is a test. `test.describe(` does not
+      // match, because the paren must follow `test` directly. (The first version anchored at line start
+      // and silently missed the eight tests that live inside describe blocks.)
+      e2eTotal += (text.match(/^\s*test\(/gm) || []).length;
     }
     // Skips are read from the suite's own latest output rather than inferred from this count.
     const lastRun = await readFile(path.join(REPO, ".grade-last-e2e.txt"), "utf8").catch(() => "");
