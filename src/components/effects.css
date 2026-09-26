@@ -81,6 +81,20 @@
   animation: none;
 }
 
+/* The ink that travels the step rail: one mark, positioned by the step that is current. */
+.step {
+  position: relative;
+}
+
+.step-ink {
+  position: absolute;
+  right: 0;
+  bottom: -0.42rem;
+  left: 0;
+  height: 2px;
+  background: var(--color-gold);
+}
+
 @keyframes fx-marquee {
   from {
     transform: translateX(0);

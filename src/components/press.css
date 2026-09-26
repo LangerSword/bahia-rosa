@@ -1,0 +1,114 @@
+/*
+ * The press, after the press.
+ *
+ * Two surfaces share this file because they are the same moment seen twice: the tips that run while the
+ * machine works, and the card that turns over when it stops. Both are small on purpose — the press itself is
+ * over by the time either is read, and neither is allowed to be the reason anything waits.
+ */
+
+/* ---------- the tips, while the press runs ---------- */
+
+.press-tip {
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--color-muted);
+  animation: press-tip-in 0.55s ease-out both;
+}
+
+@keyframes press-tip-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- the reveal ---------- */
+
+.reveal-stage {
+  display: grid;
+  place-items: center;
+  min-height: clamp(180px, 26vw, 320px);
+  perspective: 1700px;
+}
+
+.reveal-card {
+  position: relative;
+  width: 100%;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.reveal-face {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  backface-visibility: hidden;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 10%),
+    0 26px 60px rgb(0 0 0 / 55%);
+}
+
+.reveal-front {
+  background: #0a0a0e;
+}
+
+.reveal-front img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The light that crosses the art while it turns, so the spin has metal in it. */
+.reveal-sheen {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 38%, rgb(255 255 255 / 20%) 50%, transparent 62%);
+  animation: reveal-sheen 1.05s linear infinite;
+}
+
+.reveal-back {
+  transform: rotateY(180deg);
+  display: grid;
+  place-items: center;
+  background: linear-gradient(118deg, #d3d6db 0%, #b3b7be 45%, #cdd0d5 62%, #a6aab2 100%);
+}
+
+.reveal-back img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.reveal-back b {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(1.1rem, 3.2vw, 1.6rem);
+  letter-spacing: 0.1em;
+  color: #4f535c;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 45%);
+}
+
+/* The art, once the card has stopped: the print, and the sweep of light that arrived with it. */
+.reveal-art {
+  display: block;
+}
+
+@keyframes reveal-sheen {
+  to {
+    transform: translateX(58%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-sheen,
+  .press-tip {
+    animation: none;
+  }
+}

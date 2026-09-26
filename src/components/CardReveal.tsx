@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactElement } from "react";
-import { motion } from "motion/react";
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { animate, motion, useMotionValue, useReducedMotion } from "motion/react";
 import {
   ACESFilmicToneMapping,
   BufferAttribute,
@@ -17,27 +17,24 @@ import {
   WebGLRenderer,
 } from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { PRESS_TIPS } from "../lib/tips";
-import "./press-card.css";
+import "./press.css";
 
 /**
- * The card on the loading screen.
+ * The reveal.
  *
- * It turns over while the press runs, and it exists **only** while the press runs: when the art is ready
- * this is unmounted and what the visitor is shown is the art — the first cut of this left the card sitting
- * in the output, which is not what a card is for.
+ * The press finishes and the plate does not simply appear: a card turns over on the spot — rapidly, once
+ * every 0.6s — and then *lands*, decelerating to a stop with the visitor's own art on its face, and the art
+ * is what is left when it stops. The card is the framing device, not the product; it is unmounted the moment
+ * the art is up.
  *
- * Two decisions in here are about the press rather than about looks.
+ * The turn is a React animation (`useMotionValue` + `animate` from motion), which is what lets the landing
+ * work: a CSS loop cannot be *arrived at*. Here the loop is stopped mid-flight, and the angle it was caught
+ * at is used as the start of a decelerating landing onto the next full turn — so the card always comes to
+ * rest face-on, and it never has to jump to get there.
  *
- *   **The metal is rendered once.** three.js with a room environment, one frame, straight into an image —
- *   and then the renderer and its context are disposed. The spin the visitor watches is a CSS transform,
- *   which runs on the compositor. A spin driven by JavaScript would be competing with the press for the
- *   same main thread, and the press always wins that fight: it would stutter exactly when it is meant to
- *   be saying that something is happening. (The card's own face is still measured and fitted, so the
- *   engraving can never collide with itself.)
- *
- *   **With no WebGL it is the same card in CSS, and it still spins.** The loading screen does not get to
- *   disappear because a browser declined to give us a canvas.
+ * Its other face is the same stainless the site's loading screen showed: three.js, rendered **once**,
+ * off-screen, into an image, and the renderer and its context are disposed immediately afterwards. The card
+ * is the art's own shape (measured from the plate), so the landing does not reflow the page.
  */
 
 const FACE_W = 1256;
@@ -45,13 +42,20 @@ const FACE_H = 786;
 const CARD_ASPECT = 1.6;
 const CARD_W = 1.6;
 const CARD_H = 1.0;
-const EASE = [0.22, 1, 0.36, 1] as const;
 
-/**
- * The card's face, drawn twice: once in colour for the metal, once in greys for the bump map. The bump
- * pass is what makes the engraving readable — light where the surface stands proud, dark where it was cut
- * into — and both passes run the same layout, so the type cannot drift off its own relief.
- */
+/** One revolution of the spin. "Rapidly" is 0.6s a turn. */
+const REV_MS = 600;
+/** How long it spins before it is caught: a bit over two turns. */
+const SPIN_MS = 1300;
+/** The landing: from wherever it was caught to the next full turn, easing out. */
+const SETTLE_MS = 750;
+/** The beat it holds, art up, before the card gives way to the print. */
+const HOLD_MS = 220;
+
+const EASE = [0.22, 1, 0.36, 1] as const;
+const LAND = [0.16, 1, 0.3, 1] as const;
+
+/** The card's brand face, in colour and as a bump map — the same engraving the loading screen carries. */
 function drawFace(canvas: HTMLCanvasElement, pass: "colour" | "bump"): void {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -67,8 +71,6 @@ function drawFace(canvas: HTMLCanvasElement, pass: "colour" | "bump"): void {
     ctx.fillStyle = steel;
     ctx.fillRect(0, 0, w, h);
 
-    // The brushed grain: long, faint, horizontal — the direction the metal was polished in. Deterministic,
-    // so every render of this card is the same card.
     let seed = 20260926;
     const rand = (): number => {
       seed = (seed * 1103515245 + 12345) % 2147483648;
@@ -95,11 +97,8 @@ function drawFace(canvas: HTMLCanvasElement, pass: "colour" | "bump"): void {
   }
 
   const ink = pass === "colour" ? "#4c505a" : "#3c3c44";
-  const soft = pass === "colour" ? "#7a7e88" : "#6a6a72";
   const burr = pass === "colour" ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.9)";
 
-  /** Engraved type: the cut, and the burr of metal on its lower lip. Letter by letter, tracked, and fitted
-   *  to the room it has — a display face at a fixed size does not know how much room it has. */
   const engraved = (
     text: string,
     x: number,
@@ -107,7 +106,6 @@ function drawFace(canvas: HTMLCanvasElement, pass: "colour" | "bump"): void {
     font: { size: number; family: string; weight?: number },
     track = 0,
     maxWidth?: number,
-    tone: "ink" | "soft" = "ink",
   ): void => {
     const { size, family, weight = 400 } = font;
     const widthAt = (px: number): number => {
@@ -125,7 +123,6 @@ function drawFace(canvas: HTMLCanvasElement, pass: "colour" | "bump"): void {
     ctx.font = `${weight} ${px}px ${family}`;
     const chars = [...text];
     const widths = chars.map((ch) => ctx.measureText(ch).width + tracking);
-    const colour = tone === "ink" ? ink : soft;
     const stampPass = (paint: string, dy: number): void => {
       ctx.fillStyle = paint;
       let at = x;
@@ -135,7 +132,7 @@ function drawFace(canvas: HTMLCanvasElement, pass: "colour" | "bump"): void {
       });
     };
     stampPass(burr, 2);
-    stampPass(colour, 0);
+    stampPass(ink, 0);
   };
 
   const left = 74;
@@ -145,11 +142,8 @@ function drawFace(canvas: HTMLCanvasElement, pass: "colour" | "bump"): void {
 
   ctx.fillStyle = pass === "colour" ? "#fcaf17" : "#4a4a52";
   ctx.fillRect(left, 442, 180, 5);
-
-  engraved("PRINTING IN YOUR BROWSER", left, 700, { size: 24, family: "Inter", weight: 500 }, 5, textWidth, "soft");
 }
 
-/** A card: a rounded rectangle with a chamfered edge — flat enough to read as a card, not a slab. */
 function cardGeometry(): ExtrudeGeometry {
   const radius = 0.07;
   const x = -CARD_W / 2;
@@ -175,7 +169,6 @@ function cardGeometry(): ExtrudeGeometry {
   });
   geometry.center();
 
-  // ExtrudeGeometry maps its faces in shape space; remap to 0..1 so the art lands on the face.
   const position = geometry.attributes.position as BufferAttribute;
   const uv = new Float32Array(position.count * 2);
   for (let i = 0; i < position.count; i += 1) {
@@ -186,33 +179,41 @@ function cardGeometry(): ExtrudeGeometry {
   return geometry;
 }
 
-export function PressCard(): ReactElement {
+/**
+ * The card that turns over, then hands the page its art.
+ *
+ * `children` are the art itself (the printed plate, already framed by the caller): they mount when the card
+ * has landed, which is what makes the arrival a *reveal* rather than a swap.
+ */
+export function CardReveal({ plate, children }: { plate: string; children: ReactNode }): ReactElement {
+  const reduce = useReducedMotion();
   const [metal, setMetal] = useState<string | null>(null);
-  const [tipIndex, setTipIndex] = useState(0);
-  const [reduce] = useState(
-    () =>
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-  );
+  const [ratio, setRatio] = useState(CARD_ASPECT);
+  const [phase, setPhase] = useState<"spin" | "settle" | "art">("spin");
+  const rotate = useMotionValue(0);
+  const running = useRef<{ stop: () => void } | null>(null);
 
-  /** A loading screen should give you something new to read while it loads. */
+  /** The card is the art's own shape, so the landing cannot reflow the page. */
   useEffect(() => {
-    if (reduce) return undefined;
-    const timer = window.setInterval(
-      () => setTipIndex((index) => (index + 1) % PRESS_TIPS.length),
-      4600,
-    );
-    return () => window.clearInterval(timer);
-  }, [reduce]);
+    const image = new Image();
+    image.decoding = "async";
+    image.src = plate;
+    void image
+      .decode()
+      .then(() => {
+        if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+          setRatio(image.naturalWidth / image.naturalHeight);
+        }
+      })
+      .catch(() => undefined);
+  }, [plate]);
 
-  /** One frame of real metal, off-screen, then the GPU is handed back before the press starts. */
+  /** One frame of real metal for the card's other face, then the GPU is handed straight back. */
   useEffect(() => {
     let cancelled = false;
     if (typeof WebGLRenderer === "undefined") return undefined;
 
     const capture = async (): Promise<void> => {
-      // The faces the engraving is cut in have to be there before anything is drawn, or the type is a
-      // fallback face wearing the card's layout.
       await document.fonts.load('150px "Limelight"').catch(() => undefined);
       await document.fonts.load('34px "Poiret One"').catch(() => undefined);
       await document.fonts.ready.catch(() => undefined);
@@ -276,8 +277,6 @@ export function PressCard(): ReactElement {
         const geometry = cardGeometry();
         const group = new Group();
         group.add(new Mesh(geometry, material));
-        // A three-quarter pose: the metal has to show a reflection and an edge, or it is a grey rectangle
-        // with a nice layout on it.
         group.rotation.set(0.08, -0.22, 0);
         field.add(group);
 
@@ -295,7 +294,7 @@ export function PressCard(): ReactElement {
 
         if (!cancelled && url.startsWith("data:image")) setMetal(url);
       } catch {
-        // No metal image. The CSS face is already on screen, and it keeps its spin.
+        // No metal image: the back face falls back to the wordmark, and the reveal still runs.
       }
     };
 
@@ -305,42 +304,69 @@ export function PressCard(): ReactElement {
     };
   }, []);
 
+  /** The turn: spin, get caught, land on the next full turn, hold a beat, hand over the art. */
+  useEffect(() => {
+    if (reduce) {
+      setPhase("art");
+      return undefined;
+    }
+
+    setPhase("spin");
+    running.current = animate(rotate, 360, {
+      repeat: Infinity,
+      ease: "linear",
+      duration: REV_MS / 1000,
+    });
+
+    const catchIt = window.setTimeout(() => {
+      running.current?.stop();
+      // Land from wherever it was caught onto the next whole turn — always less than one full turn away,
+      // and always face-on at the end.
+      const caught = rotate.get();
+      const remainder = ((caught % 360) + 360) % 360;
+      const target = caught + (remainder === 0 ? 360 : 360 + (360 - remainder));
+      setPhase("settle");
+      running.current = animate(rotate, target, { duration: SETTLE_MS / 1000, ease: LAND });
+    }, SPIN_MS);
+
+    const handOver = window.setTimeout(() => setPhase("art"), SPIN_MS + SETTLE_MS + HOLD_MS);
+
+    return () => {
+      running.current?.stop();
+      window.clearTimeout(catchIt);
+      window.clearTimeout(handOver);
+    };
+  }, [reduce, rotate]);
+
+  if (reduce || phase === "art") {
+    return (
+      <motion.div
+        className="reveal-art plate-sweep"
+        initial={reduce ? undefined : { opacity: 0, scale: 0.994 }}
+        animate={reduce ? undefined : { opacity: 1, scale: 1 }}
+        transition={{ duration: 0.55, ease: EASE }}
+      >
+        {children}
+      </motion.div>
+    );
+  }
+
   return (
-    <motion.figure
-      className="press-card"
-      data-testid="press-card"
-      initial={reduce ? undefined : { opacity: 0, y: 12 }}
-      animate={reduce ? undefined : { opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: EASE }}
-    >
-      <div className="press-card-stage" aria-hidden="true">
-        <span className="press-card-pool" />
-        <div
-          className="press-card-3d"
-          data-testid="press-card-spin"
-          data-motion={reduce ? "still" : "spin"}
-        >
-          {metal ? (
-            <img className="press-face press-face-front" src={metal} alt="" />
-          ) : (
-            // Before the metal render lands (or without WebGL at all): the same card in CSS.
-            <div className="press-face press-face-front press-face-css">
-              <b>BAHÍA ROSA</b>
-              <span>la gaviota · the coast edition</span>
-              <i />
-            </div>
-          )}
-          <div className="press-face press-face-back">
-            <span>bahía rosa</span>
-          </div>
+    <div className="reveal-stage" aria-hidden="true">
+      <motion.div
+        className="reveal-card"
+        data-testid="card-reveal"
+        data-phase={phase}
+        style={{ rotateY: rotate, aspectRatio: `${ratio}` }}
+      >
+        <div className="reveal-face reveal-front">
+          <img src={plate} alt="" />
+          <span className="reveal-sheen" />
         </div>
-      </div>
-      <figcaption className="press-caption">
-        <span className="kicker press-card-label">the card · being struck</span>
-        <p className="press-tip" data-testid="press-tip" key={tipIndex}>
-          {PRESS_TIPS[tipIndex]}
-        </p>
-      </figcaption>
-    </motion.figure>
+        <div className="reveal-face reveal-back">
+          {metal ? <img src={metal} alt="" /> : <b>bahía rosa</b>}
+        </div>
+      </motion.div>
+    </div>
   );
 }

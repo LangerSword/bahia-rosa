@@ -15,7 +15,8 @@ import { BeforeAfter } from "./components/BeforeAfter";
 import { Fx, Marquee } from "./components/Fx";
 import { Hero3D } from "./components/Hero3D";
 import { Entry } from "./components/Entry";
-import { PressCard } from "./components/PressCard";
+import { CardReveal } from "./components/CardReveal";
+import { PressTips } from "./components/PressTips";
 import { SceneThumb } from "./components/SceneThumb";
 import "./type.css";
 import type { PlateSource } from "./lib/plates/plates";
@@ -514,6 +515,16 @@ export function App() {
               >
                 {index > 0 ? <span style={{ color: "var(--color-faint)" }}>·</span> : null}
                 {step.label.toLowerCase()}
+                {index === stepIndex ? (
+                  // One ink mark, shared between steps: motion moves it along the rail rather than drawing a
+                  // new one at each stop, so the run reads as a single object travelling through the paper.
+                  <motion.span
+                    layoutId="step-ink"
+                    className="step-ink"
+                    aria-hidden="true"
+                    transition={{ duration: reduce ? 0 : 0.42, ease: EASE }}
+                  />
+                ) : null}
               </span>
             ))}
           </nav>
@@ -737,29 +748,32 @@ export function App() {
               Everything below happens inside this page. Your photo is not uploaded anywhere, and there
               is no key or account in the path.
             </p>
-            <div className="mt-7 grid gap-8 lg:grid-cols-[minmax(240px,360px)_minmax(0,1fr)] lg:items-start">
-              {/* The card turns over in here while the press runs — and it is gone when the press is. */}
-              <PressCard />
-              <div>
-                <ol className="space-y-2" aria-live="polite">
-                  {stages.map((label) => (
-                    <li key={label} className="flex items-baseline gap-3 text-sm text-[color:var(--color-body)]">
-                      <span style={{ color: "var(--color-gold)" }}>✓</span>
-                      {label}
-                    </li>
-                  ))}
-                </ol>
-                <div className="rule mt-6 h-[3px] w-full overflow-hidden border" aria-hidden="true">
-                  <motion.div
-                    className="h-full"
-                    style={{ background: "var(--color-gold)" }}
-                    initial={{ width: "6%" }}
-                    animate={{ width: `${Math.min(94, 18 + stages.length * 19)}%` }}
-                    transition={{ duration: 0.45, ease: EASE }}
-                  />
-                </div>
-              </div>
+            {/* Each stage is stamped onto the list as it finishes, the way a press stamps a sheet: quickly,
+                with a little weight, and no bounce — it is a receipt, not a celebration. */}
+            <ol className="mt-6 space-y-2" aria-live="polite">
+              {stages.map((label) => (
+                <motion.li
+                  key={label}
+                  className="flex items-baseline gap-3 text-sm text-[color:var(--color-body)]"
+                  initial={reduce ? undefined : { opacity: 0, scale: 1.16, rotate: -1.5 }}
+                  animate={reduce ? undefined : { opacity: 1, scale: 1, rotate: 0 }}
+                  transition={{ duration: 0.24, ease: EASE }}
+                >
+                  <span style={{ color: "var(--color-gold)" }}>✓</span>
+                  {label}
+                </motion.li>
+              ))}
+            </ol>
+            <div className="rule mt-6 h-[3px] w-full overflow-hidden border" aria-hidden="true">
+              <motion.div
+                className="h-full"
+                style={{ background: "var(--color-gold)" }}
+                initial={{ width: "6%" }}
+                animate={{ width: `${Math.min(94, 18 + stages.length * 19)}%` }}
+                transition={{ duration: 0.45, ease: EASE }}
+              />
             </div>
+            <PressTips />
           </motion.section>
         ) : null}
 
@@ -779,13 +793,17 @@ export function App() {
             </p>
 
             <div className="mt-7 grid gap-7 lg:grid-cols-[minmax(0,1fr)_320px]">
-              <div className="rule plate-sweep overflow-hidden border">
-                <img
-                  src={image}
-                  alt="Your plate, freshly printed"
-                  data-testid="printed-plate"
-                  className="w-full"
-                />
+              <div className="rule overflow-hidden border">
+                {/* The press is over. The card turns over — after the press, not during it — and hands over
+                    the art: the spin is the reveal, and the print is what is left when it stops. */}
+                <CardReveal plate={image}>
+                  <img
+                    src={image}
+                    alt="Your plate, freshly printed"
+                    data-testid="printed-plate"
+                    className="w-full"
+                  />
+                </CardReveal>
               </div>
               <div className="flex flex-col gap-3">
                 <a href={image} download={frameName} data-testid="download-raw" className="btn text-center">

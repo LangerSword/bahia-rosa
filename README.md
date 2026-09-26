@@ -96,7 +96,8 @@ src/components/   the surfaces a visitor touches
   PlacementCanvas.tsx   a live preview that is the exporter
   PhotoDrop.tsx     drop / paste anywhere, with a hold-and-ask before replacing work
   Entry.tsx         the way in: the title sheet, and what it warms while it is up
-  PressCard.tsx     the loading screen's card: rendered once in three.js, spun by CSS while the press runs
+  CardReveal.tsx    the card that turns over when the press finishes, and hands over the art
+  PressTips.tsx     one true sentence at a time, while the press runs
   Hero3D.tsx        the hero, as a floor and a sky at two depths
 
 src/lib/          payoff.ts (the remembered arrangement) · photo.ts (intake)
@@ -184,23 +185,41 @@ the lift's clock starts at the first *painted* frame, not at mount. measured, no
 its first second building a WebGL hero, and a floor measured from mount lifted the sheet the instant the
 letters landed — or before they did.
 
-## the loading screen
+## the reveal
 
-while the press runs, the card turns over on screen — rapidly, once every 0.85s — and it exists **only**
-while the press runs: when the art is ready the card is unmounted and what the visitor is shown is the art.
-(a first cut of this left the card sitting in the output, which is not what a card is for.)
+when the press finishes, the plate does not simply appear: a card turns over on the spot — rapidly, once
+every 0.6s — and then *lands*, decelerating onto the visitor's own art, which is what is left when it stops.
+The card is the framing device, not the product: it is unmounted the moment the print is up.
 
-two decisions in there are about the press rather than about looks. the metal is rendered **once**,
-off-screen — three.js with `metalness: 1` lit by a room environment, one frame into an image — and then the
-renderer and its context are disposed; the spin itself is a CSS transform, which runs on the compositor.
-a JavaScript-driven spin would be competing with the press for the same main thread, and the press always
-wins that fight, so it would stutter exactly when it is meant to be saying that something is happening. and
-with no WebGL the same card is drawn in CSS — and still spins.
+the turn is a React animation (`useMotionValue` + `animate`, in `CardReveal.tsx`), and that is what makes the
+landing possible at all — a CSS loop cannot be *arrived at*. The loop is stopped mid-flight, the angle it was
+caught at is read, and the landing eases onto the next whole turn, so the card always comes to rest face-on
+and never has to jump to get there. Its other face is the same stainless the site has been carrying all
+along: three.js, rendered **once**, off-screen, into an image, with the renderer and its context disposed
+immediately afterwards. The card is the art's own shape (measured from the plate), so the landing cannot
+reflow the page. With no WebGL the back face is the wordmark instead, and the reveal still runs.
 
-the tip under the card rotates, and every tip is a true sentence (`src/lib/tips.ts`). when the art lands, one
-sweep of light crosses the plate (`.plate-sweep`, `effects.css`) — the same metal the loading screen just
-showed, arriving on the picture. `tests/e2e/press-card.spec.ts` asserts the spin by its CSS animation, and
-that the card is *gone* once the plate is up; under `prefers-reduced-motion` it is a still card.
+`tests/e2e/card-reveal.spec.ts` watches it with an in-page **recorder installed before the page loads**, and
+that is not gold-plating: the press saturates the main thread, so Playwright's own polling runs late — the
+first version of this spec began watching 1.4 seconds after the reveal had started — and `waitForFunction`
+only resolves on a *truthy* result, which `0` is not. A transient animation is not something to interrogate
+in passing; it is something to witness. The record asserts all three properties: the card turns over after
+the press, not during it, starting in the spin; it is really moving; and it is gone once the art is up.
+
+## three more, quieter
+
+the rest of the motion is React-driven and small on purpose — the site's voice is print, not app store:
+
+- **stages are stamped** onto the press list as they finish (`motion.li` in `App.tsx`): quickly, with a little
+  weight, no bounce. A receipt, not a celebration.
+- **the step rail carries one ink mark**, and it *travels*: `layoutId` lets motion move the single mark
+  between steps rather than drawing a new one at each stop, so the run reads as one object working through
+  the paper.
+- **the marquee leans into a flick.** It skews by a few degrees with the *page's own scroll velocity*
+  (`useVelocity` → `useSpring` → `useTransform`), so it is the visitor's hand on the page rather than a loop,
+  and it settles as they stop.
+
+all of it is off under `prefers-reduced-motion`, and none of it is in the accessibility tree.
 
 ## on a phone
 

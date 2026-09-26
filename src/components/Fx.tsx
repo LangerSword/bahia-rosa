@@ -1,5 +1,13 @@
 import { type ReactNode } from "react";
-import { motion, useReducedMotion, useScroll, useSpring } from "motion/react";
+import {
+  motion,
+  useReducedMotion,
+  useScroll,
+  useSpring,
+  useTransform,
+  useVelocity,
+  type MotionValue,
+} from "motion/react";
 import "./effects.css";
 
 /**
@@ -76,20 +84,34 @@ export function Reveal({
 
 /**
  * The department strapline that separates stages. Long enough to actually scroll, because a marquee
- * that finishes before you notice it is a marquee nobody saw.
+ * that finishes before you notice it is a marquee nobody saw — and it leans into a flick: the faster the
+ * page is moving when it comes into view, the more the type skews, settling back as you stop. That is a
+ * reading of `scrollY`'s own velocity, so it is genuinely the visitor's hand on the page and not a loop.
  */
 export function Marquee({ items }: { items: string[] }): ReactNode {
   const reduce = useReducedMotion();
   const row = [...items, ...items, ...items];
+  const skew = useScrollSkew();
   return (
     <div className="fx-marquee rule border-y py-3" aria-hidden="true">
-      <div className={reduce ? "fx-marquee-row fx-marquee-still" : "fx-marquee-row"}>
+      <motion.div
+        className={reduce ? "fx-marquee-row fx-marquee-still" : "fx-marquee-row"}
+        style={reduce ? undefined : { skewY: skew }}
+      >
         {row.map((item, index) => (
           <span key={`${item}-${index}`} className="kicker mx-6">
             {item} <span style={{ color: "var(--color-gold)" }}>·</span>
           </span>
         ))}
-      </div>
+      </motion.div>
     </div>
   );
+}
+
+/** How fast the page is moving, as a small skew: a few degrees at most, clamped, and sprung so it settles. */
+function useScrollSkew(): MotionValue<number> {
+  const { scrollY } = useScroll();
+  const velocity = useVelocity(scrollY);
+  const smooth = useSpring(velocity, { stiffness: 130, damping: 28, restDelta: 1 });
+  return useTransform(smooth, [-2200, 0, 2200], [-3.4, 0, 3.4], { clamp: true });
 }
