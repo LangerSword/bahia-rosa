@@ -1,0 +1,196 @@
+/* The plates — a contact sheet that stands up as you scroll past it.
+
+   Values are the site's own: ink ground, hairline rules, gold only on the focus ring's business (the global
+   ring) — the wall itself is paper on ink, which is what a contact sheet is. */
+
+.plate-gallery {
+  margin-top: 4.5rem;
+  padding-bottom: 1rem;
+  /* The wall needs travel to stand up in — but only a little over a third of a screen of it, so the copy
+     and the wall stay in one breath instead of drifting apart across a black void. */
+  min-height: 132vh;
+}
+
+.plate-gallery-intro {
+  /* A hairline between the copy and the wall: the section's own device, and the thing that stops a tall
+     black gap reading as a hole in the page. */
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-rule, rgba(242, 239, 233, 0.14));
+}
+
+.plate-gallery-intro .display {
+  color: var(--color-paper);
+}
+
+/* The ride: the panel pins itself while the section scrolls past, so the unfurl happens beside the
+   visitor's reading rather than instead of it. Nothing here takes the scroll away from them. */
+.plate-gallery-stage {
+  margin-top: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1400px;
+  perspective-origin: 50% 40%;
+  /* A tilted wall grows at its near edge. `clip` contains that without creating a scroll container — which
+     `hidden` would, and a scroll container ancestor kills the sticky stage. The inset keeps the outer
+     columns inside the glass even at the widest tilt. */
+  overflow: clip;
+  padding-inline: 1.5rem;
+}
+
+.plate-gallery[data-motion="unfurl"] .plate-gallery-stage {
+  position: sticky;
+  top: 12vh;
+}
+
+.plate-gallery-wall {
+  --plate-columns: 3;
+  display: grid;
+  gap: 1.1rem;
+  /* Narrower than its own box on purpose: a rotated wall's near edge grows under perspective, and a wall
+     that fills its box leaves the rotation nowhere to go but outside the clip. */
+  width: 92%;
+  margin-inline: auto;
+  grid-template-columns: repeat(var(--plate-columns), minmax(0, 1fr));
+  align-items: start;
+  will-change: transform;
+}
+
+.plate-gallery[data-columns="2"] .plate-gallery-wall {
+  --plate-columns: 2;
+}
+
+.plate-gallery-column {
+  display: grid;
+  gap: 1.1rem;
+  align-content: start;
+}
+
+.plate-frame {
+  position: relative;
+  display: block;
+  margin: 0;
+  border: 1px solid rgba(242, 239, 233, 0.18);
+  /* A print has a mat. The margin of ground around the image is what gives a frame physical weight on a
+     near-black page — a shadow cannot, because a black shadow on black is nothing. */
+  padding: 0.4rem;
+  background: var(--color-ink-2, #101014);
+  overflow: hidden;
+  box-shadow:
+    0 1px 0 rgba(242, 239, 233, 0.07) inset,
+    0 26px 50px -32px rgba(0, 0, 0, 0.9);
+}
+
+.plate-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  filter: saturate(0.92);
+  opacity: 0;
+  transform: scale(1.015);
+  transition:
+    opacity 0.7s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    transform 0.7s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    filter 0.5s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.plate-frame[data-loaded="yes"] img {
+  opacity: 1;
+  transform: none;
+}
+
+/* The caption is the frame's evidence — what this plate is and what it was pressed from — so it sits on the
+   mat in the open at all times. Hovering only brightens it. A gallery whose labels only exist for people who
+   happen to move a mouse over them is a gallery of unexplained pictures. */
+.plate-frame-caption {
+  padding: 0.55rem 0.15rem 0.1rem;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  letter-spacing: 0.012em;
+  color: var(--color-paper, #f2efe9);
+  /* The caption is a label on an exhibit: on a dark ground a label you have to look for is decoration.
+     The suite asserts the rendered contrast stays at 4.5:1 or better (it measures ~10:1). */
+  opacity: 0.8;
+  transition: opacity 0.35s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+/* A quote on the sheet: lifting one frame to read it. Keyboard gets the same treatment through
+   :focus-within, so the caption is not a hover-only fact. */
+.plate-frame:hover img,
+.plate-frame:focus-within img {
+  filter: saturate(1);
+}
+
+.plate-frame:hover .plate-frame-caption,
+.plate-frame:focus-within .plate-frame-caption {
+  opacity: 1;
+  transform: none;
+}
+
+/* Phones: two columns, tighter gutters, and the drift cut down so the wall does not travel past the frame. */
+.plate-gallery[data-columns="2"] {
+  min-height: 112vh;
+}
+
+.plate-gallery[data-columns="2"] .plate-gallery-wall {
+  width: 96%;
+  gap: 0.75rem;
+}
+
+.plate-gallery[data-columns="2"] .plate-gallery-column {
+  gap: 0.75rem;
+}
+
+.plate-gallery[data-columns="2"] .plate-frame-caption {
+  font-size: 0.6rem;
+  padding: 1.1rem 0.5rem 0.45rem;
+}
+
+/* No motion: the wall is simply a grid. No transforms, no stickiness, no captions hidden behind a hover
+   the visitor may never perform — every caption is visible instead. */
+.plate-gallery[data-motion="still"] {
+  min-height: 0;
+}
+
+.plate-gallery[data-motion="still"] .plate-gallery-stage {
+  position: static;
+}
+
+.plate-gallery[data-motion="still"] .plate-gallery-wall {
+  transform: none !important;
+}
+
+.plate-gallery[data-motion="still"] .plate-gallery-column {
+  transform: none !important;
+}
+
+.plate-gallery[data-motion="still"] .plate-frame img {
+  opacity: 1;
+  transform: none;
+}
+
+.plate-gallery[data-motion="still"] .plate-frame-caption {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plate-gallery[data-motion="still"] .plate-frame img,
+  .plate-gallery[data-motion="still"] .plate-frame-caption {
+    transition: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .plate-gallery {
+    margin-top: 3rem;
+  }
+}
+
+/* Wide screens: give the wall room but never more than the copy measure. */
+@media (min-width: 1100px) {
+  .plate-gallery .plate-gallery-wall {
+    grid-template-columns: repeat(var(--plate-columns, 3), minmax(0, 1fr));
+  }
+}

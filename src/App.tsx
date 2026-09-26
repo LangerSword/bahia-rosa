@@ -4,6 +4,7 @@ import { EditorSurface, type ToolGating } from "./components/EditorSurface";
 import { Arrange } from "./components/Arrange";
 import { Launch } from "./components/Launch";
 import { PlateGate, type PrintChoice } from "./components/PlateGate";
+import { PlateGallery } from "./components/PlateGallery";
 import { PhotoDrop } from "./components/PhotoDrop";
 import { PrintDesk } from "./components/PrintDesk";
 import { loadImage, composePlacement, isDefaultLayer } from "./world/compose";
@@ -603,6 +604,9 @@ export function App() {
             style={{ scrollMarginTop: "7.5rem" }}
             className="mt-10"
           >
+            {/* Proof before the pitch: the press's own plates, then the choices. */}
+            <PlateGallery />
+
             <section className="section-tight" aria-labelledby="hour-heading">
               <h2 id="hour-heading" className="display" style={{ color: "var(--color-paper)" }}>
                 <span style={{ color: "var(--color-faint)" }}>~ </span>the hour
