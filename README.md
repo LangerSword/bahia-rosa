@@ -168,17 +168,18 @@ layers**, which stays disabled until there is more than one layer to flatten —
 
 ## the way in
 
-the title sheet opens with a **film** — the city plate being generated, full-bleed. Fifteen frames, dissolved
-one into the next, and every one of them the city's own drawing: the beach as it arrives, the hour's grade,
-then the same canvas flattened at 3, 4, 6, 9, 13 and 20 colours, and the other places at other hours. **No
-faces** — these are the plates the city draws of itself. The step names itself on screen while it runs, because
-the point of the film is how a plate is generated: `the city's own drawing`, `the hour — dusk`, `4 colours`,
-`the marina, at golden hour`. The frames are not drawn by hand and no art was commissioned: `tools/make-film.mjs`
-opens the dev server and calls *this app's* `gradePixels`, `gradeFor` and `styliseImageData` through a dev-only
-handle, laying the outputs into one sprite — so the film is the pipeline rather than a picture of it, and running
-the script again regenerates it from code. The title's floor clock waits on the film (the film is not the title),
-the letters wait for both the face and the film, and a sprite that fails or is slow skips the film entirely
-rather than holding the sheet. `?film=0` skips it for a probe.
+the title sheet opens with a **film** — the city plate being generated, full-bleed. Twelve frames, dissolved one
+into the next, and the build is the plate's *layers* in the press's own order: the city's drawing, the hour's
+grade, the flat shapes, the ink lines, the detail, a fuller palette, and the plate with its paper — then the city
+at other hours. **No faces**: these are the plates the city draws of itself. The step names itself on screen
+while it runs, because the point of the film is how a plate is generated: `the flat shapes`, `+ the ink lines`,
+`the marina, at golden hour`. The frames are not drawn by hand and no art was commissioned:
+`tools/make-film.mjs` opens the dev server and calls *this app's* `gradePixels`, `gradeFor` and
+`styliseImageData` through a dev-only handle — driving the press's own `ink`, `detail` and `paper` knobs so each
+frame is the plate *with one more pass done to it* — and lays the 1600×900 outputs into one sprite. The film
+plays them one-to-one, with no resampling (asserted: the canvas's backing store is its CSS size), the title's
+floor clock waits on it, the letters wait for both the face and the film, and a sprite that fails or is slow
+skips the film entirely. `?film=0` skips it for a probe.
 
 every visit opens on a title sheet: the wordmark assembling letter by letter — each letter rising from
 behind its own mask, so it reads as type being *set* rather than text fading in — a counter beside it reading

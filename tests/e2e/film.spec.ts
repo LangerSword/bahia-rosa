@@ -36,10 +36,24 @@ test.describe("the film on the title sheet", () => {
     expect(Math.abs(cover.right), "and reaches the right edge").toBeLessThan(4);
     expect(Math.abs(cover.bottom), "and the bottom").toBeLessThan(4);
 
+    // And it is drawn one-to-one: the canvas's backing store is exactly its CSS size, so the ink lines the
+    // build shows are the lines in the sprite rather than a resample of them.
+    const pixels = await film.evaluate((el) => {
+      const canvas = el as HTMLCanvasElement;
+      return {
+        w: canvas.width,
+        h: canvas.height,
+        cw: Math.round(canvas.clientWidth),
+        ch: Math.round(canvas.clientHeight),
+      };
+    });
+    expect(pixels.w, "the backing store is not the CSS width").toBe(pixels.cw);
+    expect(pixels.h, "the backing store is not the CSS height").toBe(pixels.ch);
+
     // The first step names itself, and the counter is the film's own: how a plate is generated, step by step.
     const label = page.locator(".entry-film-label");
     await expect(label).not.toHaveText("");
-    await expect(page.locator(".entry-film-step")).toHaveText(/^\d\d \/ 15$/);
+    await expect(page.locator(".entry-film-step")).toHaveText(/^\d\d \/ 12$/);
 
     // While the film runs the title block is not there yet, and a letter is still buried in its mask.
     const blockOpacity = await page

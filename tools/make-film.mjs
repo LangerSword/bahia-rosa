@@ -16,9 +16,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { chromium } from "playwright";
 
 const BASE = process.env.SHOT_BASE ?? "http://localhost:5178";
-const CELL_W = 896;
-const CELL_H = 504;
-const COLS = 5;
+const CELL_W = 1600;
+const CELL_H = 900;
+const COLS = 6;
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
@@ -47,8 +47,13 @@ const result = await page.evaluate(
     probe.height = 18;
     const pctx = probe.getContext("2d", { willReadFrequently: true });
 
-    /** The scene, cover-fit, optionally graded and flattened — all through the press's own functions. */
-    async function frame(scene, look, colours) {
+    /**
+     * The scene, cover-fit, then the plate's layers added one at a time — all through the press's own
+     * functions. `layer` is the part of the press's preset that a frame has done to it: a colour count, and
+     * the ink, detail and paper knobs, so each frame is the plate *with one more pass* rather than a blurrier
+     * version of the same picture. Zero means the pass has not happened yet.
+     */
+    async function frame(scene, look, layer) {
       const image = await load(press.sceneSrc(scene));
       const scale = Math.max(cellW / image.naturalWidth, cellH / image.naturalHeight);
       const dw = image.naturalWidth * scale;
@@ -59,10 +64,10 @@ const result = await page.evaluate(
         const graded = press.gradePixels(data.data, press.gradeFor(look));
         data = new ImageData(graded, cellW, cellH);
       }
-      if (colours) {
+      if (layer) {
         // The press takes a pixel array and hands one back: passing the ImageData wrapper reads `undefined`
         // as its length and returns nothing at all.
-        const out = press.styliseImageData(data.data, cellW, cellH, { ...preset, colours });
+        const out = press.styliseImageData(data.data, cellW, cellH, { ...preset, ...layer });
         const bytes = out?.data ?? out;
         data = new ImageData(bytes, cellW, cellH);
       }
@@ -80,22 +85,46 @@ const result = await page.evaluate(
       return { canvas: working, flat: hi - lo < 6 };
     }
 
+    /**
+     * The build is the plate's own layers, in the press's order — the drawing, the hour, the flat shapes, the
+     * ink lines, the detail, the fuller palette, and finally the plate with its paper. The ink and detail
+     * values are scaled *from the press's own preset*, so they mean the same thing whatever units it uses.
+     */
+    const ink = (preset.ink ?? 0.5) * 1.35;
+    const detail = (preset.detail ?? 0.5) * 1.15;
     const steps = [
-      { scene: "beach", look: null, colours: null, label: "the city's own drawing" },
-      { scene: "beach", look: "dusk", colours: null, label: "the hour — dusk" },
-      { scene: "beach", look: "dusk", colours: 3, label: "3 colours" },
-      { scene: "beach", look: "dusk", colours: 4, label: "4 colours" },
-      { scene: "beach", look: "dusk", colours: 6, label: "6 colours" },
-      { scene: "beach", look: "dusk", colours: 9, label: "9 colours" },
-      { scene: "beach", look: "dusk", colours: 13, label: "13 colours" },
-      { scene: "beach", look: "dusk", colours: 20, label: "20 colours — the plate" },
-      { scene: "marina", look: "golden", colours: 20, label: "the marina, at golden hour" },
-      { scene: "rooftop", look: "night", colours: 20, label: "the rooftop, at night" },
-      { scene: "boulevard", look: "neon", colours: 20, label: "palm boulevard, in the neon" },
-      { scene: "beach", look: "night", colours: 20, label: "the beach, after dark" },
-      { scene: "marina", look: "night", colours: 20, label: "the marina, after dark" },
-      { scene: "boulevard", look: "golden", colours: 20, label: "palm boulevard, at golden hour" },
-      { scene: "rooftop", look: "dusk", colours: 20, label: "the rooftop, at dusk" },
+      { scene: "beach", look: null, layer: null, label: "the city's own drawing" },
+      { scene: "beach", look: "dusk", layer: null, label: "the hour — dusk" },
+      {
+        scene: "beach",
+        look: "dusk",
+        layer: { colours: 6, ink: 0, detail: 0, paper: 0 },
+        label: "the flat shapes",
+      },
+      {
+        scene: "beach",
+        look: "dusk",
+        layer: { colours: 6, ink, detail: 0, paper: 0 },
+        label: "+ the ink lines",
+      },
+      {
+        scene: "beach",
+        look: "dusk",
+        layer: { colours: 6, ink, detail, paper: 0 },
+        label: "+ the detail",
+      },
+      {
+        scene: "beach",
+        look: "dusk",
+        layer: { colours: 12, ink, detail, paper: 0 },
+        label: "+ more colours — 12",
+      },
+      { scene: "beach", look: "dusk", layer: { colours: 20 }, label: "the plate — with its paper" },
+      { scene: "marina", look: "golden", layer: { colours: 20 }, label: "the marina, at golden hour" },
+      { scene: "rooftop", look: "night", layer: { colours: 20 }, label: "the rooftop, at night" },
+      { scene: "boulevard", look: "neon", layer: { colours: 20 }, label: "palm boulevard, in the neon" },
+      { scene: "beach", look: "night", layer: { colours: 20 }, label: "the beach, after dark" },
+      { scene: "marina", look: "dusk", layer: { colours: 20 }, label: "the marina, at dusk" },
     ];
 
     const sprite = document.createElement("canvas");
@@ -108,7 +137,7 @@ const result = await page.evaluate(
     const flat = [];
     for (let index = 0; index < steps.length; index += 1) {
       const step = steps[index];
-      const { canvas, flat: isFlat } = await frame(step.scene, step.look, step.colours);
+      const { canvas, flat: isFlat } = await frame(step.scene, step.look, step.layer);
       if (isFlat) flat.push(`${step.label} (flat)`);
       sctx.drawImage(canvas, (index % cols) * cellW, Math.floor(index / cols) * cellH);
     }
