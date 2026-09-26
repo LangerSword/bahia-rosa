@@ -255,7 +255,7 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
           ref={wordmark}
           className="entry-wordmark"
           aria-label="welcome to bahía rosa"
-          data-vapour={phase === "vapour" ? "on" : undefined}
+          data-vapour={phase === "hold" ? undefined : "on"}
         >
           {/* Letters, not a word: each one rises from behind its own baseline, in reading order. The mask
               is what makes it read as type being *set* rather than text fading in — the letter cannot be

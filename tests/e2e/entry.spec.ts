@@ -18,6 +18,27 @@ test("the entry plays, holds the hero back, and ends on its own", async ({ page 
     if (message.type() === "error") errors.push(message.text());
   });
 
+  /**
+   * A recorder, because the fault it catches is transient: the wordmark is hidden while it turns to dust, and
+   * the first cut of that hid it only *during* the vapour — so the moment the dust finished and the sheet
+   * began to lift, the full wordmark reappeared. A flash of the title coming back after it just vaporised.
+   * Sampling is the only way to see a thing that exists for a tenth of a second.
+   */
+  await page.addInitScript(() => {
+    const record = { vapourSeen: false, litWhileDusting: 0 };
+    (window as unknown as { __exit: typeof record }).__exit = record;
+    window.setInterval(() => {
+      const h1 = document.querySelector(".entry-wordmark");
+      const letters = [...document.querySelectorAll(".entry-letter")];
+      if (!h1 || !letters.length) return;
+      if (h1.getAttribute("data-vapour") === "on") {
+        record.vapourSeen = true;
+        const lit = letters.filter((el) => Number(getComputedStyle(el).opacity) > 0.05).length;
+        record.litWhileDusting = Math.max(record.litWhileDusting, lit);
+      }
+    }, 50);
+  });
+
   await page.goto("/?entry=1");
 
   const sheet = page.getByTestId("entry");
@@ -36,6 +57,13 @@ test("the entry plays, holds the hero back, and ends on its own", async ({ page 
       timeout: 10_000,
     })
     .toBeGreaterThan(0.9);
+
+  // …and the wordmark does not come back while the sheet leaves: hidden for the dust means hidden for good.
+  const exit = await page.evaluate(
+    () => ({ ...(window as unknown as { __exit: { vapourSeen: boolean; litWhileDusting: number } }).__exit }),
+  );
+  expect(exit.vapourSeen, "the wordmark turned to dust on the way out").toBe(true);
+  expect(exit.litWhileDusting, "and stayed gone while the sheet lifted").toBe(0);
 
   expect(errors.filter((error) => !/favicon/i.test(error))).toEqual([]);
 });

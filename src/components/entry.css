@@ -189,7 +189,10 @@
   height: 100%;
 }
 
-.vapour-host canvas {
+/* The canvas is the type's box plus a margin, pulled back by that margin: the dust gets room to be sampled
+   without the canvas edge cutting an accent, while the box itself stays exactly where the letters were. */
+.vapour-canvas {
+  position: absolute;
   display: block;
 }
 
