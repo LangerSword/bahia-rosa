@@ -104,3 +104,49 @@ test("no ring on a touch screen", async ({ browser }) => {
   expect((await readRing(page)).present, "and so there is no ring").toBe(false);
   await context.close();
 });
+
+test("the ring withdraws while the press is working, and comes back", async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.goto("/");
+  await page.waitForSelector("[data-testid='hero']");
+  // The ring working normally first, so its later absence means the busy state and not a pointer that was
+  // never seen: `data-visible="no"` is also what "no mouse movement yet" looks like.
+  await page.mouse.move(420, 300);
+  await page.mouse.move(520, 320, { steps: 4 });
+  await expect.poll(async () => (await readRing(page)).visible, { timeout: 10_000 }).toBe("yes");
+
+  // A real press. From here the main thread is saturated until the fork appears — exactly when a ring driven
+  // by animation frames freezes mid-screen, which is what the visitor reported as a stuck cursor.
+  await page.getByTestId("photo-input").setInputFiles("public/art/demo/s1-marisol-keyart.jpg");
+  /**
+   * The busy flag and the cursor it buys are read in *one* page evaluation, because the flag is transient:
+   * the press passes through converting → printed → printing, and only some of those are busy, so a poll
+   * that checks the flag and a later read of the cursor are answers about two different moments.
+   */
+  await expect
+    .poll(
+      async () =>
+        (await page.evaluate(
+          `(() => { const busy = document.body.dataset.cursor === "busy"; return busy ? getComputedStyle(document.body).cursor : "not-busy"; })()`,
+        )) as string,
+      { timeout: 90_000 },
+    )
+    .toBe("progress");
+  const paused = (await page.evaluate(
+    `document.querySelector('[data-testid="magnet-ring"]')?.getAttribute("data-paused") ?? "missing"`,
+  )) as string;
+  expect(paused, "the ring is withdrawn rather than parked").toBe("yes");
+  expect((await readRing(page)).visible, "and it is not drawn").toBe("no");
+
+  await expect(page.getByTestId("printed-fork")).toBeVisible({ timeout: 180_000 });
+  await expect
+    .poll(async () => (await page.evaluate(`document.body.dataset.cursor ?? ""`)) as string, { timeout: 20_000 })
+    .toBe("");
+  await page.mouse.move(600, 340);
+  await page.mouse.move(700, 360, { steps: 4 });
+  await expect.poll(async () => (await readRing(page)).visible, { timeout: 10_000 }).toBe("yes");
+  const stillPaused = (await page.evaluate(
+    `document.querySelector('[data-testid="magnet-ring"]')?.getAttribute("data-paused") ?? "missing"`,
+  )) as string;
+  expect(stillPaused).toBe("no");
+});

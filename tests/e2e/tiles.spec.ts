@@ -58,6 +58,34 @@ test.describe("the choices", () => {
     expect(galleryTop).toBeGreaterThan(hourTop);
   });
 
+  test("the preview is the place at the hour, and it answers the hour", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForSelector('[data-testid="pick-preview-canvas"]');
+    // The station's own plate: a real canvas the press graded, not a static image. Changing the hour must
+    // change its pixels — that is the whole claim of a preview.
+    const mean = async (): Promise<number> =>
+      page.locator('[data-testid="pick-preview-canvas"]').evaluate((el) => {
+        const canvas = el as HTMLCanvasElement;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return 0;
+        const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        let sum = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          sum += data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+        }
+        return sum / (data.length / 4);
+      });
+    const dusk = await mean();
+    expect(dusk).toBeGreaterThan(0);
+    await page.locator('[data-testid="look-night"]').click();
+    await expect
+      .poll(async () => Math.abs((await mean()) - dusk), { timeout: 10_000 })
+      .toBeGreaterThan(4);
+    // And the caption names both choices, in the site's own words.
+    const caption = await page.locator('[data-testid="pick-preview"]').innerText();
+    expect(caption.toLowerCase()).toContain("night");
+  });
+
   test("the tiles are touch-sized on a phone", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");

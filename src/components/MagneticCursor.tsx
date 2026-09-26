@@ -12,10 +12,18 @@ import "./cursor.css";
  * It only exists where it means something: a device with a fine pointer, and a visitor who has not asked for
  * less motion. The per-frame work is one transform write plus a handful of rect reads; no React state runs at
  * frame rate. On touch devices, or reduced motion, the component renders nothing at all.
+ *
+ * `busy` is the press taking the machine: while a plate is being converted or printed, the main thread is
+ * saturated, animation frames stop arriving, and a ring driven by rAF freezes mid-screen — a dead cursor
+ * sitting over a working one. So while busy the ring withdraws and the *native* cursor says `progress`,
+ * which is honest about who is working and costs the visitor nothing. It comes back on the next frame after
+ * the work ends; if the pointer has not moved by then the ring is hidden anyway (the rest rule below).
  */
-export function MagneticCursor(): ReactElement | null {
+export function MagneticCursor({ busy = false }: { busy?: boolean }): ReactElement | null {
   const ring = useRef<HTMLDivElement>(null);
   const [enabled, setEnabled] = useState(false);
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
 
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return undefined;
@@ -30,6 +38,20 @@ export function MagneticCursor(): ReactElement | null {
       calm.removeEventListener("change", update);
     };
   }, []);
+
+  /**
+   * The native cursor carries the busy state, because it is the one thing that cannot freeze: it is drawn by
+   * the browser, not by this page's animation frames. Body-level, so every child inherits it.
+   */
+  useEffect(() => {
+    if (!enabled) return undefined;
+    const body = document.body;
+    if (busy) body.dataset.cursor = "busy";
+    else delete body.dataset.cursor;
+    return () => {
+      delete body.dataset.cursor;
+    };
+  }, [busy, enabled]);
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -69,6 +91,14 @@ export function MagneticCursor(): ReactElement | null {
 
     const tick = (): void => {
       frame = requestAnimationFrame(tick);
+      // While the press is working, the ring withdraws rather than freezing: main-thread work stops these
+      // frames, and a ring parked mid-screen reads as broken input.
+      if (busyRef.current) {
+        node.dataset.visible = "no";
+        node.dataset.paused = "yes";
+        return;
+      }
+      node.dataset.paused = "no";
       // A ring that stays parked where the pointer last was, while the visitor reads, is litter. After two
       // and a half seconds of stillness it fades; the next movement brings it back.
       const resting = performance.now() - pointer.movedAt > 2500;

@@ -44,7 +44,7 @@ it would break the continuity of the redraw.*
 | app | react 19 · typescript · vite 8 · tailwind 4 · motion · three (hero canvas only) |
 | cut | `@mediapipe/tasks-vision` 1.0 — six-class selfie segmentation, models served from our own origin |
 | editor | `@unlayer/react-image-editor` 1.0 — tool sets gated per surface |
-| tests | vitest (unit, 199) · playwright (e2e, 49 including a real-touch phone walk) |
+| tests | vitest (unit, 199) · playwright (e2e, 53 including a real-touch phone walk) |
 
 ## the pipeline
 
@@ -167,6 +167,15 @@ layers**, which stays disabled until there is more than one layer to flatten —
 (`docs/editor-contract.md`).
 
 ## the way in
+
+the title sheet opens with a **film** — the press at work. Eighteen frames: one photograph as it arrived, the
+two layers the press reads and cuts out of it, the same canvas flattened at rising colour counts, and then
+every plate the gallery ships in a fast flip. The frames are not drawn by hand and no art was commissioned:
+`tools/make-film.mjs` drives *this app's own* `portraitFromImage` through a dev-server handle and lays the
+outputs into one sprite, so the film is the pipeline rather than a picture of it — and the plate list comes
+from `src/lib/gallery.ts`, so its second half cannot drift from the gallery. The title's floor clock waits on
+the film (the film is not the title), the letters wait for both the face and the film, and a sprite that fails
+or is slow skips the film entirely rather than holding the sheet. `?film=0` skips it for a probe.
 
 every visit opens on a title sheet: the wordmark assembling letter by letter — each letter rising from
 behind its own mask, so it reads as type being *set* rather than text fading in — a counter beside it reading

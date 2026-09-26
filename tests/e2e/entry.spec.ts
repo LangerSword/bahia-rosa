@@ -39,7 +39,7 @@ test("the entry plays, holds the hero back, and ends on its own", async ({ page 
     }, 50);
   });
 
-  await page.goto("/?entry=1");
+  await page.goto("/?entry=1&film=0");
 
   const sheet = page.getByTestId("entry");
   await expect(sheet).toBeVisible();
@@ -69,7 +69,7 @@ test("the entry plays, holds the hero back, and ends on its own", async ({ page 
 });
 
 test("a click skips the entry early, not just at the end", async ({ page }) => {
-  await page.goto("/?entry=1");
+  await page.goto("/?entry=1&film=0");
   const sheet = page.getByTestId("entry");
   await expect(sheet).toBeVisible();
 
@@ -139,7 +139,7 @@ test("the wordmark hands over to its dust, with no frame where neither is there"
     }, 15);
   });
 
-  await page.goto("/?entry=1");
+  await page.goto("/?entry=1&film=0");
   const sheet = page.getByTestId("entry");
   await expect(sheet).toBeVisible();
   await expect(sheet).toHaveCount(0, { timeout: 20_000 });
@@ -166,7 +166,7 @@ test("a slow face is waited out, and a missing one is not a hostage", async ({ p
     await new Promise((resolve) => setTimeout(resolve, 6000));
     await route.continue();
   });
-  await page.goto("/?entry=1");
+  await page.goto("/?entry=1&film=0");
 
   const sheet = page.getByTestId("entry");
   await expect(sheet).toBeVisible();
@@ -191,7 +191,7 @@ test("a face that never arrives costs seconds, not the page", async ({ page }) =
   // Failed, not slow: a face that cannot load is a face to stop waiting for — the letters come up in
   // whatever the stack gives, and the sheet still ends itself.
   await page.route("**/fonts/*.ttf", (route) => route.abort());
-  await page.goto("/?entry=1");
+  await page.goto("/?entry=1&film=0");
 
   const sheet = page.getByTestId("entry");
   await expect(sheet).toBeVisible();
@@ -208,7 +208,7 @@ test("the dust is drawn in the title's own shape — line for line", async ({ pa
    * So the dust's geometry is held against the DOM's letters: the same width, two lines deep, in the face it
    * was asked for.
    */
-  await page.goto("/?entry=1");
+  await page.goto("/?entry=1&film=0");
   const sheet = page.getByTestId("entry");
   await expect(sheet).toBeVisible();
 

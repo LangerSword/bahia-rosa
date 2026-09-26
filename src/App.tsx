@@ -499,7 +499,7 @@ export function App() {
       <Fx />
       <Toasts />
       <Alerts />
-      <MagneticCursor />
+      <MagneticCursor busy={stage === "converting" || stage === "printing"} />
       {entered ? null : <Entry onDone={() => setEntered(true)} />}
       <a href="#intake" className="skip">
         Skip to the press
@@ -631,6 +631,38 @@ export function App() {
             style={{ scrollMarginTop: "7.5rem" }}
             className="mt-10"
           >
+            {/* The station's subject, at size. The hour and the place are choices about *this* plate, and a
+                208px thumbnail asks the visitor to imagine the answer. It is the press's own code drawing it,
+                so the preview and the print cannot disagree. */}
+            <div className="section-tight" data-testid="pick-preview">
+              <div
+                className="border p-2"
+                style={{ borderColor: "rgb(242 239 233 / 18%)", background: "var(--color-ink-2, #101014)" }}
+              >
+                <SceneThumb
+                  scene={scene}
+                  look={look}
+                  width={720}
+                  height={405}
+                  className="w-full"
+                  testId="pick-preview-canvas"
+                />
+              </div>
+              <p className="mt-4" style={{ color: "var(--color-muted)" }}>
+                <span className="text-sm" style={{ color: "var(--color-paper)" }}>
+                  {SCENES[scene].label.toLowerCase()}
+                </span>
+                <span className="text-sm"> at </span>
+                <span className="text-sm" style={{ color: "var(--color-gold)" }}>
+                  {LOOKS[look]?.label.toLowerCase()}
+                </span>
+                <span className="mt-1 block text-xs">
+                  the two rows below change this plate. it is drawn by the press itself — the same code that
+                  will print your photograph.
+                </span>
+              </p>
+            </div>
+
             <section className="section-tight" aria-labelledby="hour-heading">
               <h2 id="hour-heading" className="display" style={{ color: "var(--color-paper)" }}>
                 <span style={{ color: "var(--color-faint)" }}>~ </span>the hour

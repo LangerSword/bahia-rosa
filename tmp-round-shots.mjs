@@ -28,6 +28,16 @@ const browser = await chromium.launch();
   console.log("hero-parallax: shot");
 
   // 2. The three choice rows, one section each.
+  const preview = await page.$('[data-testid="pick-preview"]');
+  if (preview) {
+    await preview.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(1100);
+    await preview.screenshot({ path: `${out}/pick-preview.png` });
+    console.log("pick-preview: shot");
+  } else {
+    console.log("pick-preview: MISSING");
+  }
+
   for (const [name, selector] of [
     ["choice-hour", "#hour-heading"],
     ["choice-place", "#place-heading"],

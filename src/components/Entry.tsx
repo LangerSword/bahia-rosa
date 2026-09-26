@@ -4,6 +4,7 @@ import { SCENE_IDS, sceneSrc } from "../look/scenes";
 import { markEntryPlayed } from "../lib/entry";
 import { mergeLineRects } from "../lib/lines";
 import { VapourText } from "./VapourText";
+import { PlateFilm } from "./PlateFilm";
 import "./entry.css";
 
 /**
@@ -47,14 +48,28 @@ const CEILING_MS = 9000;
 const FACES = ["Limelight", "Poiret One", "Inter", "Pinyon Script", "Italianno"];
 
 export function Entry({ onDone }: { onDone: () => void }): ReactElement {
+  /**
+   * Whether the film plays at all. `?film=0` is for probes that want the title without the two-second wait,
+   * and reduced motion never gets it — a film is exactly the kind of thing the setting exists to refuse.
+   */
+  const filmPlays = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    const skipped = new URLSearchParams(window.location.search).get("film") === "0";
+    const calm =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    return !skipped && !calm;
+  }, []);
   const [progress, setProgress] = useState(0);
   /**
-   * The exit, in three parts. `hold` is the title being read; `vapour` is the wordmark turning to dust; and
-   * `lift` is the sheet leaving. The dust comes *before* the lift rather than during it — the sheet waits
-   * for the last particle, which is the reason the wordmark dissolves rather than simply fading with the
-   * sheet it sits on.
+   * The exit, in three parts. `film` is the press at work — the redraw, then the plates; `hold` is the title
+   * being read; `vapour` is the wordmark turning to dust; and `lift` is the sheet leaving. The dust comes
+   * *before* the lift rather than during it — the sheet waits for the last particle, which is the reason the
+   * wordmark dissolves rather than simply fading with the sheet it sits on.
    */
-  const [phase, setPhase] = useState<"hold" | "vapour" | "lift">("hold");
+  const [phase, setPhase] = useState<"film" | "hold" | "vapour" | "lift">(filmPlays ? "film" : "hold");
+  /** Resolved when the film ends, so the title's floor is time the *title* had and not time the film had. */
+  const filmGate = useRef<(() => void) | null>(null);
   const leaving = phase === "lift";
   const finished = useRef(false);
   const [faceReady, setFaceReady] = useState(false);
@@ -230,7 +245,14 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
       }
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     });
-    const floor = Promise.all([fonts, painted]).then(
+    // The film, if it is playing, is part of the wait: the floor below is time the *title* had in front of
+    // the visitor, and the film is not the title. When the film is skipped the gate is already resolved.
+    const film = filmPlays
+      ? new Promise<void>((resolve) => {
+          filmGate.current = resolve;
+        })
+      : Promise.resolve();
+    const floor = Promise.all([fonts, painted, film]).then(
       () =>
         new Promise<void>((resolve) => {
           window.setTimeout(resolve, FLOOR_MS);
@@ -249,7 +271,14 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
       cancelled = true;
       window.clearTimeout(guard);
     };
-  }, [plates, units, leave]);
+  }, [plates, units, leave, filmPlays]);
+
+  /** The film has ended — or was never playing: the title's clock may start. */
+  useEffect(() => {
+    if (phase === "film") return;
+    filmGate.current?.();
+    filmGate.current = null;
+  }, [phase]);
 
   /** Any key, any click, any wheel: out. */
   useEffect(() => {
@@ -341,6 +370,10 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
 
       <div className="entry-mid" />
 
+      {/* The film, before the title: the press at work. It hands over to the title by itself, and it cannot
+          hold the sheet hostage — a sprite that fails or is slow simply skips the film. */}
+      {phase === "film" ? <PlateFilm onDone={() => setPhase("hold")} /> : null}
+
       <div className="entry-block">
         <motion.p
           className="kicker entry-welcome"
@@ -360,13 +393,14 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
               is what makes it read as type being *set* rather than text fading in — the letter cannot be
               seen before its turn because there is nowhere for it to be seen from. And the turn does not
               come until the face has: a wordmark assembled in the fallback and swapped later is a glitch,
-              which is exactly what this waits out. */}
+              which is exactly what this waits out. The film is the other half of that wait: letters that
+              rose while the press was still showing would have assembled behind a picture. */}
           {"BAHÍA ROSA".split("").map((letter, index) => (
             <span key={`${letter}-${index}`} className="entry-letter-mask" aria-hidden="true">
               <motion.span
                 className="entry-letter"
                 initial={{ y: 160 }}
-                animate={faceReady ? { y: 0 } : { y: 160 }}
+                animate={faceReady && phase !== "film" ? { y: 0 } : { y: 160 }}
                 transition={{ duration: 0.9, ease: EASE, delay: 0.24 + index * 0.05 }}
               >
                 {letter === " " ? "\u00A0" : letter}

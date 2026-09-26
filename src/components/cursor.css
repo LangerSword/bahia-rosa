@@ -28,6 +28,17 @@
   opacity: 0.85;
 }
 
+/* The press is working: the ring withdraws (its frames are not arriving — the main thread is busy) and the
+   native cursor carries the news instead. Drawn by the browser, so it cannot freeze. */
+.magnet-ring[data-paused="yes"] {
+  opacity: 0;
+}
+
+body[data-cursor="busy"],
+body[data-cursor="busy"] * {
+  cursor: progress !important;
+}
+
 /* Over something magnetic, the ring opens up and softens: the same gesture as leaning in. */
 .magnet-ring[data-pulled="yes"] {
   width: 44px;
