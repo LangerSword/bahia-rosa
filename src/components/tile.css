@@ -1,0 +1,133 @@
+/* A choice, at the standard of the plates: a mat, a hairline, a caption in the open, one gold mark that
+   travels between neighbours. Same parts as the contact sheet, so the picker reads as part of the press
+   rather than a form on top of it. */
+
+.tile {
+  position: relative;
+  display: block;
+  background: var(--color-ink-2, #101014);
+  border: 1px solid rgba(242, 239, 233, 0.22);
+  padding: 0.4rem;
+  text-align: left;
+  transition:
+    border-color 0.3s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    background 0.3s var(--ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    transform 0.3s var(--ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.tile:hover,
+.tile:focus-visible {
+  border-color: rgba(242, 239, 233, 0.4);
+}
+
+/* The chosen tile: a gold hairline *inside* the edge (so the tile never jumps), a warmer ground, and its
+   label in the accent — the dot alone was too quiet to find at a glance. */
+.tile[data-active="yes"] {
+  border-color: rgba(251, 191, 36, 0.55);
+  box-shadow: inset 0 0 0 1px var(--color-gold, #fbbf24);
+  background: color-mix(in srgb, var(--color-gold, #fbbf24) 10%, var(--color-ink-2, #101014));
+}
+
+.tile-media {
+  display: block;
+  overflow: hidden;
+  border: 1px solid rgba(242, 239, 233, 0.1);
+  background: var(--color-ink, #07070a);
+}
+
+.tile-media > * {
+  display: block;
+  width: 100%;
+}
+
+.tile-caption {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.7rem 0.55rem 0.45rem;
+}
+
+.tile-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.74rem;
+  letter-spacing: 0.012em;
+  color: var(--color-paper, #f2efe9);
+  opacity: 0.85;
+}
+
+.tile[data-active="yes"] .tile-label {
+  opacity: 1;
+  color: var(--color-gold, #fbbf24);
+}
+
+.tile-note {
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: var(--color-muted, #9a9aa2);
+  padding-left: 0.85rem;
+}
+
+.tile-dot {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--color-gold, #fbbf24);
+}
+
+.tile-dot-quiet {
+  background: var(--color-rule, rgba(242, 239, 233, 0.2));
+}
+
+/* A quiet number in the corner, the way a contact sheet numbers its frames. */
+.tile-index {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.6rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  color: var(--color-paper, #f2efe9);
+  opacity: 0.4;
+  mix-blend-mode: difference;
+  pointer-events: none;
+}
+
+/* The finish tiles' media: how much frame each finish prints, drawn to scale and labelled with the real
+   widths, so the choice is a fact rather than an adjective. */
+.tile-scale {
+  display: block;
+  padding: 0.9rem 0.7rem 0.75rem;
+  background: var(--color-ink, #07070a);
+}
+
+.tile-scale-bar {
+  display: block;
+  height: 6px;
+  background: linear-gradient(90deg, var(--color-gold, #fbbf24), rgba(251, 191, 36, 0.35));
+  opacity: 0.85;
+}
+
+.tile-scale-label {
+  display: block;
+  margin-top: 0.6rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted, #9a9aa2);
+}
+
+/* Phones: full width, and the caption does not shrink into the mat. */
+@media (max-width: 640px) {
+  .tile {
+    padding: 0.3rem;
+  }
+
+  .tile-caption {
+    padding: 0.45rem 0.1rem 0.05rem;
+  }
+
+  .tile-label {
+    font-size: 0.7rem;
+  }
+}

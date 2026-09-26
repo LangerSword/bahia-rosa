@@ -44,7 +44,7 @@ it would break the continuity of the redraw.*
 | app | react 19 · typescript · vite 8 · tailwind 4 · motion · three (hero canvas only) |
 | cut | `@mediapipe/tasks-vision` 1.0 — six-class selfie segmentation, models served from our own origin |
 | editor | `@unlayer/react-image-editor` 1.0 — tool sets gated per surface |
-| tests | vitest (unit, 199) · playwright (e2e, 41 including a real-touch phone walk) |
+| tests | vitest (unit, 199) · playwright (e2e, 49 including a real-touch phone walk) |
 
 ## the pipeline
 
@@ -241,6 +241,25 @@ border, one gold mark. No coloured rails — a coloured rail is decoration prete
 It speaks when the plate is ready (with the place and the finish), when the desk comes back with one, and on
 a download — naming the file, because a download that does not tell you what it saved is a leap of faith.
 `tests/e2e/card-reveal.spec.ts` asserts the press's own notice, in the same test that watches the card land.
+
+## the hero, and the choices
+
+the hero is a camera, not a poster. three depths move under the pointer — the city drifts *against* it, the
+wordmark with it, the door most — and the scene breathes on a twenty-six second loop, because a locked-off
+shot still has air moving in it. the depths are two css variables written on the frame and read by the
+stylesheet; nothing re-renders, nothing is load-bearing, and `prefers-reduced-motion` leaves a still. a
+parallax that changes a box is a bug, so `tests/e2e/hero-parallax.spec.ts` asserts what it must not disturb:
+the hero's own box and the height of the document, measured after the ease has run out.
+
+the hour, the place and the finish are the same act, so they are the same object: a **tile** — a mat, a
+caption in the open, one gold mark that travels between neighbours — built from the same parts as the contact
+sheet below it. the hour and the place show themselves before anyone commits a photograph (each scene, graded
+by the press's own code, so if a thumbnail and the printed frame ever disagreed that would be a bug), and the
+finish says what it prints in pixels: bars to scale, labelled 1280 and 1900, rather than two words in a box.
+
+the gallery sits *after* the choices now, and reads as evidence rather than decoration: the plates are what
+the picker above them produces. `tests/e2e/tiles.spec.ts` holds both halves — one chosen tile per group,
+radiogroup semantics kept on the finish, and the gallery's document position below the finish heading.
 
 ## the plates, and the story
 

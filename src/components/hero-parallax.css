@@ -1,0 +1,46 @@
+/* The hero's depths. Three layers, three multipliers, one pair of variables written by HeroParallax:
+   the city drifts against the pointer, the wordmark follows it a little, the door follows it most. The
+   scene also breathes on a long loop — a locked-off shot still has air in it.
+
+   `scale` is animated as its own property, not inside `transform`, so the breath and the pointer drift
+   compose instead of overwriting each other. */
+
+.hero-parallax {
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-depth {
+  will-change: transform;
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.hero-depth-far {
+  transform: translate3d(calc(var(--hx, 0) * -6px), calc(var(--hy, 0) * -4px), 0);
+  animation: hero-breathe 26s ease-in-out infinite alternate;
+}
+
+.hero-depth-mid {
+  transform: translate3d(calc(var(--hx, 0) * 4px), calc(var(--hy, 0) * 3px), 0);
+}
+
+.hero-depth-near {
+  transform: translate3d(calc(var(--hx, 0) * 7px), calc(var(--hy, 0) * 4px), 0);
+}
+
+@keyframes hero-breathe {
+  from {
+    scale: 1;
+  }
+  to {
+    scale: 1.035;
+  }
+}
+
+/* Without a pointer, or without the wish for motion, the hero is a still — and a still is fine. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-depth {
+    transform: none !important;
+    animation: none !important;
+  }
+}
