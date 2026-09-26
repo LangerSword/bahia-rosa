@@ -50,6 +50,12 @@ test("the card spins after the press finishes, and the art is what stays", async
   await expect(page.getByTestId("printed-plate")).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId("card-reveal")).toHaveCount(0);
 
+  // And the site says so, in its own voice: the plate is ready, and it stayed in this tab.
+  const notice = page.locator('[data-testid="toasts"] .toast');
+  await expect(notice).toHaveCount(1);
+  await expect(notice).toHaveAttribute("data-tone", "success");
+  await expect(notice).toContainText(/the plate is ready/i);
+
   const recorded = await page.evaluate(() => {
     const record = (window as unknown as { __reveal: { cardSeen: boolean; cardDuringPress: boolean; phases: string[]; moved: boolean } }).__reveal;
     return { ...record };

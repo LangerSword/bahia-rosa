@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { motion } from "motion/react";
 import { SCENE_IDS, sceneSrc } from "../look/scenes";
+import { VapourText } from "./VapourText";
 import "./entry.css";
 
 /**
@@ -34,7 +35,14 @@ const FACES = ["Limelight", "Poiret One", "Inter", "Pinyon Script", "Italianno"]
 
 export function Entry({ onDone }: { onDone: () => void }): ReactElement {
   const [progress, setProgress] = useState(0);
-  const [leaving, setLeaving] = useState(false);
+  /**
+   * The exit, in three parts. `hold` is the title being read; `vapour` is the wordmark turning to dust; and
+   * `lift` is the sheet leaving. The dust comes *before* the lift rather than during it — the sheet waits
+   * for the last particle, which is the reason the wordmark dissolves rather than simply fading with the
+   * sheet it sits on.
+   */
+  const [phase, setPhase] = useState<"hold" | "vapour" | "lift">("hold");
+  const leaving = phase === "lift";
   const finished = useRef(false);
 
   const plates = useMemo(() => SCENE_IDS.map((id) => sceneSrc(id)).filter(Boolean), []);
@@ -46,10 +54,45 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
     onDone();
   }, [onDone]);
 
+  /** The title has had its time: the wordmark turns to dust, and the lift waits for the last particle. */
   const leave = useCallback((): void => {
     setProgress(1);
-    setLeaving(true);
+    setPhase("vapour");
   }, []);
+
+  /** Out, now. Skipping means skipping the dust too — a skip button that makes you watch is not a skip. */
+  const skip = useCallback((): void => {
+    setProgress(1);
+    setPhase("lift");
+  }, []);
+
+  const wordmark = useRef<HTMLHeadingElement>(null);
+  const [vapourBox, setVapourBox] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+    size: number;
+  } | null>(null);
+
+  /** Where the wordmark actually is, so the dust starts where the type was instead of near it. */
+  useEffect(() => {
+    if (phase !== "vapour") return;
+    const node = wordmark.current;
+    const sheet = node?.closest(".entry-sheet");
+    if (!node || !(sheet instanceof HTMLElement)) return;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const type = range.getBoundingClientRect();
+    const frame = sheet.getBoundingClientRect();
+    setVapourBox({
+      left: type.left - frame.left,
+      top: type.top - frame.top,
+      width: type.width,
+      height: type.height,
+      size: parseFloat(getComputedStyle(node).fontSize) || 96,
+    });
+  }, [phase]);
 
   /** The warm-up: the plates in parallel, the faces in one go, counted in units of work that happened. */
   useEffect(() => {
@@ -114,16 +157,16 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
 
   /** Any key, any click, any wheel: out. */
   useEffect(() => {
-    const skip = (): void => leave();
-    window.addEventListener("keydown", skip);
-    window.addEventListener("pointerdown", skip);
-    window.addEventListener("wheel", skip, { passive: true });
+    const bail = (): void => skip();
+    window.addEventListener("keydown", bail);
+    window.addEventListener("pointerdown", bail);
+    window.addEventListener("wheel", bail, { passive: true });
     return () => {
-      window.removeEventListener("keydown", skip);
-      window.removeEventListener("pointerdown", skip);
-      window.removeEventListener("wheel", skip);
+      window.removeEventListener("keydown", bail);
+      window.removeEventListener("pointerdown", bail);
+      window.removeEventListener("wheel", bail);
     };
-  }, [leave]);
+  }, [skip]);
 
   /** The page behind the sheet does not scroll while the sheet is up. */
   useEffect(() => {
@@ -168,6 +211,27 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
         }}
       >
         <div className="entry-sheen" aria-hidden="true" />
+
+        {/* The title, leaving as dust. The canvas is the size of the type itself, so the first particle
+            appears where the first letter was. */}
+        {phase === "vapour" && vapourBox ? (
+          <div
+            className="entry-vapour"
+            style={{
+              left: vapourBox.left,
+              top: vapourBox.top,
+              width: vapourBox.width,
+              height: vapourBox.height,
+            }}
+          >
+            <VapourText
+              text="BAHÍA ROSA"
+              font={{ family: "Limelight", size: vapourBox.size, weight: 400 }}
+              color="#f2efe9"
+              onDone={() => setPhase("lift")}
+            />
+          </div>
+        ) : null}
         <div className="entry-top">
         <span className="kicker">la gaviota · the coast edition</span>
         <span className="entry-count" data-testid="entry-count">
@@ -187,7 +251,12 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
         >
           welcome to
         </motion.p>
-        <h1 className="entry-wordmark" aria-label="welcome to bahía rosa">
+        <h1
+          ref={wordmark}
+          className="entry-wordmark"
+          aria-label="welcome to bahía rosa"
+          data-vapour={phase === "vapour" ? "on" : undefined}
+        >
           {/* Letters, not a word: each one rises from behind its own baseline, in reading order. The mask
               is what makes it read as type being *set* rather than text fading in — the letter cannot be
               seen before its turn because there is nowhere for it to be seen from. */}
@@ -230,7 +299,7 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
 
       <div className="entry-foot">
         <span className="entry-warming">warming the press</span>
-        <button type="button" className="entry-skip" data-testid="entry-skip" onClick={leave}>
+        <button type="button" className="entry-skip" data-testid="entry-skip" onClick={skip}>
           skip →
         </button>
       </div>

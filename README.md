@@ -98,10 +98,13 @@ src/components/   the surfaces a visitor touches
   Entry.tsx         the way in: the title sheet, and what it warms while it is up
   CardReveal.tsx    the card that turns over when the press finishes, and hands over the art
   PressTips.tsx     one true sentence at a time, while the press runs
+  VapourText.tsx    the wordmark leaving as dust: the type sampled to particles, blown away
+  Toasts.tsx        the site talking back: ink panels, one gold mark, dismissible
   Hero3D.tsx        the hero, as a floor and a sky at two depths
 
 src/lib/          payoff.ts (the remembered arrangement) · photo.ts (intake)
                   entry.ts (whether the title plays) · tips.ts (what the loading screen says)
+                  toast.ts (the notifications' store, and the promise shape)
 public/models/    selfie_multiclass.tflite (16.4MB) · selfie_segmenter.tflite (249KB)
 public/mediapipe/ the wasm runtime (11.7MB), self-hosted so nothing is fetched from a CDN
 tests/            unit (vitest) · e2e (playwright) · mobile (touch, 390×844)
@@ -169,9 +172,11 @@ every visit opens on a title sheet: the wordmark assembling letter by letter —
 behind its own mask, so it reads as type being *set* rather than text fading in — a counter beside it reading
 *real* work (the four plates the picker draws from and the five faces the page is set in, warmed while the
 title is up, so the picker is instant when it goes), and one roll of light down the sheet as it arrives. it
-leaves as two sheets rather than one: the ink, and the gold a beat behind it, the press's own hairline
-chasing the page into view. the hero's reveal waits for it (`entered`, in `src/App.tsx`) rather than
-performing behind a covered screen.
+leaves in three parts: the wordmark **turns to dust** — the type sampled to about two thousand particles with
+a wave blown across it, and the sheet's lift *waits for the last particle* rather than racing it — and then
+two sheets leave, the ink and the gold a beat behind it, the press's own hairline chasing the page into
+view. the hero's reveal waits for all of it (`entered`, in `src/App.tsx`) rather than performing behind a
+covered screen.
 
 it plays for **everyone, every time** — the title is part of the piece, and there is no "seen it already"
 state for it to consult. what still skips it: `prefers-reduced-motion`, the `?demo=` links, and automation
@@ -220,6 +225,22 @@ the rest of the motion is React-driven and small on purpose — the site's voice
   and it settles as they stop.
 
 all of it is off under `prefers-reduced-motion`, and none of it is in the accessibility tree.
+
+## the site talks back
+
+`src/lib/toast.ts` is the store; `Toasts.tsx` is the paint. The API is the promise-toast shape from the
+21st.dev component — `toast.promise(work, { loading, success, error })` — because it fits this site's
+actions: they are long, they can fail, and the honest thing is for one notification to *change its mind*
+mid-flight rather than for two to arrive in sequence.
+
+Three at a time, top right under the masthead (the bottom of the screen belongs to the phone's sticky bar
+and to the visitor's own thumb), `role="status"` and `aria-live="polite"` so it is announced once and in
+order, dismissible at 44px, and built from the same parts as every other card here: ink panel, hairline
+border, one gold mark. No coloured rails — a coloured rail is decoration pretending to be hierarchy.
+
+It speaks when the plate is ready (with the place and the finish), when the desk comes back with one, and on
+a download — naming the file, because a download that does not tell you what it saved is a leap of faith.
+`tests/e2e/card-reveal.spec.ts` asserts the press's own notice, in the same test that watches the card land.
 
 ## on a phone
 

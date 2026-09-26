@@ -17,11 +17,13 @@ import { Hero3D } from "./components/Hero3D";
 import { Entry } from "./components/Entry";
 import { CardReveal } from "./components/CardReveal";
 import { PressTips } from "./components/PressTips";
+import { Toasts } from "./components/Toasts";
 import { SceneThumb } from "./components/SceneThumb";
 import "./type.css";
 import type { PlateSource } from "./lib/plates/plates";
 import { usePayoff } from "./lib/payoff";
 import { entryShouldPlay, readEntryContext } from "./lib/entry";
+import { toast } from "./lib/toast";
 import { deskRoot, printChoices } from "./lib/printdesk/client";
 
 /**
@@ -215,6 +217,11 @@ export function App() {
     (next: PlateSource, printedMeta: { register: string; location: string | null; seed: number }) => {
       setPlate(next);
       setMeta(printedMeta);
+      toast.show({
+        tone: "success",
+        title: "the desk printed it",
+        description: "the plate came back from the local model — no key, no upload",
+      });
       // The plate goes to the fork, not straight into the editor: download it raw, or take it in and
       // make something. The visitor chooses, both are one click.
       setStage("printed");
@@ -275,6 +282,11 @@ export function App() {
         });
         setSource(url); // kept for the before/after comparison; revoked on reset
         setMeta(null);
+        toast.show({
+          tone: "success",
+          title: "the plate is ready",
+          description: `${SCENES[result.scene].label} · ${quality === "fine" || scene === "asis" ? "fine" : "fast"} · printed in this tab`,
+        });
         setStage("printed");
       } catch (failure) {
         if (token !== runToken.current) {
@@ -468,6 +480,7 @@ export function App() {
   return (
     <div className="grain vignette min-h-screen">
       <Fx />
+      <Toasts />
       {entered ? null : <Entry onDone={() => setEntered(true)} />}
       <a href="#intake" className="skip">
         Skip to the press
@@ -806,7 +819,19 @@ export function App() {
                 </CardReveal>
               </div>
               <div className="flex flex-col gap-3">
-                <a href={image} download={frameName} data-testid="download-raw" className="btn text-center">
+                <a
+                  href={image}
+                  download={frameName}
+                  data-testid="download-raw"
+                  className="btn text-center"
+                  onClick={() =>
+                    toast.show({
+                      tone: "success",
+                      title: "downloaded",
+                      description: `${frameName} — clean, no text, no watermark`,
+                    })
+                  }
+                >
                   Download it raw
                 </a>
                 <span className="text-xs" style={{ color: "var(--color-faint)" }}>

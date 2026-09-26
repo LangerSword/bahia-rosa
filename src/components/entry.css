@@ -173,3 +173,26 @@
     opacity: 0;
   }
 }
+
+/* The wordmark turning to dust: a canvas the size of the type, laid over the sheet while it happens. The
+   letters themselves are hidden for the duration — two versions of the same word at slightly different
+   metrics would read as a double exposure rather than as type coming apart. */
+.entry-vapour {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.vapour-host {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.vapour-host canvas {
+  display: block;
+}
+
+.entry-wordmark[data-vapour="on"] .entry-letter {
+  opacity: 0;
+}
