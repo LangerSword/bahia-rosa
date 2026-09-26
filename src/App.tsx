@@ -14,10 +14,13 @@ import { SCENES, SCENE_IDS, type SceneId } from "./look/scenes";
 import { BeforeAfter } from "./components/BeforeAfter";
 import { Fx, Marquee } from "./components/Fx";
 import { Hero3D } from "./components/Hero3D";
+import { Entry } from "./components/Entry";
+import { SteelCard } from "./components/SteelCard";
 import { SceneThumb } from "./components/SceneThumb";
 import "./type.css";
 import type { PlateSource } from "./lib/plates/plates";
 import { usePayoff } from "./lib/payoff";
+import { entryShouldPlay, readEntryContext } from "./lib/entry";
 import { deskRoot, printChoices } from "./lib/printdesk/client";
 
 /**
@@ -118,6 +121,15 @@ export function App() {
   /** What the cut found, reported honestly under the frame. */
   const [cut, setCut] = useState<Pick<PortraitResult, "cutOut" | "share" | "scene" | "cutSource" | "width" | "sourceEdge" | "subjects"> | null>(null);
   const reduce = useReducedMotion();
+
+  /**
+   * The title card, played once. `src/lib/entry.ts` holds the decision — a visitor who asked not to be
+   * moved, a session that has already watched it, and automation all skip it — and this flag is what the
+   * rest of the shell reads: `entered` is false only while the sheet is up, and it holds the hero's own
+   * reveal back until the sheet has lifted. A hero that reveals itself behind a covered screen has
+   * revealed itself to nobody.
+   */
+  const [entered, setEntered] = useState(() => !entryShouldPlay(readEntryContext()));
 
   /** Where the city was entered from, so "back" goes where the visitor actually came from. */
   const [viaEditor, setViaEditor] = useState(false);
@@ -455,6 +467,7 @@ export function App() {
   return (
     <div className="grain vignette min-h-screen">
       <Fx />
+      {entered ? null : <Entry onDone={() => setEntered(true)} />}
       <a href="#intake" className="skip">
         Skip to the press
       </a>
@@ -521,7 +534,7 @@ export function App() {
       <main className="mx-auto max-w-[1280px] px-4 sm:px-8">
         <motion.section
           initial={reduce ? undefined : "hidden"}
-          animate={reduce ? undefined : "shown"}
+          animate={reduce ? undefined : entered ? "shown" : "hidden"}
           variants={reveal}
           transition={{ duration: 0.7, ease: EASE }}
           data-testid="hero"
@@ -758,6 +771,9 @@ export function App() {
             <p className="measure mt-3 text-xs" style={{ color: "var(--color-muted)" }} data-testid="cut-line">
               {cutLine}
             </p>
+
+            {/* The ceremony: the plate, minted onto a card. Then the two doors for what to do with it. */}
+            <SteelCard plate={image} scene={SCENES[cut?.scene ?? scene].label.toUpperCase()} />
 
             <div className="mt-7 grid gap-7 lg:grid-cols-[minmax(0,1fr)_320px]">
               <div className="rule overflow-hidden border">

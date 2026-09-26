@@ -95,8 +95,12 @@ src/components/   the surfaces a visitor touches
   EditorSurface.tsx Unlayer's editor, tool sets gated per surface
   PlacementCanvas.tsx   a live preview that is the exporter
   PhotoDrop.tsx     drop / paste anywhere, with a hold-and-ask before replacing work
+  Entry.tsx         the way in: the title sheet, and what it warms while it is up
+  SteelCard.tsx     the card the plate is minted onto, in three.js — with a flat-print fallback
+  Hero3D.tsx        the hero, as a floor and a sky at two depths
 
 src/lib/          payoff.ts (the remembered arrangement) · photo.ts (intake)
+                  card.ts (the card's serial and stamp) · entry.ts (whether the title plays)
 public/models/    selfie_multiclass.tflite (16.4MB) · selfie_segmenter.tflite (249KB)
 public/mediapipe/ the wasm runtime (11.7MB), self-hosted so nothing is fetched from a CDN
 tests/            unit (vitest) · e2e (playwright) · mobile (touch, 390×844)
@@ -157,6 +161,38 @@ each surface hands `@unlayer/react-image-editor` a different tool set (`features
 "the editor is core" is structural rather than a claim. its own chrome is theirs, including **flatten
 layers**, which stays disabled until there is more than one layer to flatten — measured, not assumed
 (`docs/editor-contract.md`).
+
+## the way in
+
+the first visit opens on a title sheet: the wordmark assembled letter by letter, and a counter beside it
+reading *real* work — the four plates the picker draws from and the five faces the page is set in, warmed
+while the title is up, so the picker is instant when it goes. the sheet lifts rather than the page fading up,
+and the hero's own reveal waits for it (`entered`, in `src/App.tsx`) rather than performing behind a covered
+screen.
+
+it is skipped for `prefers-reduced-motion`, for a session that has already watched it, and for automation;
+`?entry=1` forces it, which is how its own suite watches it. the decision is a pure function in
+`src/lib/entry.ts` (`tests/unit/entry.test.ts`), and `tests/e2e/entry.spec.ts` walks it: the title plays and
+holds the hero back, a click skips it early, and it is absent by default — that last one is what every other
+spec in the directory depends on.
+
+the lift's clock starts at the first *painted* frame, not at mount. measured, not assumed: this page spends
+its first second building a WebGL hero, and a floor measured from mount lifted the sheet the instant the
+letters landed — or before they did.
+
+## the card
+
+when the press finishes it does not just print. the plate is minted onto a stainless card: a three.js scene
+with `metalness: 1` lit by a room environment, so every highlight on the metal is a reflection rather than a
+painted gradient. the face is drawn into a canvas and used twice — once in colour, once as a **bump map** —
+which is why the engraving reads the sweep of light that crosses it. the visitor's own plate is set into a
+cut window with a groove around it, and the card turns once, takes one sweep, and settles.
+
+the serial is minted from the plate itself (`src/lib/card.ts`): the same plate mints the same serial, because
+a "one of one" that changes when you reload is one you can watch stop being one. the stamp is the real press
+time. with no WebGL the same card renders as a flat print rather than nothing — a ceremony must not be able
+to take the fork down with it — and `tests/e2e/steel-card.spec.ts` asserts the wrapper rather than the canvas
+for exactly that reason. under `prefers-reduced-motion` it is a single still frame.
 
 ## on a phone
 

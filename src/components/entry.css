@@ -1,0 +1,122 @@
+/*
+ * The entry sheet.
+ *
+ * Composition, not decoration: it is a masthead. Where the paper is from (top left), how far along it is
+ * (top right), and the title set low and left over a rule that fills with the same progress the counter
+ * is reading. The one flourish is the gold hairline along the sheet's bottom edge — the same hairline
+ * the masthead carries — which leaves the screen as the sheet lifts.
+ */
+
+.entry-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 1rem;
+  padding: clamp(1.25rem, 4vw, 2.75rem);
+  background:
+    radial-gradient(120% 90% at 82% 8%, rgb(252 175 23 / 9%), transparent 55%),
+    linear-gradient(168deg, #101016 0%, #07070a 62%);
+  color: var(--color-paper);
+  border-bottom: 1px solid var(--color-gold);
+  will-change: transform;
+}
+
+.entry-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.entry-count {
+  font-family: var(--font-kicker);
+  font-size: 0.8rem;
+  letter-spacing: 0.3em;
+  font-variant-numeric: tabular-nums;
+}
+
+.entry-of {
+  color: var(--color-faint);
+}
+
+.entry-mid {
+  min-height: 8vh;
+}
+
+.entry-block {
+  align-self: end;
+  max-width: min(64ch, 100%);
+}
+
+.entry-welcome {
+  color: var(--color-gold);
+}
+
+.entry-wordmark {
+  margin-top: 0.35rem;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(2.6rem, 10.5vw, 8rem);
+  line-height: 0.95;
+  letter-spacing: 0.015em;
+}
+
+.entry-letter {
+  display: inline-block;
+}
+
+.entry-rule {
+  max-width: 22rem;
+  height: 2px;
+  margin-top: 1.4rem;
+  background: var(--color-gold);
+  transform-origin: left center;
+}
+
+.entry-deck {
+  margin-top: 1.1rem;
+  font-size: clamp(0.95rem, 2vw, 1.15rem);
+  color: var(--color-body);
+}
+
+.entry-trust {
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--color-muted);
+}
+
+.entry-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.entry-warming {
+  font-family: var(--font-kicker);
+  font-size: 0.7rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  /* Muted, not faint: it is small type and it is the only thing on the sheet that says what is happening. */
+  color: var(--color-muted);
+}
+
+.entry-skip {
+  min-height: 44px;
+  padding: 0 0.2rem;
+  font-family: var(--font-kicker);
+  font-size: 0.78rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.entry-skip:hover,
+.entry-skip:focus-visible {
+  color: var(--color-gold);
+}
