@@ -60,7 +60,7 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
     const calm =
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    return skipped || calm ? 0 : 2600;
+    return skipped || calm ? 0 : 900;
   }, []);
   const [progress, setProgress] = useState(0);
   /** The card, on stage before the title: the wordmark and the signature, held for as long as it is read. */
@@ -422,16 +422,6 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
       {/* The bed: Kevin MacLeod, CC BY, trimmed and levelled by tools. It lives here, in the entry, so that
           skipping the film does not stop the music — see the note where `bed` is declared. */}
       <audio ref={bed} src={`${import.meta.env.BASE_URL}audio/noir-bed.mp3`} loop preload="auto" />
-      {/* The welcome card, on stage first: the wordmark in the face the title will arrive in, the signature hung
-          off its corner, and the gold hairline drawing itself under both. DOM type, so it stays crisp at any
-          resolution. */}
-      <div className="entry-film-card" data-testid="entry-card" data-shown={welcome ? "yes" : "no"}>
-        <span className="entry-film-lockup">
-          <span className="entry-film-mark">bahía rosa</span>
-          <span className="entry-film-by" data-testid="entry-card-by">by langersword</span>
-        </span>
-        <span className="entry-film-rule" />
-      </div>
 
       {/* The bed's own control, sized for a thumb and stopped in the capture phase: the entry leaves on any
           pointer down, and this button's own tap must not be the one that ends it. */}
@@ -484,6 +474,9 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
               </motion.span>
             </span>
           ))}
+          {/* One wordmark, one credit: the signature rides inside the title so there is exactly one "bahía rosa"
+              on the sheet, and the vapour takes the credit with the letters instead of leaving a mark behind. */}
+          <span className="entry-film-by" data-testid="entry-card-by">by langersword</span>
         </h1>
         <motion.div
           className="entry-rule"

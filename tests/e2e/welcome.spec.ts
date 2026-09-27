@@ -10,23 +10,25 @@ import { expect, test } from "@playwright/test";
  * control's own tap must not be the gesture that ends the sheet.
  */
 
-test("the welcome card is the first thing on screen, and the title follows it", async ({ page }) => {
+test("there is one wordmark, and it carries the credit", async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto("/?entry=1");
   const sheet = page.locator(".entry-sheet");
-  const card = page.locator('[data-testid="entry-card"]');
-  await expect(card).toHaveAttribute("data-shown", "yes", { timeout: 10_000 });
-  await expect(card.locator(".entry-film-mark")).toHaveText("bahía rosa");
+  // Exactly one "bahía rosa" on the sheet. The welcome card used to set a second one; two wordmarks reading the
+  // same word is one too many, so the title *is* the welcome screen and the signature rides inside it.
+  await expect(page.locator(".entry-wordmark")).toHaveCount(1);
+  await expect(page.locator(".entry-film-mark")).toHaveCount(0);
   await expect(page.locator('[data-testid="entry-card-by"]')).toHaveText("by langersword");
-  // The title waits for the card rather than rising behind it.
-  const buried = await page
-    .locator(".entry-letter")
-    .first()
-    .evaluate((el) => new DOMMatrixReadOnly(getComputedStyle(el).transform).f);
-  expect(buried, "a letter rose while the card was still on stage").toBeGreaterThan(40);
-  // …and the card leaves of its own accord: the title is the next thing, not a second thing.
-  await expect(card).toHaveAttribute("data-shown", "no", { timeout: 12_000 });
-  await expect(sheet).toHaveAttribute("data-phase", /hold|vapour|lift/, { timeout: 12_000 });
+  // And it is inside the title's own box, so the vapour takes the credit with the letters.
+  const nested = await page
+    .locator('[data-testid="entry-card-by"]')
+    .evaluate((el) => Boolean(el.closest(".entry-wordmark")));
+  expect(nested, "the signature is not inside the wordmark the dust is drawn from").toBe(true);
+  const tilt = await page
+    .locator('[data-testid="entry-card-by"]')
+    .evaluate((el) => new DOMMatrixReadOnly(getComputedStyle(el).transform).b);
+  expect(tilt, "the signature is not tilted").toBeLessThan(0);
+  await expect(sheet).toHaveAttribute("data-phase", /hold|vapour|lift/, { timeout: 15_000 });
 });
 
 test("sound reads on by default, toggles off and back, and its tap never ends the sheet", async ({ page }) => {

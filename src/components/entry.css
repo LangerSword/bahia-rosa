@@ -71,6 +71,10 @@
   font-size: clamp(2.6rem, 10.5vw, 8rem);
   line-height: 0.95;
   letter-spacing: 0.015em;
+  /* The signature is positioned off this box's corner, and it is the vapour's own target — the dust reads
+     this element's line boxes, which now include the credit. One wordmark, and the credit leaves with it. */
+  position: relative;
+  display: inline-block;
 }
 
 /*
