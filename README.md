@@ -70,9 +70,9 @@ from the app.
 top to bottom: a race suit on the flat red ground it was shot against, printed at the pool — every sponsor
 mark survives the palette. a suit against a dark room, printed into the marina: the subject was *placed* in
 the scene, so the marina is nobody's room. four people mid-selfie, printed as **one person-shaped layer**,
-because splitting a group breaks the continuity of the redraw. and a portrait, 736×1104, printed onto the neon
-street at 1600×900 — the two are different shapes because that is the product: the press composes into its own
-frame.
+because splitting a group breaks the continuity of the redraw — @spirizeon and @arpan-pramanik were in that
+frame. i had fun building this project. and a portrait, 736×1104, printed onto the neon street at 1600×900 —
+the two are different shapes because that is the product: the press composes into its own frame.
 
 `node tools/paint-photo.mjs <photo>` makes your own, at every finish. provenance of every photograph in this
 repository: [docs/samples/CREDITS.md](docs/samples/CREDITS.md).
