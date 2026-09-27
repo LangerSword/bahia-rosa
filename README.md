@@ -12,6 +12,15 @@ find it.
 built for unlayer's *build with react image editor* challenge, where `@unlayer/react-image-editor` is the
 workstation rather than a dependency of convenience.
 
+## the experience
+
+Bahía Rosa is a city that prints you. You drop one photograph; the app cuts you out of it in the browser, reads
+the light in the frame, grades you into dusk, golden hour or neon, and sets you on a plate of the city — and
+then the city's own media machine wants that face: the loading screen, the front page, the billboard, the
+postcard. The React Image Editor is the workstation the whole thing runs on — the full tool rail, live on every
+surface, with the city's own typefaces loaded into it. Nothing uploads and nothing is fetched from a server:
+segmentation, grading and printing all happen locally, so the photo never leaves the machine it was opened on.
+
 ## how it works
 
 ```
@@ -92,7 +101,7 @@ first press pays for loading them; the browser caches them afterwards. deploymen
 | app | react 19 · typescript · vite 8 · tailwind 4 · motion · three (hero canvas only) |
 | cut | `@mediapipe/tasks-vision` 1.0 — six-class selfie segmentation, in the browser |
 | editor | `@unlayer/react-image-editor` 1.0 — a different tool set per surface, so the editor is core structurally rather than by claim |
-| tests | vitest (199 unit) · playwright (56 e2e, including a real-touch phone walk) |
+| tests | vitest (unit, 199) · playwright (e2e, 54 including a real-touch phone walk) |
 
 the source is small and boringly laid out: `src/look/` is the press (segmentation, palette, compositor, the
 hour), `src/world/` is the frame geometry and the city surfaces, `src/components/` is what a visitor touches,
