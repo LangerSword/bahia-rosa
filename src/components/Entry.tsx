@@ -72,6 +72,48 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
   const [phase, setPhase] = useState<"film" | "hold" | "vapour" | "lift">(filmPlays ? "film" : "hold");
   /** Resolved when the film ends, so the title's floor is time the *title* had and not time the film had. */
   const filmGate = useRef<(() => void) | null>(null);
+
+  /**
+   * The bed belongs to the *entry*, not to the film, because the film can be skipped — and a skipped film
+   * that takes the music with it is how "sound on by default" quietly becomes "sound never". It starts trying
+   * before the film does, and the visitor's first gesture anywhere is what unlocks it: browsers refuse sound
+   * until a gesture, so the same key or click that leaves the film is also the thing that starts the music.
+   * One bed, one owner, for the whole intro — film, title and all.
+   */
+  const [sound, setSound] = useState(true);
+  const bed = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    const node = bed.current;
+    if (!node) return;
+    void node.play().then(() => setSound(true)).catch(() => setSound(false));
+  }, []);
+
+  /** The film's own control, and only the film's: it toggles the one bed the entry owns. */
+  const toggleSound = (): void => {
+    const node = bed.current;
+    if (!node) return;
+    if (sound) {
+      node.pause();
+      setSound(false);
+      return;
+    }
+    void node.play().then(() => setSound(true)).catch(() => setSound(false));
+  };
+
+  /** The lift takes the bed with it: a fast ramp to silence as the sheet rises, so the entry ends clean. */
+  useEffect(() => {
+    if (phase !== "lift") return;
+    const node = bed.current;
+    if (!node || node.paused) return;
+    const started = performance.now();
+    const timer = window.setInterval(() => {
+      const left = Math.max(0, 1 - (performance.now() - started) / 900);
+      node.volume = left * left;
+      if (left === 0) window.clearInterval(timer);
+    }, 60);
+    return () => window.clearInterval(timer);
+  }, [phase]);
   const leaving = phase === "lift";
   const finished = useRef(false);
   const [faceReady, setFaceReady] = useState(false);
@@ -282,9 +324,15 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
     filmGate.current = null;
   }, [phase]);
 
-  /** Any key, any click, any wheel: out. */
+  /** Any key, any click, any wheel: out — and the same gesture unlocks the bed, because a browser will not
+   * start sound without one. Unmuting on the way out is honest: it is the visitor's gesture either way, and
+   * the music continues under the title instead of dying with the film. */
   useEffect(() => {
-    const bail = (): void => skip();
+    const bail = (): void => {
+      const node = bed.current;
+      if (node && node.paused) void node.play().then(() => setSound(true)).catch(() => undefined);
+      skip();
+    };
     window.addEventListener("keydown", bail);
     window.addEventListener("pointerdown", bail);
     window.addEventListener("wheel", bail, { passive: true });
@@ -374,7 +422,10 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
 
       {/* The film, before the title: the press at work. It hands over to the title by itself, and it cannot
           hold the sheet hostage — a sprite that fails or is slow simply skips the film. */}
-      {phase === "film" ? <PlateFilm onDone={() => setPhase("hold")} /> : null}
+      {/* The bed: Kevin MacLeod, CC BY, trimmed and levelled by tools. It lives here, in the entry, so that
+          skipping the film does not stop the music — see the note where `bed` is declared. */}
+      <audio ref={bed} src={`${import.meta.env.BASE_URL}audio/noir-bed.mp3`} loop preload="auto" />
+      {phase === "film" ? <PlateFilm onDone={() => setPhase("hold")} sound={sound} onToggleSound={toggleSound} /> : null}
 
       <div className="entry-block">
         <motion.p

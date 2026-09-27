@@ -122,7 +122,7 @@ test.describe("the film on the title sheet", () => {
     // wiring, and the part that needed care: a tap on it must not count as the "any pointer down" that ends
     // the entry. The toggle's *direction* is read from the state first, so this holds whether or not the
     // environment permits playback.
-    const bed = page.locator(".entry-film-wrap audio");
+    const bed = page.locator(".entry-sheet audio");
     await expect(bed).toHaveAttribute("src", /audio\/noir-bed\.mp3$/);
     await expect(bed).toHaveAttribute("preload", "auto");
     const sound = page.locator('[data-testid="entry-film-sound"]');

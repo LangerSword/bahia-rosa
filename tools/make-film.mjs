@@ -58,16 +58,63 @@ const result = await page.evaluate(
       // goes through, so the plate is not a special case. The press hands back its own canvas, cover-fitted.
       if (step.figure) {
         const photo = await load(`film-src/${step.figure}`);
-        const out = await press.portraitFromImage(photo, {
+        /**
+         * Normalise every figure to one aspect first — 16:9, which is what the press composes in. That is
+         * measured, not assumed: a 3:4 source and a 16:9 source both come back 1900×1069, so the plate's
+         * frame is the press's own and the only thing the source aspect controls is how the subject is
+         * framed *inside* it. Preparing at the plate's own aspect is therefore what "all the same aspect
+         * ratio" has to mean, and the source is prepared large (2400 wide) so the plate's 1900 is a
+         * downscale — the sharpest direction — rather than an upscale.
+         */
+        const prep = document.createElement("canvas");
+        prep.width = 2400;
+        prep.height = 1350;
+        const pctx2 = prep.getContext("2d", { willReadFrequently: true });
+        pctx2.fillStyle = "#1a1a1e";
+        pctx2.fillRect(0, 0, prep.width, prep.height);
+        const ps = Math.min(prep.width / photo.naturalWidth, prep.height / photo.naturalHeight) * 0.8;
+        const pw = photo.naturalWidth * ps;
+        const ph = photo.naturalHeight * ps;
+        pctx2.drawImage(photo, (prep.width - pw) / 2, (prep.height - ph) / 2, pw, ph);
+        /**
+         * And pressed the *composite* way: the figure set into the city at the beat's hour, at fine quality
+         * and the app's own as-is ceiling. `wholeFrame` is deliberately *off* — on, the press returns the
+         * photograph pressed in its own frame with no city at all, which is right for the as-is button and
+         * wrong for a cast roll. Because the source is already the cell's aspect, the plate comes back at
+         * that aspect and drops into the cell one to one.
+         */
+        const out = await press.portraitFromImage(prep, {
           ...(press.LOOKS[step.look ?? "night"]?.options ?? preset),
-          colours: 20,
+          fine: true,
+          maxSize: 1900,
           scene: "boulevard",
         });
         if (!(out?.canvas instanceof HTMLCanvasElement)) {
           throw new Error(`figure ${step.figure}: the press returned no canvas`);
         }
+        // The aspect contract, enforced rather than assumed: the press composes 16:9 plates — measured, not
+        // guessed — so a plate that comes back in any other frame is a bug to fix rather than a crop to hide.
+        const rel = out.canvas.width / out.canvas.height / (cellW / cellH);
+        if (Math.abs(rel - 1) > 0.01) {
+          throw new Error(`figure ${step.figure}: press returned ${out.canvas.width}x${out.canvas.height}, not the 16:9 frame its plates compose in`);
+        }
         wctx.clearRect(0, 0, cellW, cellH);
-        const fit = Math.max(cellW / out.canvas.width, cellH / out.canvas.height);
+        // The scene at the same hour, underneath, so the (never-expected) letterbox is the picture
+        // continuing rather than a black bar — and then the plate, contained, so nothing is ever cropped.
+        const backing = await load(press.sceneSrc("boulevard"));
+        const bs = Math.max(cellW / backing.naturalWidth, cellH / backing.naturalHeight);
+        wctx.drawImage(
+          backing,
+          (cellW - backing.naturalWidth * bs) / 2,
+          (cellH - backing.naturalHeight * bs) / 2,
+          backing.naturalWidth * bs,
+          backing.naturalHeight * bs,
+        );
+        if (step.look) {
+          const field = wctx.getImageData(0, 0, cellW, cellH);
+          wctx.putImageData(new ImageData(press.gradePixels(field.data, press.gradeFor(step.look)), cellW, cellH), 0, 0);
+        }
+        const fit = Math.min(cellW / out.canvas.width, cellH / out.canvas.height);
         const dw = out.canvas.width * fit;
         const dh = out.canvas.height * fit;
         wctx.drawImage(out.canvas, (cellW - dw) / 2, (cellH - dh) / 2, dw, dh);
@@ -145,11 +192,11 @@ const result = await page.evaluate(
        */
       { figure: "figure-rapper.jpg", look: "night", label: "the rapper, in the neon" },
       { figure: "figure-boxer.jpg", look: "night", label: "the boxer, in the neon" },
-      { figure: "figure-biker.jpg", look: "dusk", label: "the biker, leaving" },
+      { figure: "figure-biker.jpg", look: "golden", label: "the biker, leaving" },
       { figure: "figure-runner.jpg", look: "golden", label: "a runner on the beach" },
       { figure: "figure-stage.jpg", look: "night", label: "the guitarist, mid-song" },
       { figure: "figure-skater.jpg", look: "golden", label: "a skater, weightless" },
-      { figure: "figure-sentinel.jpg", look: "dusk", label: "a sentinel at dusk" },
+      { figure: "figure-sentinel.jpg", look: "night", label: "a sentinel at night" },
       { figure: "figure-busker.jpg", look: "night", label: "the busker, on the corner" },
     ];
 

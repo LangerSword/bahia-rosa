@@ -64,30 +64,25 @@ const BEATS: Beat[] = [
   { cell: 7, label: "a runner on the beach", move: "push", moveMs: 300, holdMs: 100 },
   { cell: 8, label: "the guitarist, mid-song", move: "push", moveMs: 260, holdMs: 90 },
   { cell: 9, label: "a skater, weightless", move: "push", moveMs: 230, holdMs: 80 },
-  { cell: 10, label: "a sentinel at dusk", move: "push", moveMs: 210, holdMs: 70 },
+  { cell: 10, label: "a sentinel at night", move: "push", moveMs: 210, holdMs: 70 },
   { cell: 11, label: "the busker, on the corner", move: "push", moveMs: 200, holdMs: 700 },
 ];
 const STEPS = BEATS.length + 1;
 
-export function PlateFilm({ onDone }: { onDone: () => void }): ReactElement {
+export function PlateFilm({
+  onDone,
+  sound,
+  onToggleSound,
+}: {
+  onDone: () => void;
+  /** The bed lives in the entry, not here: a skipped film must not take the music with it. */
+  sound: boolean;
+  onToggleSound: () => void;
+}): ReactElement {
   const ref = useRef<HTMLCanvasElement>(null);
   const done = useRef(false);
   const [step, setStep] = useState(0);
   const [out, setOut] = useState(false);
-  /* Sound on by default, as asked. `sound` is the state of the *control*, not a stored preference: it starts
-     true because the bed starts trying, and it drops to false the moment a browser refuses. A refusal is
-     policy, not fault, so it is swallowed silently — the film is never louder than the visitor's browser. */
-  const [sound, setSound] = useState(true);
-  const audio = useRef<HTMLAudioElement>(null);
-
-  useEffect(() => {
-    const node = audio.current;
-    if (!node) return;
-    void node
-      .play()
-      .then(() => setSound(true))
-      .catch(() => setSound(false));
-  }, []);
   /** The callback through a ref: a parent re-render must not restart the film by handing over a new function. */
   const finish = useRef(onDone);
   finish.current = onDone;
@@ -104,11 +99,31 @@ export function PlateFilm({ onDone }: { onDone: () => void }): ReactElement {
     };
 
     const guard = window.setTimeout(call, GUARD_MS);
+    /**
+     * A wall-clock net, independent of the animation loop: if the tab is hidden, or the main thread stalls,
+     * a rAF-driven film can freeze mid-frame — the "it gets stuck" report. This fires regardless and lands
+     * the film at its end, so the worst case is a film that finished late rather than a page that never
+     * reached its title. It needs no clearing: `call` is idempotent.
+     */
+    const filmMs = CARD_MS + OUT_MS + BEATS.reduce((sum, beat) => sum + beat.moveMs + beat.holdMs, 0);
+    window.setTimeout(call, filmMs + 2500);
 
     const sprite = new Image();
     sprite.decoding = "async";
     sprite.src = `${import.meta.env.BASE_URL}film/plate-film.jpg`;
+    /**
+     * A 2.3MB sprite can lose a race with a flaky connection, and the symptom of that is a *skipped* film —
+     * which is the report that came back. One silent retry costs nothing and turns a blip into a film.
+     */
+    let attempts = 0;
     sprite.onerror = (): void => {
+      if (attempts++ === 0) {
+        window.setTimeout(() => {
+          if (!live) return;
+          sprite.src = `${import.meta.env.BASE_URL}film/plate-film.jpg`;
+        }, 500);
+        return;
+      }
       window.clearTimeout(guard);
       call();
     };
@@ -243,30 +258,18 @@ export function PlateFilm({ onDone }: { onDone: () => void }): ReactElement {
     };
   }, []);
 
-  /** Sound is offered, never assumed: the film is silent until the visitor asks for it, because that is what
-   * browsers allow and because a film that fights the policy is worse than one that offers. */
-  const toggleSound = (event: { stopPropagation: () => void }): void => {
-    // The entry leaves on *any* pointer down. This control must not be that pointer down.
+  /** The bed's own control, rendered by the film but owned by the entry — see `toggleSound` there. */
+  const onSoundClick = (event: { stopPropagation: () => void }): void => {
+    // The entry leaves on *any* pointer down. This control must not be that pointer down, and the stop has
+    // to happen in the capture phase — by the time a click handler runs, the pointerdown has already reached
+    // the window listener that ends the sheet.
     event.stopPropagation();
-    const node = audio.current;
-    if (!node) return;
-    if (sound) {
-      node.pause();
-      setSound(false);
-      return;
-    }
-    void node
-      .play()
-      .then(() => setSound(true))
-      .catch(() => setSound(false));
+    onToggleSound();
   };
 
   return (
     <figure className="entry-film-wrap" aria-hidden="true" data-out={out ? "yes" : "no"}>
       <canvas ref={ref} className="entry-film" data-testid="entry-film" />
-      {/* The bed: Kevin MacLeod, CC BY, trimmed and levelled by tools. Muted until tapped. */}
-      <audio ref={audio} src={`${import.meta.env.BASE_URL}audio/noir-bed.mp3`} loop preload="auto" />
-
       {/* The city's own card: the wordmark in the face the title will arrive in, its hairline drawn under it.
           DOM type, so it stays crisp at any resolution — the canvas is only for the pictures. */}
       <div className="entry-film-card" data-testid="entry-film-card" data-shown={step === 0 ? "yes" : "no"}>
@@ -292,7 +295,7 @@ export function PlateFilm({ onDone }: { onDone: () => void }): ReactElement {
           // Stopping here *and* toggling: a capture-phase stop would starve this very handler, which is how the
           // first cut of this control managed to do nothing at all while looking correct.
           event.stopPropagation();
-          toggleSound(event);
+          onSoundClick(event);
         }}
       >
         sound {sound ? "on" : "off"}
