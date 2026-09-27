@@ -33,18 +33,14 @@ the author's direction:
 
 | file | what it is | what is claimed |
 | --- | --- | --- |
-| `lewis-hamilton-source.jpg` | the photograph behind `hamilton-at-the-pool.jpg` **and** `the-marina-at-golden-hour.jpg` (downscaled from 3840×2160) | nothing. A third-party press photograph of a public figure; it remains its owner's, and is included as an input/output example only — the printer's own output can be verified against it, which is the point of shipping it. |
+| `lewis-hamilton-source.jpg` | the photograph behind `hamilton-at-the-pool.jpg` (downscaled from 3840×2160) | nothing. A third-party press photograph of a public figure; it remains its owner's, and is included as an input/output example only — the printer's own output can be verified against it, which is the point of shipping it. |
+| `john_wick.png` | the photograph behind `the-marina-at-golden-hour.jpg` | the same: a third-party film still of a public figure, included as the *before* half of the pair the README shows. Nothing beyond that example is claimed for it. |
+| `goa_group.jpg` | the photograph behind `the-group-at-the-beach.jpg` (downscaled from 2560×1440) | the same, and a note worth making: the four people in it are **private individuals, photographed with the author**, and this file is here because he asked for the before/after pair to be shown. It is not a licence grant, not stock, and not reusable — if you want material you can safely reuse, the NASA and Wikimedia public-domain route described above is the shortest path. |
 | `one-photograph-original.jpg` | the photograph behind `one-photograph-pressed.jpg` | the same: the performer's photograph, supplied by the author, published as the *before* half of the pair the README shows. |
 
-Two notes, because a public repository should be straight about this:
-
-- the subjects are **public figures** (and in one case a group of private individuals, photographed with the
-  author) — the source photographs are third-party material and remain the property of their owners; what
-  this repository claims is the *render*, which it made;
-- **one source photograph is deliberately not here**: the group on the beach plate's. The people in it are
-  private, and their photograph is not published by this repository at all. If you are looking for material you
-  can safely reuse for your own samples, the NASA and Wikimedia public-domain route described above is the
-  shortest path — it is what this folder's other files are.
+One note, because a public repository should be straight about this: the subjects are **public figures** and, in
+one case, **private individuals photographed with the author** — the source photographs are third-party material
+and remain the property of their owners; what this repository claims is the *render*, which it made.
 
 ## the score, and the film that is no longer here
 

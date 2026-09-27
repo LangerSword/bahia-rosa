@@ -27,24 +27,25 @@ app.
 *every sponsor mark on the suit survives the palette — hp, Shell, UniCredit, CEVA, Richard Mille — which is
 the whole reason the detail pass exists.*
 
-### the marina at golden hour, from the same photograph
+### the marina at golden hour
 
 | in | out |
 |---|---|
-| ![the same photograph](public/plates/lewis-hamilton-source.jpg) | ![the plate the press made](public/plates/the-marina-at-golden-hour.jpg) |
-| **in** — the same photograph, unchanged: one source, two jobs | **out** — the plate the press made of it: cut, painted in the hour's light, placed in the marina, 1600×900 |
+| ![the photograph as it arrived](public/plates/john_wick.png) | ![the plate the press made](public/plates/the-marina-at-golden-hour.jpg) |
+| **in** — the photograph as it arrived: a suit against a dark room, 474×711 | **out** — the plate the press made of it: cut, painted in the hour's light, placed in the marina, 1600×900 |
 
-*the reference for the before/after is the sponsor lettering: the same marks, in the same places, on both
-plates. and the subject was placed in the scene rather than photographed in it — the press cuts the person out
-and prints them into a plate of its own, which is why the marina is nobody's room.*
+*the subject was placed in the scene rather than photographed in it — the press cuts the person out and prints
+them into a plate of its own, which is why the marina is nobody's room.*
 
 ### the group at the beach
 
-![a group, printed as one person-shaped layer](public/plates/the-group-at-the-beach.jpg)
+| in | out |
+|---|---|
+| ![the photograph as it arrived](public/plates/goa_group.jpg) | ![the plate the press made](public/plates/the-group-at-the-beach.jpg) |
+| **in** — the photograph as it arrived: four of them mid-selfie, 1600×900 (from a 2560×1440 original) | **out** — the plate the press made of it: cut as one person-shaped layer, painted, printed on the beach, 1400×788 |
 
-*a group on the beach plate. a group is **one layer**: it moves, sizes and crops together, because splitting
-it would break the continuity of the redraw. its source photograph is not in this repository — the people in
-it are private, and are not published here.*
+*a group is **one layer**: it moves, sizes and crops together, because splitting it would break the continuity
+of the redraw. four people, four poses, four sets of hands — and the press keeps them as one.*
 
 ### one photograph, and what the press does with it
 
