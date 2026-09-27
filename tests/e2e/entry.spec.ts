@@ -172,7 +172,7 @@ test("a slow face is waited out, and a missing one is not a hostage", async ({ p
   await expect(sheet).toBeVisible();
   await expect(page.getByTestId("entry-count")).toHaveText(/^\d{3}/);
 
-  await page.waitForTimeout(4200);
+  await page.waitForTimeout(5200);
   // The gate waits on the two faces the title needs and no longer than 2.5s, so with the display faces six
   // seconds out the letters come up anyway — a show that begins is worth more than a face that arrives. The
   // claim is therefore the bound: the title assembles, and the sheet ends itself, without waiting out the
