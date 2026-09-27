@@ -13,28 +13,49 @@ live: **https://bahia.langersword.in/**
 
 ## gallery
 
-![Lewis Hamilton through the press](docs/gallery/hamilton-at-the-pool.jpg)
+the press's own frames — and where a photograph came in with one, both halves of the job: **in** is the
+photograph as it arrived, **out** is the plate the press made of it. every frame here is a download from the
+app.
 
-*Lewis Hamilton, pressed and set at the pool. Every sponsor mark on the suit survives the palette — hp,
-Shell, UniCredit, CEVA, Richard Mille — which is the whole reason the detail pass exists.*
+### lewis hamilton, at the pool
 
-![the group at the beach](docs/gallery/the-group-at-the-beach.jpg)
+| in | out |
+|---|---|
+| ![the photograph as it arrived](public/plates/lewis-hamilton-source.jpg) | ![the plate the press made](public/plates/hamilton-at-the-pool.jpg) |
+| **in** — the photograph as it arrived: a race suit on the flat red ground it was shot against, 1600×900 (from a 3840×2160 original) | **out** — the plate the press made of it: cut, painted, set at the pool, 1600×900 |
 
-*a group on the beach plate. A group is **one layer**: it moves, sizes and crops together, because splitting
-it would break the continuity of the redraw.*
+*every sponsor mark on the suit survives the palette — hp, Shell, UniCredit, CEVA, Richard Mille — which is
+the whole reason the detail pass exists.*
 
-![the marina at golden hour](docs/gallery/the-marina-at-golden-hour.jpg)
+### the marina at golden hour, from the same photograph
 
-*the marina at golden hour — a subject the press placed in the scene, not one photographed in it.*
+| in | out |
+|---|---|
+| ![the same photograph](public/plates/lewis-hamilton-source.jpg) | ![the plate the press made](public/plates/the-marina-at-golden-hour.jpg) |
+| **in** — the same photograph, unchanged: one source, two jobs | **out** — the plate the press made of it: cut, painted in the hour's light, placed in the marina, 1600×900 |
+
+*the reference for the before/after is the sponsor lettering: the same marks, in the same places, on both
+plates. and the subject was placed in the scene rather than photographed in it — the press cuts the person out
+and prints them into a plate of its own, which is why the marina is nobody's room.*
+
+### the group at the beach
+
+![a group, printed as one person-shaped layer](public/plates/the-group-at-the-beach.jpg)
+
+*a group on the beach plate. a group is **one layer**: it moves, sizes and crops together, because splitting
+it would break the continuity of the redraw. its source photograph is not in this repository — the people in
+it are private, and are not published here.*
 
 ### one photograph, and what the press does with it
 
 | in | out |
 |---|---|
-| ![the photograph as it arrived](docs/gallery/one-photograph-original.jpg) | ![the frame the press made](docs/gallery/one-photograph-pressed.jpg) |
+| ![the photograph as it arrived](public/plates/one-photograph-original.jpg) | ![the frame the press made](public/plates/one-photograph-pressed.jpg) |
 | **in** — the photograph as it arrived: a portrait, 736×1104, stage light already pink | **out** — the frame the press made of it: cut, painted in the hour's light, placed on the neon street, 1600×900 |
 
-*every one of these is a download from the app.* `node tools/paint-photo.mjs <photo>` makes your own, and
+*the two are different shapes because that is the product: the press composes into its own frame.*
+
+`node tools/paint-photo.mjs <photo>` makes your own, and
 [docs/samples/CREDITS.md](docs/samples/CREDITS.md) records where each photograph in this repository came from.
 
 ## stack
@@ -81,6 +102,7 @@ the invariants, each learned the hard way and each one asserted somewhere in `te
 ```
 src/look/         the press itself
   bodysegment.ts    MediaPipe segmentation → soft alpha, edge refinement, group handling
+  segment.ts        which finder a finish gets, and the fallbacks
   stylise.ts        the paint: Oklab palette, ink, grain, the detail pass, all pure functions
   portrait.ts       the compositor: cut, paint, place, the two layers, the final grade
   timeofday.ts      the hour: how a plate is graded for dusk / night / neon
@@ -91,25 +113,36 @@ src/world/        the printed world
   placements.ts     billboard · venue · feed · postcard, and the arrange FRAME
 
 src/components/   the surfaces a visitor touches
+  Entry.tsx         the way in: the welcome card, the bed, and the title sheet
+  HeroParallax.tsx / Hero3D.tsx   the hero, as two depths and a floor
+  Tile.tsx          the hour, the place and the finish, as one object
+  SceneThumb.tsx    a plate, drawn by the press's own code
+  PhotoDrop.tsx     drop / paste anywhere, with a hold-and-ask before replacing work
+  PressTips.tsx     one true sentence at a time, while the press runs
+  CardReveal.tsx    the card that turns over when the press finishes, and hands over the art
+  BeforeAfter.tsx   your photo → the plate, with the tear as the seam
   Arrange.tsx       the arrangement, its outline, and the crop mode
   EditorSurface.tsx Unlayer's editor, tool sets gated per surface
   PlacementCanvas.tsx   a live preview that is the exporter
-  PhotoDrop.tsx     drop / paste anywhere, with a hold-and-ask before replacing work
-  Entry.tsx         the way in: the title sheet, and what it warms while it is up
-  CardReveal.tsx    the card that turns over when the press finishes, and hands over the art
-  PressTips.tsx     one true sentence at a time, while the press runs
+  PlateGallery.tsx  the contact sheet: the press's own frames, unfurling on scroll
+  StoryScroll.tsx   the city stage: the photograph, the plate, the place
+  Launch.tsx        the city's surfaces, printed
+  PrintDesk.tsx     the optional desk — a server-side press, off unless asked for
   VapourText.tsx    the wordmark leaving as dust: the type sampled to particles, blown away
-  Toasts.tsx        the site talking back: ink panels, one gold mark, dismissible
-  Hero3D.tsx        the hero, as a floor and a sky at two depths
+  Toasts.tsx / Alerts.tsx   the site talking back: moments, and conditions
+  MagneticCursor.tsx   the gold ring, decoration *over* normal input
 
 src/lib/          payoff.ts (the remembered arrangement) · photo.ts (intake)
                   entry.ts (whether the title plays) · tips.ts (what the loading screen says)
-                  toast.ts (the notifications' store, and the promise shape)
+                  toast.ts · alerts.ts (the two stores) · gallery.ts (the contact sheet's data)
+                  story.ts · tear.ts (the seam, drawn from a seed) · magnet.ts · lines.ts · plates/
 public/models/    selfie_multiclass.tflite (16.4MB) · selfie_segmenter.tflite (249KB)
 public/mediapipe/ the wasm runtime (11.7MB), self-hosted so nothing is fetched from a CDN
-tests/            unit (vitest) · e2e (playwright) · mobile (touch, 390×844)
-tools/            measurement scripts — see below
+public/plates/    the gallery's own frames — and the two source photographs that are in here
+tests/            unit (vitest, 34 files) · e2e (playwright, 21 specs) · mobile (touch, 390×844)
+tools/            measurement scripts — see below; tools/print-desk/ and tools/desk/ are the desk
 docs/             accuracy.txt · lighting.txt · look.md · editor-contract.md · print-desk.md
+                  samples/ (the public-domain samples, and CREDITS) · shots/ (the site, measured)
 ```
 
 ## finishes
@@ -168,31 +201,19 @@ layers**, which stays disabled until there is more than one layer to flatten —
 
 ## the way in
 
-the title sheet opens with a **film** — the city plate being generated, full-bleed, and it is a sequence with a
-motion vocabulary rather than a slideshow. It opens on the city's own **card**: the wordmark in Limelight, the
-face the title will arrive in, with its gold hairline drawing itself under it. Then the build arrives by
-**press-wipe** — each layer sweeps across the plate behind a travelling gold print head, the seam feathered so
-the head is the only hard thing in the frame, because a hard edge through a picture reads as a stitching
-artifact (it was reported as one) — through four of the plate's own layers: the drawing, the flat shapes, the
-ink lines, the plate with its paper. Then the **cast** arrives: eight figures, each cut *shorter* than the one
-before (420ms down to 200), so the montage accelerates into the last frame instead of settling into it, and the
-film **dissolves** into the sheet so the title assembles out of it. **Eight figures, licence-clean, and a
-signature.** Real people, pressed from photographs Wikimedia Commons
-carries under CC0, CC BY and public domain — the rapper, the boxer, the biker, the runner, the guitarist, the
-skater, the sentinel, the busker — through the same `portraitFromImage` as any visitor's photograph, because
-the plates are not special-cased. Every cell after the four-layer build is a figure: a city that prints people
-opens by printing people. The card carries the wordmark with **"by langersword"** written on at its lower right
-in the house cursive, tilted, in the trailer's own pink. The credit is on screen under the film and in
-`docs/samples/CREDITS.md`, with the sprite's own share-alike licence stated there too. The frames are not drawn
-by hand: `tools/make-film.mjs` calls *this app's* `gradePixels`, `gradeFor` and `styliseImageData` through a
-dev-only handle — driving the press's own `ink`, `detail` and `paper` knobs so each frame is the plate with one
-more pass done to it — and lays the 1600×900 outputs into one sprite, played one-to-one with no resampling. Both
-halves are asserted: the backing store is the CSS size, and the head is a tight gold that *travels* across
-columns, because a seam without a travelling head is the stitching artifact. The title's floor clock waits on
-the film, the letters wait for both the face and the film, and a sprite that fails or is slow skips it entirely.
-`?film=0` skips it for a probe.
+every visit opens on a welcome **card**: the wordmark in Limelight, **"by langersword"** written on at its
+lower right in the house cursive, tilted, in the trailer's own pink, with a gold hairline drawing itself in
+underneath — and then the card gets out of the title's way.
 
-every visit opens on a title sheet: the wordmark assembling letter by letter — each letter rising from
+a bed plays under it, and it belongs to the *card*, not to anything skippable: it starts trying from the first
+frame, and the visitor's first gesture anywhere — including the gesture that skips — is what satisfies the
+browser's autoplay policy. the label says **off** until something is actually playing and **on** while it is,
+driven by the audio element's own `play`/`pause` events, so it cannot lie in either direction. a control that
+claimed "on" while the browser refused would be the one dishonest pixel on the page, and the bed itself is
+Kevin MacLeod's "Latin Industries", CC BY 4.0 (trimmed to 26s — `docs/samples/CREDITS.md`).
+
+then the title sheet, which opens every visit:
+the wordmark assembling letter by letter — each letter rising from
 behind its own mask, so it reads as type being *set* rather than text fading in — a counter beside it reading
 *real* work (the four plates the picker draws from and the five faces the page is set in, warmed while the
 title is up, so the picker is instant when it goes), and one roll of light down the sheet as it arrives. it
@@ -213,6 +234,13 @@ title plays and holds the hero back, a click skips it early, it is absent under 
 the lift's clock starts at the first *painted* frame, not at mount. measured, not assumed: this page spends
 its first second building a WebGL hero, and a floor measured from mount lifted the sheet the instant the
 letters landed — or before they did.
+
+the title has a **four-second floor** and a **fifteen-second ceiling**: the floor runs from when the letters
+actually start, so a title is long enough to read, and the ceiling runs from mount, so a font that never
+arrives costs the visitor a few seconds and a skip button rather than a stuck page. the letters themselves wait
+on the display face rather than a clock — the wordmark used to assemble in the fallback face and swap when
+Limelight landed (measured at ~1.1s in, with the face still absent), which is a title that changes its own type
+mid-read. `?film=0` skips the welcome card's dwell for a probe.
 
 ## the reveal
 
