@@ -72,7 +72,7 @@ const result = await page.evaluate(
         const pctx2 = prep.getContext("2d", { willReadFrequently: true });
         pctx2.fillStyle = "#1a1a1e";
         pctx2.fillRect(0, 0, prep.width, prep.height);
-        const ps = Math.min(prep.width / photo.naturalWidth, prep.height / photo.naturalHeight) * 0.8;
+        const ps = Math.min(prep.width / photo.naturalWidth, prep.height / photo.naturalHeight);
         const pw = photo.naturalWidth * ps;
         const ph = photo.naturalHeight * ps;
         pctx2.drawImage(photo, (prep.width - pw) / 2, (prep.height - ph) / 2, pw, ph);
@@ -182,7 +182,7 @@ const result = await page.evaluate(
       { figure: "figure-runner.jpg", look: "golden", label: "a runner on the beach" },
       { figure: "figure-stage.jpg", look: "night", label: "the guitarist, mid-song" },
       { figure: "figure-skater.jpg", look: "golden", label: "a skater, weightless" },
-      { figure: "figure-sentinel.jpg", look: "night", label: "a sentinel at night" },
+      { figure: "figure-sentinel.jpg", look: "golden", label: "the sentinel, in the golden hour" },
       { figure: "figure-busker.jpg", look: "night", label: "the busker, on the corner" },
     ];
 

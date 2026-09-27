@@ -64,7 +64,7 @@ const BEATS: Beat[] = [
   { cell: 7, label: "a runner on the beach", move: "push", moveMs: 300, holdMs: 100 },
   { cell: 8, label: "the guitarist, mid-song", move: "push", moveMs: 260, holdMs: 90 },
   { cell: 9, label: "a skater, weightless", move: "push", moveMs: 230, holdMs: 80 },
-  { cell: 10, label: "a sentinel at night", move: "push", moveMs: 210, holdMs: 70 },
+  { cell: 10, label: "the sentinel, in the golden hour", move: "push", moveMs: 210, holdMs: 70 },
   { cell: 11, label: "the busker, on the corner", move: "push", moveMs: 200, holdMs: 700 },
 ];
 const STEPS = BEATS.length + 1;

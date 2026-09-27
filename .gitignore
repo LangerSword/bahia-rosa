@@ -15,6 +15,14 @@ playwright-report
 # not source: written by the run, so it must never dirty the worktree.
 .grade-last-e2e.txt
 
+# The verification tooling re-renders these four screenshots on every run. They stay tracked (and keep
+# serving from the last committed version), but a check that regenerates its own evidence must not dirty
+# the worktree it is about to certify — that is what broke the deploy check three rounds running.
+docs/boot-build.png
+docs/shots/launch-1440.png
+docs/shots/launch-375.png
+docs/shots/launch-768.png
+
 # Source photographs for the film's figures: staged only while tools/make-film.mjs runs, never shipped. The
 # sprite carries the *plates*; the photographs themselves stay out of the repository.
 public/film-src
