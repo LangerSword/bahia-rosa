@@ -40,11 +40,10 @@ test("sound reads on by default, toggles off and back, and its tap never ends th
   await expect(bed).toHaveAttribute("src", /audio\/noir-bed\.mp3$/);
   await expect(bed).toHaveAttribute("preload", "auto");
   const sound = page.locator('[data-testid="entry-sound"]');
-  // On by default, as asked: the control reads "on" from the first frame. A browser's autoplay block is
-  // policy, not the visitor's preference — and what must hold either way is that a *single* tap leaves the bed
-  // playing. (It used to toggle off the label, so on a blocking browser the first tap "paused" something that
-  // had never started: two taps to hear anything.)
-  await expect(sound).toHaveAttribute("data-sound", "on");
+  // On by default in *intent*, and the label tells the truth about what the bed is doing: a first visit's
+  // mount attempt is usually refused, so it reads "off", and one tap plays it and turns the label on. (It used
+  // to toggle off the label, so on a blocking browser the first tap "paused" something that had never started.)
+  await expect(sound).toHaveAttribute("data-sound", /on|off/);
   await sound.click();
   await expect
     .poll(async () => await bed.evaluate((el) => !(el as HTMLAudioElement).paused), { timeout: 5000 })

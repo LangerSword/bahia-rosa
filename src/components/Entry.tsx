@@ -34,10 +34,11 @@ const LIFT = [0.76, 0, 0.24, 1] as const;
  *
  * Two seconds, not one: the wordmark's own assembly (staggered letters, last one landing at ~1.3s) runs
  * inside this clock, so at 1.5s the sheet was lifting the instant the title finished — a title you never
- * get to read. Two seconds leaves about half a second where the assembled title is simply there. The clock
- * starts when the letters do, which is when the face is ready.
+ * get to read. Four seconds is the welcome's own length — long enough that the assembled title, the signature
+ * and the rule are a moment rather than a flash. The clock starts when the letters do, which is when the face
+ * is ready.
  */
-const FLOOR_MS = 2000;
+const FLOOR_MS = 4000;
 /**
  * …and a title that will not end is a hostage situation: the sheet lifts regardless of everything. This is
  * the absolute guard, measured from mount, so a font that never arrives (a blocked CDN, a hostile network)
@@ -89,7 +90,13 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
    * until a gesture, so the same key or click that leaves the film is also the thing that starts the music.
    * One bed, one owner, for the whole intro — film, title and all.
    */
-  const [sound, setSound] = useState(true);
+  /**
+   * The label follows the bed, not the intent: "off" until something is actually playing and "on" while it is
+   * — driven by the element's own play/pause events, so it cannot lie in either direction. A first visit's
+   * mount attempt is usually refused, so it reads off and the visitor's tap is what turns it on; a visitor
+   * whose browser allows sound reads on without touching anything, which is simply the truth.
+   */
+  const [sound, setSound] = useState(false);
   const bed = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
@@ -461,7 +468,15 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
           hold the sheet hostage — a sprite that fails or is slow simply skips the film. */}
       {/* The bed: Kevin MacLeod, CC BY, trimmed and levelled by tools. It lives here, in the entry, so that
           skipping the film does not stop the music — see the note where `bed` is declared. */}
-      <audio ref={bed} src={`${import.meta.env.BASE_URL}audio/noir-bed.mp3`} loop preload="auto" />
+      {/* The label is driven by the element itself, so it can only ever say what is true. */}
+      <audio
+        ref={bed}
+        src={`${import.meta.env.BASE_URL}audio/noir-bed.mp3`}
+        loop
+        preload="auto"
+        onPlay={() => setSound(true)}
+        onPause={() => setSound(false)}
+      />
 
       {/* The bed's own control, sized for a thumb and stopped in the capture phase: the entry leaves on any
           pointer down, and this button's own tap must not be the one that ends it. */}
