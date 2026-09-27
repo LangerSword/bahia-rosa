@@ -168,18 +168,23 @@ layers**, which stays disabled until there is more than one layer to flatten —
 
 ## the way in
 
-the title sheet opens with a **film** — the city plate being generated, full-bleed. Twelve frames, dissolved one
-into the next, and the build is the plate's *layers* in the press's own order: the city's drawing, the hour's
-grade, the flat shapes, the ink lines, the detail, a fuller palette, and the plate with its paper — then the city
-at other hours. **No faces**: these are the plates the city draws of itself. The step names itself on screen
-while it runs, because the point of the film is how a plate is generated: `the flat shapes`, `+ the ink lines`,
-`the marina, at golden hour`. The frames are not drawn by hand and no art was commissioned:
-`tools/make-film.mjs` opens the dev server and calls *this app's* `gradePixels`, `gradeFor` and
-`styliseImageData` through a dev-only handle — driving the press's own `ink`, `detail` and `paper` knobs so each
-frame is the plate *with one more pass done to it* — and lays the 1600×900 outputs into one sprite. The film
-plays them one-to-one, with no resampling (asserted: the canvas's backing store is its CSS size), the title's
-floor clock waits on it, the letters wait for both the face and the film, and a sprite that fails or is slow
-skips the film entirely. `?film=0` skips it for a probe.
+the title sheet opens with a **film** — the city plate being generated, full-bleed, and it is a sequence with a
+motion vocabulary rather than a slideshow. It opens on the city's own **card**: the wordmark in Limelight, the
+face the title will arrive in, with its gold hairline drawing itself under it. Then the build arrives by
+**press-wipe** — each layer sweeps across the plate behind a travelling gold print head, the seam feathered so
+the head is the only hard thing in the frame, because a hard edge through a picture reads as a stitching
+artifact (it was reported as one) — through the plate's own layers: the drawing, the hour's grade, the flat
+shapes, + the ink lines, + the detail, a fuller palette, the plate with its paper. The tour of the other places
+arrives by **push**, a slow 1.03 → 1.0 camera move, and the film **dissolves** into the sheet so the title
+assembles out of it. **No faces** anywhere: these are the plates the city draws of itself. Type is DOM and only
+the pictures are canvas, so the card and every step label stay crisp at any resolution. The frames are not drawn
+by hand: `tools/make-film.mjs` calls *this app's* `gradePixels`, `gradeFor` and `styliseImageData` through a
+dev-only handle — driving the press's own `ink`, `detail` and `paper` knobs so each frame is the plate with one
+more pass done to it — and lays the 1600×900 outputs into one sprite, played one-to-one with no resampling. Both
+halves are asserted: the backing store is the CSS size, and the head is a tight gold that *travels* across
+columns, because a seam without a travelling head is the stitching artifact. The title's floor clock waits on
+the film, the letters wait for both the face and the film, and a sprite that fails or is slow skips it entirely.
+`?film=0` skips it for a probe.
 
 every visit opens on a title sheet: the wordmark assembling letter by letter — each letter rising from
 behind its own mask, so it reads as type being *set* rather than text fading in — a counter beside it reading

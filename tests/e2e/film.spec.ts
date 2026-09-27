@@ -50,10 +50,31 @@ test.describe("the film on the title sheet", () => {
     expect(pixels.w, "the backing store is not the CSS width").toBe(pixels.cw);
     expect(pixels.h, "the backing store is not the CSS height").toBe(pixels.ch);
 
+    // The city signs its own film first: the card carries the wordmark in the display face the title arrives
+    // in, with its hairline drawn under it. Type is DOM, so this is a real font check and not a picture of one.
+    const card = page.locator('[data-testid="entry-film-card"]');
+    await expect(card).toBeVisible();
+    await expect(card.locator(".entry-film-mark")).toHaveText("bahía rosa");
+    const markFont = await card
+      .locator(".entry-film-mark")
+      .evaluate((el) => getComputedStyle(el).fontFamily);
+    expect(markFont, "the card is not set in the city's display face").toContain("Limelight");
+    // And its hairline draws itself in — the one motion the card has. Reading the transform's X scale: it
+    // starts at 0 and the transition carries it to 1, so a stylesheet that lost the rule times this poll out.
+    await expect
+      .poll(
+        async () =>
+          await card
+            .locator(".entry-film-rule")
+            .evaluate((el) => new DOMMatrixReadOnly(getComputedStyle(el).transform).a),
+        { timeout: 3000 },
+      )
+      .toBeGreaterThan(0.95);
+
     // The first step names itself, and the counter is the film's own: how a plate is generated, step by step.
     const label = page.locator(".entry-film-label");
     await expect(label).not.toHaveText("");
-    await expect(page.locator(".entry-film-step")).toHaveText(/^\d\d \/ 12$/);
+    await expect(page.locator(".entry-film-step")).toHaveText(/^\d\d \/ 13$/);
 
     // While the film runs the title block is not there yet, and a letter is still buried in its mask.
     const blockOpacity = await page
@@ -71,6 +92,36 @@ test.describe("the film on the title sheet", () => {
       .poll(async () => Number(await film.getAttribute("data-cell")), { timeout: 20_000 })
       .toBeGreaterThan(0);
     await expect(label).not.toHaveText("the city's own drawing", { timeout: 20_000 });
+
+    /**
+     * And the print head is real. One row of pixels across the canvas is cheap to read; the head is the only
+     * tight gold in the frame, and — the part that matters — it *travels*. A single reading could be a warm
+     * pixel in the sunset; a handful of different columns can only be the head moving, which is the whole
+     * claim: a seam without a travelling head is the stitching artifact this was reported as.
+     */
+    const headX = async (): Promise<number> =>
+      film.evaluate((el) => {
+        const canvas = el as HTMLCanvasElement;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return -1;
+        const row = ctx.getImageData(0, Math.round(canvas.height / 2), canvas.width, 1).data;
+        for (let x = 0; x < canvas.width; x += 1) {
+          const i = x * 4;
+          if (row[i] > 240 && row[i + 1] > 165 && row[i + 1] < 215 && row[i + 2] < 70) return x;
+        }
+        return -1;
+      });
+    const columns = new Set<number>();
+    await expect
+      .poll(
+        async () => {
+          const x = await headX();
+          if (x >= 0) columns.add(x);
+          return columns.size;
+        },
+        { timeout: 20_000, intervals: [60] },
+      )
+      .toBeGreaterThan(1);
 
     // The film hands over on its own — no interaction — and then the letters rise.
     await expect(sheet).toHaveAttribute("data-phase", "hold", { timeout: 30_000 });

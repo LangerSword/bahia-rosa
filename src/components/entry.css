@@ -234,6 +234,52 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The city's own card, over the ink before the first frame: the wordmark in the display face, its hairline
+   drawing under it — the first appearance of the face the title will arrive in. */
+.entry-film-card {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 1.4rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.entry-film-card[data-shown="yes"] {
+  opacity: 1;
+}
+
+.entry-film-mark {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(2.4rem, 7vw, 6rem);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--color-paper);
+}
+
+.entry-film-rule {
+  width: clamp(120px, 22vw, 320px);
+  height: 2px;
+  background: var(--color-gold);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.25s;
+}
+
+.entry-film-card[data-shown="yes"] .entry-film-rule {
+  transform: scaleX(1);
+}
+
+/* The hand-off: the film dissolves into the sheet, so the title assembles out of it rather than replacing it. */
+.entry-film-wrap[data-out="yes"] {
+  opacity: 0;
+  transition: opacity 0.34s linear;
+}
+
 /* While the film runs, the title block is not there yet — it is set after the press, not behind it. */
 .entry-sheet[data-phase="film"] .entry-block {
   opacity: 0;
