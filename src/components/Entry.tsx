@@ -46,7 +46,11 @@ const FLOOR_MS = 2000;
  * the two would cut the title short on exactly the slow connection that needed the film skipped.
  */
 const CEILING_MS = 15000;
-const FACES = ["Limelight", "Poiret One", "Inter", "Pinyon Script", "Italianno"];
+/**
+ * The gate's faces: the wordmark's and the signature's — the two the first paint depends on. (The body and
+ * label faces swap in behind a title that is already being read, which is why they are not here.)
+ */
+const FACES = ["Limelight", "Italianno"];
 
 export function Entry({ onDone }: { onDone: () => void }): ReactElement {
   /**
@@ -264,8 +268,18 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
       setFaceReady(true);
     };
 
-    const fonts = Promise.all(FACES.map((face) => document.fonts.load(`1em "${face}"`)))
-      .then(() => document.fonts.ready)
+    /**
+     * The gate is the two faces the first paint depends on — the wordmark's and the signature's — not all
+     * five: the body and label faces can swap in behind a title that is already being read, and waiting on
+     * every file is what kept the wordmark behind its masks for as long as the slowest one took. And the
+     * wait is capped, because a show that begins is worth more than a face that arrives.
+     */
+    const fonts = Promise.race([
+      Promise.all(FACES.map((face) => document.fonts.load(`1em "${face}"`))).then(
+        () => document.fonts.ready,
+      ),
+      new Promise<void>((resolve) => window.setTimeout(resolve, 2500)),
+    ])
       // A face that cannot load must not hold the title hostage: the letters show in whatever the stack
       // gives, and the clock below still ends the sheet.
       .then(faceLanded, faceLanded)
