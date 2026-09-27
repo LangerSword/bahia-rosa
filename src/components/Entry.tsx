@@ -102,16 +102,42 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
     void node.play().catch(() => undefined);
   }, []);
 
+  /**
+   * And it keeps trying where a browser allows it without a fresh gesture: coming back to the tab is the
+   * common case where the visitor has already interacted with the origin, which is exactly what an autoplay
+   * policy is asking about. No gesture is invented here — this only asks again.
+   */
+  useEffect(() => {
+    const retry = (): void => {
+      if (document.visibilityState !== "visible") return;
+      const node = bed.current;
+      if (node && node.paused) void node.play().catch(() => undefined);
+    };
+    document.addEventListener("visibilitychange", retry);
+    window.addEventListener("focus", retry);
+    return () => {
+      document.removeEventListener("visibilitychange", retry);
+      window.removeEventListener("focus", retry);
+    };
+  }, []);
+
   /** The film's own control, and only the film's: it toggles the one bed the entry owns. */
   const toggleSound = (): void => {
     const node = bed.current;
     if (!node) return;
-    if (sound) {
-      node.pause();
-      setSound(false);
+    /**
+     * Toggled by *reality*, not by the label. A browser that blocked the mount attempt leaves the bed paused
+     * while the preference reads "on" (which is what the visitor asked for), so a first tap that "paused"
+     * something never playing was a tap that did nothing — and it took two taps to hear anything. If it is not
+     * playing, a tap starts it. One tap, and the music is on.
+     */
+    if (node.paused) {
+      node.volume = 1;
+      void node.play().then(() => setSound(true)).catch(() => setSound(false));
       return;
     }
-    void node.play().then(() => setSound(true)).catch(() => setSound(false));
+    node.pause();
+    setSound(false);
   };
 
   /** The lift takes the bed with it: a fast ramp to silence as the sheet rises, so the entry ends clean. */

@@ -261,14 +261,22 @@
   white-space: nowrap;
   transform: rotate(-8deg);
   transform-origin: right bottom;
+  /* Written on, not faded in — and on its own clock. The rule used to hang the write-in off the welcome
+     card's `data-shown`, and when the card went the signature stayed clipped to nothing: a keyframe cannot
+     lose its trigger that way. */
   clip-path: inset(0 100% 0 0);
-  transition: clip-path 750ms cubic-bezier(0.22, 0.61, 0.36, 1) 260ms;
+  animation: entry-write 750ms cubic-bezier(0.22, 0.61, 0.36, 1) 900ms both;
   text-shadow: 0 1px 18px rgb(7 7 10 / 80%);
 }
 
-.entry-film-card[data-shown="yes"] .entry-film-by {
-  /* -8% on the right so the cursive's final tail is never clipped by its own wipe. */
-  clip-path: inset(0 -8% 0 0);
+@keyframes entry-write {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    /* -8% on the right so the cursive's final tail is never clipped by its own wipe. */
+    clip-path: inset(0 -8% 0 0);
+  }
 }
 
 /* The sound control: a small honest switch in the film's own type, bottom-right, finger-sized. */

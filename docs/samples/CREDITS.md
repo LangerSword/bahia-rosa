@@ -50,7 +50,7 @@ screen under the film as well as here:
 | 9 | a skater, weightless | Commons, `File:2008-08-22 Skateboarder floating in the air.jpg` | Ildar Sagdejev (Specious) | CC BY-SA 4.0 |
 | 10 | a sentinel at dusk | Commons, `File:Lifeguards.jpg` | Sasha Kargaltsev | CC BY 2.0 |
 | 11 | the busker, on the corner | Commons, `File:2026-06-09 Street musician in Novi Sad.jpg` | Alexkom000 | CC BY 4.0 |
-| — | the bed (`public/audio/noir-bed.mp3`) | "Interloper" — Kevin MacLeod, incompetech.com (trimmed to 26s, faded and levelled with ffmpeg) | Kevin MacLeod | CC BY 4.0 |
+| — | the bed (`public/audio/noir-bed.mp3`) | "Latin Industries" — Kevin MacLeod, incompetech.com (trimmed to 28s, faded and levelled with ffmpeg). Free for any use with attribution. | Kevin MacLeod | CC BY 4.0 |
 
 **The sprite's own licence.** `public/film/plate-film.jpg` is a derivative work of all of the above at once,
 so it is offered under the most restrictive of them: **CC BY-SA 4.0**. The repository's other files are not
