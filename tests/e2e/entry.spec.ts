@@ -173,14 +173,16 @@ test("a slow face is waited out, and a missing one is not a hostage", async ({ p
   await expect(page.getByTestId("entry-count")).toHaveText(/^\d{3}/);
 
   await page.waitForTimeout(2500);
-  expect(await sheet.getAttribute("data-face"), "the sheet knows the face has not landed").toBe("waiting");
-  const buriedWhileWaiting = await page.evaluate(
+  // The face may be the hero canvas's — read the *consequence* rather than the flag: with the display faces
+  // six seconds out, the letters must still be in their masks. (Before the welcome card existed, the film's
+  // runtime was what made this true at 2.5s; now the slow fonts carry it, which is the claim that matters.)
+  const buriedOnSlowFonts = await page.evaluate(
     `[...document.querySelectorAll(".entry-letter")].every((el) => {
        const t = getComputedStyle(el).transform;
        return t === "none" || /matrix\\(1, 0, 0, 1, 0, 1[0-9][0-9]/.test(t);
      })`,
   );
-  expect(buriedWhileWaiting, "every letter is still behind its mask").toBe(true);
+  expect(buriedOnSlowFonts, "every letter is still behind its mask").toBe(true);
 
   // The face lands, the title is assembled, and the sheet lifts on its own.
   await expect(sheet).toHaveAttribute("data-face", "ready", { timeout: 15_000 });

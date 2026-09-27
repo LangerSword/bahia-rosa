@@ -127,6 +127,10 @@
 }
 
 .entry-skip {
+  position: absolute;
+  left: clamp(1.25rem, 4vw, 2.75rem);
+  bottom: clamp(1.5rem, 3.4vw, 2.4rem);
+  z-index: 40;
   min-height: 44px;
   padding: 0 0.2rem;
   font-family: var(--font-kicker);
@@ -318,6 +322,13 @@
 
 .entry-film-card[data-shown="yes"] {
   opacity: 1;
+}
+
+/* The skip sits above the vapour canvas. The entry leaves on any input, but a control that cannot receive a
+   click because a full-screen canvas is over it is not a control — and the film used to be the thing that
+   carried the skip above the canvas, which is why it worked. */
+.entry-skip {
+  z-index: 40;
 }
 
 .entry-film-mark {

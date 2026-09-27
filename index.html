@@ -10,11 +10,12 @@
     />
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#07070a" />
-    <!--
-      The film's sprite starts loading with the document, not when React mounts: it is 2.3MB and the film is
-      the first thing the entry does, so a late start is a film that skips — the report that came back.
-    -->
-    <link rel="preload" as="image" href="/film/plate-film.jpg" fetchpriority="high" />
+    <!-- The two faces the first paint depends on: the wordmark's and the signature's. Preloaded so the card's
+      type is set when it appears rather than swapping in under it — the font gate waits for them, and the
+      wait should be short. -->
+    <link rel="preload" as="font" type="font/ttf" href="/fonts/Limelight-Regular.ttf" crossorigin />
+    <link rel="preload" as="font" type="font/ttf" href="/fonts/Italianno-Regular.ttf" crossorigin />
+    <link rel="preload" as="font" type="font/ttf" href="/fonts/Inter%5Bopsz%2Cwght%5D.ttf" crossorigin />
   </head>
   <body>
     <div id="root"></div>

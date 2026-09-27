@@ -4,7 +4,6 @@ import { SCENE_IDS, sceneSrc } from "../look/scenes";
 import { markEntryPlayed } from "../lib/entry";
 import { mergeLineRects } from "../lib/lines";
 import { VapourText } from "./VapourText";
-import { PlateFilm } from "./PlateFilm";
 import "./entry.css";
 
 /**
@@ -51,27 +50,33 @@ const FACES = ["Limelight", "Poiret One", "Inter", "Pinyon Script", "Italianno"]
 
 export function Entry({ onDone }: { onDone: () => void }): ReactElement {
   /**
-   * Whether the film plays at all. `?film=0` is for probes that want the title without the two-second wait,
-   * and reduced motion never gets it — a film is exactly the kind of thing the setting exists to refuse.
+   * The welcome card's dwell — the only clock the card has. `?film=0` gives a probe the title without it, and
+   * reduced motion gets no dwell at all: a pause invented to be looked at is exactly what that setting is
+   * about. The card is the beginning of the show, not a video in front of it.
    */
-  const filmPlays = useMemo(() => {
-    if (typeof window === "undefined") return false;
+  const welcomeMs = useMemo(() => {
+    if (typeof window === "undefined") return 0;
     const skipped = new URLSearchParams(window.location.search).get("film") === "0";
     const calm =
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    return !skipped && !calm;
+    return skipped || calm ? 0 : 2600;
   }, []);
   const [progress, setProgress] = useState(0);
+  /** The card, on stage before the title: the wordmark and the signature, held for as long as it is read. */
+  const [welcome, setWelcome] = useState(welcomeMs > 0);
   /**
-   * The exit, in three parts. `film` is the press at work — the redraw, then the plates; `hold` is the title
-   * being read; `vapour` is the wordmark turning to dust; and `lift` is the sheet leaving. The dust comes
-   * *before* the lift rather than during it — the sheet waits for the last particle, which is the reason the
-   * wordmark dissolves rather than simply fading with the sheet it sits on.
+   * The exit, in three parts. `hold` is the title being read; `vapour` is the wordmark turning to dust; and
+   * `lift` is the sheet leaving. The dust comes *before* the lift rather than during it — the sheet waits for
+   * the last particle, which is the reason the wordmark dissolves rather than simply fading with the sheet.
    */
-  const [phase, setPhase] = useState<"film" | "hold" | "vapour" | "lift">(filmPlays ? "film" : "hold");
-  /** Resolved when the film ends, so the title's floor is time the *title* had and not time the film had. */
-  const filmGate = useRef<(() => void) | null>(null);
+  const [phase, setPhase] = useState<"hold" | "vapour" | "lift">("hold");
+
+  useEffect(() => {
+    if (welcomeMs === 0) return;
+    const timer = window.setTimeout(() => setWelcome(false), welcomeMs);
+    return () => window.clearTimeout(timer);
+  }, [welcomeMs]);
 
   /**
    * The bed belongs to the *entry*, not to the film, because the film can be skipped — and a skipped film
@@ -295,12 +300,7 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
     });
     // The film, if it is playing, is part of the wait: the floor below is time the *title* had in front of
     // the visitor, and the film is not the title. When the film is skipped the gate is already resolved.
-    const film = filmPlays
-      ? new Promise<void>((resolve) => {
-          filmGate.current = resolve;
-        })
-      : Promise.resolve();
-    const floor = Promise.all([fonts, painted, film]).then(
+    const floor = Promise.all([fonts, painted]).then(
       () =>
         new Promise<void>((resolve) => {
           window.setTimeout(resolve, FLOOR_MS);
@@ -319,14 +319,7 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
       cancelled = true;
       window.clearTimeout(guard);
     };
-  }, [plates, units, leave, filmPlays]);
-
-  /** The film has ended — or was never playing: the title's clock may start. */
-  useEffect(() => {
-    if (phase === "film") return;
-    filmGate.current?.();
-    filmGate.current = null;
-  }, [phase]);
+  }, [plates, units, leave]);
 
   /** Any key, any click, any wheel: out — and the same gesture unlocks the bed, because a browser will not
    * start sound without one. Unmuting on the way out is honest: it is the visitor's gesture either way, and
@@ -429,7 +422,34 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
       {/* The bed: Kevin MacLeod, CC BY, trimmed and levelled by tools. It lives here, in the entry, so that
           skipping the film does not stop the music — see the note where `bed` is declared. */}
       <audio ref={bed} src={`${import.meta.env.BASE_URL}audio/noir-bed.mp3`} loop preload="auto" />
-      {phase === "film" ? <PlateFilm onDone={() => setPhase("hold")} sound={sound} onToggleSound={toggleSound} /> : null}
+      {/* The welcome card, on stage first: the wordmark in the face the title will arrive in, the signature hung
+          off its corner, and the gold hairline drawing itself under both. DOM type, so it stays crisp at any
+          resolution. */}
+      <div className="entry-film-card" data-testid="entry-card" data-shown={welcome ? "yes" : "no"}>
+        <span className="entry-film-lockup">
+          <span className="entry-film-mark">bahía rosa</span>
+          <span className="entry-film-by" data-testid="entry-card-by">by langersword</span>
+        </span>
+        <span className="entry-film-rule" />
+      </div>
+
+      {/* The bed's own control, sized for a thumb and stopped in the capture phase: the entry leaves on any
+          pointer down, and this button's own tap must not be the one that ends it. */}
+      <button
+        type="button"
+        className="entry-film-sound"
+        data-testid="entry-sound"
+        data-sound={sound ? "on" : "off"}
+        aria-pressed={sound}
+        onPointerDownCapture={(event) => event.stopPropagation()}
+        onKeyDownCapture={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          toggleSound();
+        }}
+      >
+        sound {sound ? "on" : "off"}
+      </button>
 
       <div className="entry-block">
         <motion.p
@@ -438,7 +458,7 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: EASE, delay: 0.1 }}
         >
-          welcome to
+          a character debut, in one photograph
         </motion.p>
         <h1
           ref={wordmark}
@@ -457,7 +477,7 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
               <motion.span
                 className="entry-letter"
                 initial={{ y: 160 }}
-                animate={faceReady && phase !== "film" ? { y: 0 } : { y: 160 }}
+                animate={faceReady && !welcome ? { y: 0 } : { y: 160 }}
                 transition={{ duration: 0.9, ease: EASE, delay: 0.24 + index * 0.05 }}
               >
                 {letter === " " ? "\u00A0" : letter}

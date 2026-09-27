@@ -18,7 +18,7 @@ import { chromium } from "playwright";
 const BASE = process.env.SHOT_BASE ?? "http://localhost:5178";
 const CELL_W = 1600;
 const CELL_H = 900;
-const COLS = 6;
+const COLS = 4;
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
@@ -66,13 +66,18 @@ const result = await page.evaluate(
          * ratio" has to mean, and the source is prepared large (2400 wide) so the plate's 1900 is a
          * downscale — the sharpest direction — rather than an upscale.
          */
+        /**
+         * One resolution, one aspect, every frame: the source is brought onto a 2400×1350 canvas by *covering*
+         * it — centred, cropping the overflow evenly — so each cell is a full-bleed photograph with no field
+         * around it. Contained-and-centred was letterboxing tall photographs and the brief is a single shape.
+         */
         const prep = document.createElement("canvas");
         prep.width = 2400;
         prep.height = 1350;
         const pctx2 = prep.getContext("2d", { willReadFrequently: true });
         pctx2.fillStyle = "#1a1a1e";
         pctx2.fillRect(0, 0, prep.width, prep.height);
-        const ps = Math.min(prep.width / photo.naturalWidth, prep.height / photo.naturalHeight);
+        const ps = Math.max(prep.width / photo.naturalWidth, prep.height / photo.naturalHeight);
         const pw = photo.naturalWidth * ps;
         const ph = photo.naturalHeight * ps;
         pctx2.drawImage(photo, (prep.width - pw) / 2, (prep.height - ph) / 2, pw, ph);
@@ -146,35 +151,10 @@ const result = await page.evaluate(
     const detail = (preset.detail ?? 0.5) * 1.15;
     const steps = [
       /**
-       * The build: four of the press's own layers, in the press's order, so the film opens on a plate being
-       * *drawn* rather than on a finished picture. Four, not seven: this is a cast roll now, and the city's
-       * drawing only needs enough room to say what the press does.
-       */
-      { scene: "beach", look: null, layer: null, label: "the city's own drawing" },
-      {
-        scene: "beach",
-        look: "dusk",
-        layer: { colours: 6, ink: 0, detail: 0, paper: 0 },
-        label: "the flat shapes",
-      },
-      {
-        scene: "beach",
-        look: "dusk",
-        layer: { colours: 6, ink, detail: 0, paper: 0 },
-        label: "the ink lines",
-      },
-      { scene: "beach", look: "dusk", layer: { colours: 20 }, label: "the plate — with its paper" },
-      /**
-       * And then the cast — eight real people, every one of them an actual photograph pressed through the
-       * *same* call any visitor's photograph goes through (`portraitFromImage`), because the plates are not
-       * special-cased. All eight are anonymous adults, all from colour sources, from Wikimedia Commons under
-       * CC0 / CC BY / public domain, credited under the film and in docs/samples/CREDITS.md.
-       *
-       * Three classes of photograph were ruled out, and they are the three that always come up: named
-       * celebrities (personality rights do not travel with a Commons licence), greyscale sources (a
-       * black-and-white photograph cannot take a golden or neon grade and reads as a cold outlier), and any
-       * photograph of a minor. What is left is a cast a city this size would actually have: the rapper, the
-       * boxer, the biker, the runner, the guitarist, the skater, the sentinel, the busker.
+       * The cast, and only the cast: eight real people, every one an actual photograph pressed through the
+       * app's own **as-is** mode — ingested and generated as it is, graded to a night or golden-hour look, at
+       * fine quality, with *no city place* pressed under it and no crop. The build's city-plate layers are
+       * gone: the brief asked for figures, not plates of a city.
        */
       { figure: "figure-rapper.jpg", look: "night", label: "the rapper, in the neon" },
       { figure: "figure-boxer.jpg", look: "night", label: "the boxer, in the neon" },
