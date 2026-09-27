@@ -699,9 +699,9 @@ export function App() {
                 <span style={{ color: "var(--color-faint)" }}>~ </span>the place
               </h2>
               <p className="measure mt-2 text-xs" style={{ color: "var(--color-muted)" }}>
-                the places the press prints into, every one of them shown at dusk so they can be compared
-                against each other. the plate above is your place at your hour — pick one here and it changes
-                there. “as it is” is no place at all: your photograph, on its own.
+                the places the press prints into, every one of them shown at your hour — pick a place here and
+                the plate above changes to it; pick an hour above and the thumbnails here come to you at that
+                light. “as it is” is no place at all: your photograph, on its own.
               </p>
               <div
                 className="mt-4 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap"
@@ -718,11 +718,13 @@ export function App() {
                     onClick={() => setScene(id)}
                     label={SCENES[id].label.toLowerCase()}
                     note={SCENES[id].blurb}
-                    /* One fixed hour for the whole row, and no thumbnail for “as it is”: it has no scene to
-                       show, and a blank frame among four drawings reads as the broken one. */
+                    /* The whole row follows the hour, and no thumbnail for “as it is”: it has no scene to
+                       show, and a blank frame among four drawings reads as the broken one. Clicking an hour
+                       up top brings every place down here to that light — the comparison moves with the
+                       choice, which is the point of choosing. */
                     media={
                       id === "asis" ? undefined : (
-                        <SceneThumb scene={id} look="dusk" className="w-full sm:w-[220px]" />
+                        <SceneThumb scene={id} look={look} className="w-full sm:w-[220px]" />
                       )
                     }
                   />

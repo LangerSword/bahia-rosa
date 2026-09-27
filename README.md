@@ -101,7 +101,7 @@ first press pays for loading them; the browser caches them afterwards. deploymen
 | app | react 19 · typescript · vite 8 · tailwind 4 · motion · three (hero canvas only) |
 | cut | `@mediapipe/tasks-vision` 1.0 — six-class selfie segmentation, in the browser |
 | editor | `@unlayer/react-image-editor` 1.0 — a different tool set per surface, so the editor is core structurally rather than by claim |
-| tests | vitest (unit, 199) · playwright (e2e, 54 including a real-touch phone walk) |
+| tests | vitest (unit, 199) · playwright (e2e, 55 including a real-touch phone walk) |
 
 the source is small and boringly laid out: `src/look/` is the press (segmentation, palette, compositor, the
 hour), `src/world/` is the frame geometry and the city surfaces, `src/components/` is what a visitor touches,

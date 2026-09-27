@@ -118,6 +118,31 @@ test.describe("the choices", () => {
     await expect.poll(previewOf, { timeout: 10_000 }).not.toBe(previewBefore);
   });
 
+  test("the place strip follows the hour: choosing a light brings every place to it", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForSelector('[data-testid="look-dusk"]');
+    const placeStrip = async (): Promise<string> =>
+      page.evaluate(() =>
+        Array.from(document.querySelectorAll('[data-testid^="scene-"]'))
+          .map((tile) => {
+            const canvas = tile.querySelector("canvas") as HTMLCanvasElement | null;
+            return canvas ? canvas.toDataURL().slice(-28) : "none";
+          })
+          .join("|"),
+      );
+
+    const before = await placeStrip();
+    // Four real places have a scene to draw; "as it is" has none by design.
+    expect(before.split("|").filter((v) => v !== "none").length).toBe(4);
+    expect(before).not.toBe("none|none|none|none|none");
+
+    await page.locator('[data-testid="look-night"]').click();
+    // Every place comes to the chosen light — the comparison moves with the choice.
+    await expect.poll(placeStrip, { timeout: 15_000 }).not.toBe(before);
+    const after = await placeStrip();
+    expect(after.split("|").filter((v) => v !== "none").length).toBe(4);
+  });
+
   test("the tiles are touch-sized on a phone", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
