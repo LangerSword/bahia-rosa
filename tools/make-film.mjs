@@ -77,17 +77,16 @@ const result = await page.evaluate(
         const ph = photo.naturalHeight * ps;
         pctx2.drawImage(photo, (prep.width - pw) / 2, (prep.height - ph) / 2, pw, ph);
         /**
-         * And pressed the *composite* way: the figure set into the city at the beat's hour, at fine quality
-         * and the app's own as-is ceiling. `wholeFrame` is deliberately *off* — on, the press returns the
-         * photograph pressed in its own frame with no city at all, which is right for the as-is button and
-         * wrong for a cast roll. Because the source is already the cell's aspect, the plate comes back at
-         * that aspect and drops into the cell one to one.
+         * And pressed **as-is** — `wholeFrame` keeps the photograph's own frame: the photo ingested and
+         * generated as it is, graded, at fine quality, with *no city place* pressed under it. That is the
+         * mode the brief names, and the look is the only thing the city contributes: night or golden hour,
+         * nothing else.
          */
         const out = await press.portraitFromImage(prep, {
           ...(press.LOOKS[step.look ?? "night"]?.options ?? preset),
+          wholeFrame: true,
           fine: true,
           maxSize: 1900,
-          scene: "boulevard",
         });
         if (!(out?.canvas instanceof HTMLCanvasElement)) {
           throw new Error(`figure ${step.figure}: the press returned no canvas`);
@@ -98,22 +97,9 @@ const result = await page.evaluate(
         if (Math.abs(rel - 1) > 0.01) {
           throw new Error(`figure ${step.figure}: press returned ${out.canvas.width}x${out.canvas.height}, not the 16:9 frame its plates compose in`);
         }
+        // No scene, no backing, no city: the cell *is* the pressed photograph, drawn one-to-one. The aspect
+        // contract above guarantees that fit is exactly 1.
         wctx.clearRect(0, 0, cellW, cellH);
-        // The scene at the same hour, underneath, so the (never-expected) letterbox is the picture
-        // continuing rather than a black bar — and then the plate, contained, so nothing is ever cropped.
-        const backing = await load(press.sceneSrc("boulevard"));
-        const bs = Math.max(cellW / backing.naturalWidth, cellH / backing.naturalHeight);
-        wctx.drawImage(
-          backing,
-          (cellW - backing.naturalWidth * bs) / 2,
-          (cellH - backing.naturalHeight * bs) / 2,
-          backing.naturalWidth * bs,
-          backing.naturalHeight * bs,
-        );
-        if (step.look) {
-          const field = wctx.getImageData(0, 0, cellW, cellH);
-          wctx.putImageData(new ImageData(press.gradePixels(field.data, press.gradeFor(step.look)), cellW, cellH), 0, 0);
-        }
         const fit = Math.min(cellW / out.canvas.width, cellH / out.canvas.height);
         const dw = out.canvas.width * fit;
         const dh = out.canvas.height * fit;

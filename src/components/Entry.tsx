@@ -86,7 +86,11 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
   useEffect(() => {
     const node = bed.current;
     if (!node) return;
-    void node.play().then(() => setSound(true)).catch(() => setSound(false));
+    // Attempted, not assumed — and a refusal changes nothing here. `sound` is the visitor's *preference*
+    // (on by default, togglable off), not a readout of what the browser has allowed so far: an autoplay
+    // block is policy, and the very next gesture satisfies it. Reporting "off" at the visitor who asked for
+    // on, because a policy said "not yet", was the wrong readout.
+    void node.play().catch(() => undefined);
   }, []);
 
   /** The film's own control, and only the film's: it toggles the one bed the entry owns. */

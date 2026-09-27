@@ -126,7 +126,9 @@ test.describe("the film on the title sheet", () => {
     await expect(bed).toHaveAttribute("src", /audio\/noir-bed\.mp3$/);
     await expect(bed).toHaveAttribute("preload", "auto");
     const sound = page.locator('[data-testid="entry-film-sound"]');
-    await expect(sound).toHaveAttribute("data-sound", /^on|off$/);
+    // On by default, as asked: the control reads "on" from the first frame and only the visitor turns it off.
+    // A browser's autoplay block is policy, not the visitor's preference, so it never changes this readout.
+    await expect(sound).toHaveAttribute("data-sound", "on");
     const wasOn = (await sound.getAttribute("data-sound")) === "on";
     await sound.click();
     await expect(sound).toHaveAttribute("data-sound", wasOn ? "off" : "on");
