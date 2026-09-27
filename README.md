@@ -114,7 +114,7 @@ src/world/        the printed world
   placements.ts     billboard · venue · feed · postcard, and the arrange FRAME
 
 src/components/   the surfaces a visitor touches
-  Entry.tsx         the way in: the welcome card, the bed, and the title sheet
+  Entry.tsx         the way in: the welcome card and the title sheet
   HeroParallax.tsx / Hero3D.tsx   the hero, as two depths and a floor
   Tile.tsx          the hour, the place and the finish, as one object
   SceneThumb.tsx    a plate, drawn by the press's own code
@@ -205,13 +205,6 @@ layers**, which stays disabled until there is more than one layer to flatten —
 every visit opens on a welcome **card**: the wordmark in Limelight, **"by langersword"** written on at its
 lower right in the house cursive, tilted, in the trailer's own pink, with a gold hairline drawing itself in
 underneath — and then the card gets out of the title's way.
-
-a bed plays under it, and it belongs to the *card*, not to anything skippable: it starts trying from the first
-frame, and the visitor's first gesture anywhere — including the gesture that skips — is what satisfies the
-browser's autoplay policy. the label says **off** until something is actually playing and **on** while it is,
-driven by the audio element's own `play`/`pause` events, so it cannot lie in either direction. a control that
-claimed "on" while the browser refused would be the one dishonest pixel on the page, and the bed itself is
-Kevin MacLeod's "Latin Industries", CC BY 4.0 (trimmed to 26s — `docs/samples/CREDITS.md`).
 
 then the title sheet, which opens every visit:
 the wordmark assembling letter by letter — each letter rising from

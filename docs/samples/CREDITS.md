@@ -44,9 +44,9 @@ and remain the property of their owners; what this repository claims is the *ren
 
 ## the score, and the film that is no longer here
 
-The welcome card plays one bed: `public/audio/noir-bed.mp3` — Kevin MacLeod's **"Latin Industries"**
-(incompetech.com), CC BY 4.0, trimmed to 26s, faded and levelled with ffmpeg. Free for any use with
-attribution, which is what this is.
+**There is no score.** An earlier welcome card played one bed — Kevin MacLeod's "Latin Industries"
+(incompetech.com), CC BY 4.0, trimmed and levelled with ffmpeg — and it was removed with the rest of the
+sound: the entry is a card and a title now, silent, and `public/audio/` is gone with it.
 
 An earlier welcome-screen film pressed eight real people from Commons and public-domain sources, and shipped
 them as one sprite under the most restrictive of their licences (CC BY-SA 4.0). **That film, its sprite and
