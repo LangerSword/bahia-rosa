@@ -172,6 +172,9 @@ test("a slow face is waited out, and a missing one is not a hostage", async ({ p
   await expect(sheet).toBeVisible();
   await expect(page.getByTestId("entry-count")).toHaveText(/^\d{3}/);
 
+  // The gate resolves on its own — and its bound is what this test now asserts, not an unbounded wait. This
+  // has to be read *before* the long wait below: the sheet is well into its exit by five seconds.
+  await expect(sheet).toHaveAttribute("data-face", "ready", { timeout: 6000 });
   await page.waitForTimeout(5200);
   // The gate waits on the two faces the title needs and no longer than 2.5s, so with the display faces six
   // seconds out the letters come up anyway — a show that begins is worth more than a face that arrives. The
@@ -185,8 +188,6 @@ test("a slow face is waited out, and a missing one is not a hostage", async ({ p
   );
   expect(risen, "the title never assembled behind a slow face").toBe(true);
 
-  // The gate resolves on its own — and its bound is what this test now asserts, not an unbounded wait.
-  await expect(sheet).toHaveAttribute("data-face", "ready", { timeout: 6000 });
   // The face lands, the title is assembled, and the sheet lifts on its own.
   await expect(sheet).toHaveCount(0, { timeout: 20_000 });
 });
