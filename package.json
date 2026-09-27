@@ -20,7 +20,8 @@
     "print": "node tools/print-desk/print.mjs",
     "scenery": "node tools/print-desk/scenery.mjs",
     "harness": "node tools/print-desk/harness.mjs",
-    "frame": "$HOME/.venv/bin/python tools/print-desk/frame.py"
+    "frame": "$HOME/.venv/bin/python tools/print-desk/frame.py",
+    "prune:deployments": "python3 tools/prune-deployments.py"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
