@@ -41,13 +41,21 @@ test("sound reads on by default, toggles off and back, and its tap never ends th
   await expect(bed).toHaveAttribute("preload", "auto");
   const sound = page.locator('[data-testid="entry-sound"]');
   // On by default, as asked: the control reads "on" from the first frame. A browser's autoplay block is
-  // policy, not the visitor's preference, and the first real gesture is what satisfies it.
+  // policy, not the visitor's preference — and what must hold either way is that a *single* tap leaves the bed
+  // playing. (It used to toggle off the label, so on a blocking browser the first tap "paused" something that
+  // had never started: two taps to hear anything.)
   await expect(sound).toHaveAttribute("data-sound", "on");
   await sound.click();
+  await expect
+    .poll(async () => await bed.evaluate((el) => !(el as HTMLAudioElement).paused), { timeout: 5000 })
+    .toBe(true);
+  await expect(sound).toHaveAttribute("data-sound", "on");
+  // A second tap is the visitor's "off", and the control says so.
+  await sound.click();
+  await expect
+    .poll(async () => await bed.evaluate((el) => (el as HTMLAudioElement).paused), { timeout: 5000 })
+    .toBe(true);
   await expect(sound).toHaveAttribute("data-sound", "off");
-  expect(await bed.evaluate((el) => (el as HTMLAudioElement).paused), "the tap did not pause the bed").toBe(true);
-  await sound.click();
-  await expect(sound).toHaveAttribute("data-sound", "on");
   // And the sheet is still here: the control's own gesture is not the one that leaves.
   await expect(sheet).toHaveAttribute("data-phase", /hold|vapour/);
 });
