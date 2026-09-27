@@ -12,7 +12,7 @@ find it.
 built for unlayer's *build with react image editor* challenge, where `@unlayer/react-image-editor` is the
 workstation rather than a dependency of convenience.
 
-## the experience
+## the gta vi experience
 
 Bahía Rosa is a city that prints you. You drop one photograph; the app cuts you out of it in the browser, reads
 the light in the frame, grades you into dusk, golden hour or neon, and sets you on a plate of the city — and
