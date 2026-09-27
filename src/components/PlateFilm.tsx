@@ -23,7 +23,7 @@ import { useEffect, useRef, useState, type ReactElement } from "react";
  */
 const CELL_W = 1600;
 const CELL_H = 900;
-const COLS = 6;
+const COLS = 7;
 const GUARD_MS = 8000;
 
 /** The card is step 0; the cells are steps 1..12. Every step names itself while it happens. */
@@ -56,6 +56,13 @@ const BEATS: Beat[] = [
   { cell: 9, label: "palm boulevard, in the neon", move: "push", moveMs: 280, holdMs: 90 },
   { cell: 10, label: "the beach, after dark", move: "push", moveMs: 280, holdMs: 90 },
   { cell: 11, label: "the marina, at dusk", move: "push", moveMs: 280, holdMs: 90 },
+  /**
+   * And the figures: real people — a rapper against neon graffiti, a guitarist mid-song — pressed from
+   * photographs the Commons carries under CC0 and CC BY, credited under the film. They arrive by push like
+   * the places do, and they hold longest, because a figure is the thing the visitor is here to see.
+   */
+  { cell: 12, label: "a rapper, in the neon", move: "push", moveMs: 400, holdMs: 380 },
+  { cell: 13, label: "a guitarist, mid-song", move: "push", moveMs: 400, holdMs: 620 },
 ];
 const STEPS = BEATS.length + 1;
 
@@ -64,6 +71,8 @@ export function PlateFilm({ onDone }: { onDone: () => void }): ReactElement {
   const done = useRef(false);
   const [step, setStep] = useState(0);
   const [out, setOut] = useState(false);
+  const [sound, setSound] = useState(false);
+  const audio = useRef<HTMLAudioElement>(null);
   /** The callback through a ref: a parent re-render must not restart the film by handing over a new function. */
   const finish = useRef(onDone);
   finish.current = onDone;
@@ -219,9 +228,29 @@ export function PlateFilm({ onDone }: { onDone: () => void }): ReactElement {
     };
   }, []);
 
+  /** Sound is offered, never assumed: the film is silent until the visitor asks for it, because that is what
+   * browsers allow and because a film that fights the policy is worse than one that offers. */
+  const toggleSound = (event: { stopPropagation: () => void }): void => {
+    // The entry leaves on *any* pointer down. This control must not be that pointer down.
+    event.stopPropagation();
+    const node = audio.current;
+    if (!node) return;
+    if (sound) {
+      node.pause();
+      setSound(false);
+      return;
+    }
+    void node
+      .play()
+      .then(() => setSound(true))
+      .catch(() => setSound(false));
+  };
+
   return (
     <figure className="entry-film-wrap" aria-hidden="true" data-out={out ? "yes" : "no"}>
       <canvas ref={ref} className="entry-film" data-testid="entry-film" />
+      {/* The bed: Kevin MacLeod, CC BY, trimmed and levelled by tools. Muted until tapped. */}
+      <audio ref={audio} src={`${import.meta.env.BASE_URL}audio/noir-bed.mp3`} loop preload="auto" />
 
       {/* The city's own card: the wordmark in the face the title will arrive in, its hairline drawn under it.
           DOM type, so it stays crisp at any resolution — the canvas is only for the pictures. */}
@@ -230,12 +259,36 @@ export function PlateFilm({ onDone }: { onDone: () => void }): ReactElement {
         <span className="entry-film-rule" />
       </div>
 
+      {/* The entry leaves on *any* pointer down or click. This control's own gesture must not count, and it
+          has to be stopped in the capture phase — by the time a click handler runs, the pointerdown has
+          already reached the window listener that ends the sheet. */}
+      <button
+        type="button"
+        className="entry-film-sound"
+        data-testid="entry-film-sound"
+        data-sound={sound ? "on" : "off"}
+        aria-pressed={sound}
+        onPointerDownCapture={(event) => event.stopPropagation()}
+        onKeyDownCapture={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          // Stopping here *and* toggling: a capture-phase stop would starve this very handler, which is how the
+          // first cut of this control managed to do nothing at all while looking correct.
+          event.stopPropagation();
+          toggleSound(event);
+        }}
+      >
+        sound {sound ? "on" : "off"}
+      </button>
+
       <figcaption>
         <span className="entry-film-label">{step === 0 ? CARD_LABEL : (BEATS[step - 1]?.label ?? "")}</span>
         <span className="entry-film-step">
           {String(step + 1).padStart(2, "0")} / {STEPS}
         </span>
       </figcaption>
+
+      {/* Attribution, where the work is: the score is CC BY and the figures are CC0, and both say so on screen. */}
+      <span className="entry-film-credit">score · kevin macleod · cc by · figures · wikimedia commons</span>
     </figure>
   );
 }

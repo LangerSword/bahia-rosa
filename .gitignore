@@ -15,6 +15,10 @@ playwright-report
 # not source: written by the run, so it must never dirty the worktree.
 .grade-last-e2e.txt
 
+# Source photographs for the film's figures: staged only while tools/make-film.mjs runs, never shipped. The
+# sprite carries the *plates*; the photographs themselves stay out of the repository.
+public/film-src
+
 # Generated plates, framed references and comparison sheets — outputs, not source.
 print-desk-out
 

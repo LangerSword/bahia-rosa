@@ -33,3 +33,18 @@ repository should be straight about this:
   this repository claims is the *render*, which it made;
 - if you are looking for material you can safely reuse for your own samples, the NASA and Wikimedia
   public-domain route described above is still the shortest path — it is what this folder's other files are.
+
+## the film's figures, and its score
+
+The welcome-screen film presses two real people and plays a bed under them. Both are licence-clean, and both
+are credited on screen under the film as well as here:
+
+| what | source | licence |
+| --- | --- | --- |
+| the rapper plate (film cell 12) | Wikimedia Commons, `File:Cynic-s.a-daveyton-rapper-red-jacket-graffiti-wall-hip-hop.jpg` — "Cynic - S.A" | CC0 |
+| the guitarist plate (film cell 13) | Wikimedia Commons, `File:Musicians performing on stage during a lively concert in the evening, captivating the audience with powerful music and energy.jpg` — Shixart1985 | CC BY 2.0 |
+| the bed (`public/audio/noir-bed.mp3`) | "Interloper" — Kevin MacLeod, incompetech.com. Trimmed to 26 seconds, faded and levelled with ffmpeg. | CC BY 4.0 |
+
+As with every other plate here: what the repository ships is the *render*. The source photographs are not in
+the repository — `tools/make-film.mjs` stages them under `public/film-src/` (gitignored) only while it runs,
+and the sprite carries only the plates the press made of them.

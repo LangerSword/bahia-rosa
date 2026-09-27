@@ -18,7 +18,7 @@ import { chromium } from "playwright";
 const BASE = process.env.SHOT_BASE ?? "http://localhost:5178";
 const CELL_W = 1600;
 const CELL_H = 900;
-const COLS = 6;
+const COLS = 7;
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
@@ -53,21 +53,40 @@ const result = await page.evaluate(
      * the ink, detail and paper knobs, so each frame is the plate *with one more pass* rather than a blurrier
      * version of the same picture. Zero means the pass has not happened yet.
      */
-    async function frame(scene, look, layer) {
-      const image = await load(press.sceneSrc(scene));
+    async function frame(step) {
+      // A figure: a real photograph of a person, through the *press* — the same call the visitor's own photo
+      // goes through, so the plate is not a special case. The press hands back its own canvas, cover-fitted.
+      if (step.figure) {
+        const photo = await load(`film-src/${step.figure}`);
+        const out = await press.portraitFromImage(photo, {
+          ...(press.LOOKS[step.look ?? "night"]?.options ?? preset),
+          colours: 20,
+          scene: "boulevard",
+        });
+        if (!(out?.canvas instanceof HTMLCanvasElement)) {
+          throw new Error(`figure ${step.figure}: the press returned no canvas`);
+        }
+        wctx.clearRect(0, 0, cellW, cellH);
+        const fit = Math.max(cellW / out.canvas.width, cellH / out.canvas.height);
+        const dw = out.canvas.width * fit;
+        const dh = out.canvas.height * fit;
+        wctx.drawImage(out.canvas, (cellW - dw) / 2, (cellH - dh) / 2, dw, dh);
+        return { canvas: working, flat: false };
+      }
+      const image = await load(press.sceneSrc(step.scene));
       const scale = Math.max(cellW / image.naturalWidth, cellH / image.naturalHeight);
       const dw = image.naturalWidth * scale;
       const dh = image.naturalHeight * scale;
       wctx.drawImage(image, (cellW - dw) / 2, (cellH - dh) / 2, dw, dh);
       let data = wctx.getImageData(0, 0, cellW, cellH);
-      if (look) {
-        const graded = press.gradePixels(data.data, press.gradeFor(look));
+      if (step.look) {
+        const graded = press.gradePixels(data.data, press.gradeFor(step.look));
         data = new ImageData(graded, cellW, cellH);
       }
-      if (layer) {
+      if (step.layer) {
         // The press takes a pixel array and hands one back: passing the ImageData wrapper reads `undefined`
         // as its length and returns nothing at all.
-        const out = press.styliseImageData(data.data, cellW, cellH, { ...preset, ...layer });
+        const out = press.styliseImageData(data.data, cellW, cellH, { ...preset, ...step.layer });
         const bytes = out?.data ?? out;
         data = new ImageData(bytes, cellW, cellH);
       }
@@ -125,6 +144,15 @@ const result = await page.evaluate(
       { scene: "boulevard", look: "neon", layer: { colours: 20 }, label: "palm boulevard, in the neon" },
       { scene: "beach", look: "night", layer: { colours: 20 }, label: "the beach, after dark" },
       { scene: "marina", look: "dusk", layer: { colours: 20 }, label: "the marina, at dusk" },
+      /**
+       * And then the figures: real people, from photographs the Commons carries under CC0 or CC BY — a rapper
+       * against neon graffiti, a guitarist mid-song. They go through the same press as any visitor's
+       * photograph (`portraitFromImage`), which is the point: the plates are not special-cased. A third
+       * candidate — a black-and-white portrait — was cut: a greyscale source cannot take a golden-hour grade,
+       * and it read as a cold outlier beside these two.
+       */
+      { figure: "figure-rapper.jpg", look: "night", label: "a rapper, in the neon" },
+      { figure: "figure-stage.jpg", look: "night", label: "a guitarist, mid-song" },
     ];
 
     const sprite = document.createElement("canvas");
@@ -137,7 +165,7 @@ const result = await page.evaluate(
     const flat = [];
     for (let index = 0; index < steps.length; index += 1) {
       const step = steps[index];
-      const { canvas, flat: isFlat } = await frame(step.scene, step.look, step.layer);
+      const { canvas, flat: isFlat } = await frame(step);
       if (isFlat) flat.push(`${step.label} (flat)`);
       sctx.drawImage(canvas, (index % cols) * cellW, Math.floor(index / cols) * cellH);
     }

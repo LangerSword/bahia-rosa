@@ -74,7 +74,21 @@ test.describe("the film on the title sheet", () => {
     // The first step names itself, and the counter is the film's own: how a plate is generated, step by step.
     const label = page.locator(".entry-film-label");
     await expect(label).not.toHaveText("");
-    await expect(page.locator(".entry-film-step")).toHaveText(/^\d\d \/ 13$/);
+    await expect(page.locator(".entry-film-step")).toHaveText(/^\d\d \/ 15$/);
+
+    // The score is real, and offered rather than assumed: a bed that exists, that is silent until tapped, and
+    // — the part that needed care — a tap on it must not count as the "any pointer down" that ends the entry.
+    const bed = page.locator(".entry-film-wrap audio");
+    await expect(bed).toHaveAttribute("src", /audio\/noir-bed\.mp3$/);
+    const sound = page.locator('[data-testid="entry-film-sound"]');
+    await expect(sound).toHaveAttribute("data-sound", "off");
+    await sound.click();
+    await expect(sound).toHaveAttribute("data-sound", "on");
+    await expect
+      .poll(async () => await bed.evaluate((el) => (el as HTMLAudioElement).paused), { timeout: 5000 })
+      .toBe(false);
+    // And the film is still running: the sound control is not a skip.
+    await expect(sheet).toHaveAttribute("data-phase", "film");
 
     // While the film runs the title block is not there yet, and a letter is still buried in its mask.
     const blockOpacity = await page
