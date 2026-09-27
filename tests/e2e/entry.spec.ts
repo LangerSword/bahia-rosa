@@ -185,8 +185,9 @@ test("a slow face is waited out, and a missing one is not a hostage", async ({ p
   );
   expect(risen, "the title never assembled behind a slow face").toBe(true);
 
+  // The gate resolves on its own — and its bound is what this test now asserts, not an unbounded wait.
+  await expect(sheet).toHaveAttribute("data-face", "ready", { timeout: 6000 });
   // The face lands, the title is assembled, and the sheet lifts on its own.
-  await expect(sheet).toHaveAttribute("data-face", "ready", { timeout: 15_000 });
   await expect(sheet).toHaveCount(0, { timeout: 20_000 });
 });
 

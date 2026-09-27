@@ -496,7 +496,10 @@ async function main() {
     });
     await slowPage.goto(`${BASE}/?entry=1`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await slowPage.waitForSelector('[data-testid="entry"]', { timeout: 40000 });
-    await slowPage.waitForTimeout(2500);
+    // Sampled *before* the cap (2.5s): while the gate is open the sheet must say so and the letters must stay
+    // in their masks. Sampling at the cap's own moment was a race, and the cap is deliberate — a show that
+    // begins beats a face that arrives — so what follows checks the other half: that it resolves anyway.
+    await slowPage.waitForTimeout(1200);
     const waiting = await slowPage.evaluate(() => {
       const sheet = document.querySelector('[data-testid="entry"]');
       const letters = [...document.querySelectorAll(".entry-letter")];
@@ -507,6 +510,24 @@ async function main() {
       return { face: sheet?.getAttribute("data-face"), buried, letters: letters.length };
     });
     record("slow face", detectSlowFace(waiting));
+
+    // …and the gate resolves on its own despite a seven-second font: the letters come up, bounded by the cap.
+    await slowPage.waitForTimeout(3400);
+    const capped = await slowPage.evaluate(() => {
+      const letters = [...document.querySelectorAll(".entry-letter")];
+      const risen = letters.length > 0 && letters.every((el) => {
+        const t = getComputedStyle(el).transform;
+        return t === "none" || /matrix\(1, 0, 0, 1, 0, [0-9]\)/.test(t);
+      });
+      const sheet = document.querySelector('[data-testid="entry"]');
+      return { risen, face: sheet?.getAttribute("data-face") };
+    });
+    record("face cap", {
+      ok: capped.risen,
+      detail: capped.risen
+        ? `seven-second font, 2.5s gate: the letters came up anyway (face "${capped.face}")`
+        : `the gate never resolved: letters still buried at 4.6s with a seven-second font`,
+    });
     await slowContext.close();
 
     /* --- the ring -------------------------------------------------------------------------------- */
