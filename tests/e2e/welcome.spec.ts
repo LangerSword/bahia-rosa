@@ -36,7 +36,7 @@ test("sound reads on by default, toggles off and back, and its tap never ends th
   await page.goto("/?entry=1");
   const sheet = page.locator(".entry-sheet");
   await expect(sheet).toHaveAttribute("data-phase", /hold|vapour/, { timeout: 10_000 });
-  const bed = page.locator(".entry-sheet audio");
+  const bed = page.locator("body audio");
   await expect(bed).toHaveAttribute("src", /audio\/noir-bed\.mp3$/);
   await expect(bed).toHaveAttribute("preload", "auto");
   const sound = page.locator('[data-testid="entry-sound"]');
@@ -64,7 +64,7 @@ test("a gesture anywhere unlocks the bed", async ({ page }) => {
   await page.goto("/?entry=1");
   const sheet = page.locator(".entry-sheet");
   await expect(sheet).toHaveAttribute("data-phase", /hold|vapour/, { timeout: 10_000 });
-  const bed = page.locator(".entry-sheet audio");
+  const bed = page.locator("body audio");
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveAttribute("data-phase", /hold|vapour|lift/, { timeout: 15_000 });
   await expect(bed).toHaveCount(1);

@@ -83,83 +83,7 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
     return () => window.clearTimeout(timer);
   }, [welcomeMs]);
 
-  /**
-   * The bed belongs to the *entry*, not to the film, because the film can be skipped — and a skipped film
-   * that takes the music with it is how "sound on by default" quietly becomes "sound never". It starts trying
-   * before the film does, and the visitor's first gesture anywhere is what unlocks it: browsers refuse sound
-   * until a gesture, so the same key or click that leaves the film is also the thing that starts the music.
-   * One bed, one owner, for the whole intro — film, title and all.
-   */
-  /**
-   * The label follows the bed, not the intent: "off" until something is actually playing and "on" while it is
-   * — driven by the element's own play/pause events, so it cannot lie in either direction. A first visit's
-   * mount attempt is usually refused, so it reads off and the visitor's tap is what turns it on; a visitor
-   * whose browser allows sound reads on without touching anything, which is simply the truth.
-   */
-  const [sound, setSound] = useState(false);
-  const bed = useRef<HTMLAudioElement>(null);
-
-  useEffect(() => {
-    const node = bed.current;
-    if (!node) return;
-    // Attempted, not assumed — and a refusal changes nothing here. `sound` is the visitor's *preference*
-    // (on by default, togglable off), not a readout of what the browser has allowed so far: an autoplay
-    // block is policy, and the very next gesture satisfies it. Reporting "off" at the visitor who asked for
-    // on, because a policy said "not yet", was the wrong readout.
-    void node.play().catch(() => undefined);
-  }, []);
-
-  /**
-   * And it keeps trying where a browser allows it without a fresh gesture: coming back to the tab is the
-   * common case where the visitor has already interacted with the origin, which is exactly what an autoplay
-   * policy is asking about. No gesture is invented here — this only asks again.
-   */
-  useEffect(() => {
-    const retry = (): void => {
-      if (document.visibilityState !== "visible") return;
-      const node = bed.current;
-      if (node && node.paused) void node.play().catch(() => undefined);
-    };
-    document.addEventListener("visibilitychange", retry);
-    window.addEventListener("focus", retry);
-    return () => {
-      document.removeEventListener("visibilitychange", retry);
-      window.removeEventListener("focus", retry);
-    };
-  }, []);
-
-  /** The film's own control, and only the film's: it toggles the one bed the entry owns. */
-  const toggleSound = (): void => {
-    const node = bed.current;
-    if (!node) return;
-    /**
-     * Toggled by *reality*, not by the label. A browser that blocked the mount attempt leaves the bed paused
-     * while the preference reads "on" (which is what the visitor asked for), so a first tap that "paused"
-     * something never playing was a tap that did nothing — and it took two taps to hear anything. If it is not
-     * playing, a tap starts it. One tap, and the music is on.
-     */
-    if (node.paused) {
-      node.volume = 1;
-      void node.play().then(() => setSound(true)).catch(() => setSound(false));
-      return;
-    }
-    node.pause();
-    setSound(false);
-  };
-
-  /** The lift takes the bed with it: a fast ramp to silence as the sheet rises, so the entry ends clean. */
-  useEffect(() => {
-    if (phase !== "lift") return;
-    const node = bed.current;
-    if (!node || node.paused) return;
-    const started = performance.now();
-    const timer = window.setInterval(() => {
-      const left = Math.max(0, 1 - (performance.now() - started) / 900);
-      node.volume = left * left;
-      if (left === 0) window.clearInterval(timer);
-    }, 60);
-    return () => window.clearInterval(timer);
-  }, [phase]);
+  
   const leaving = phase === "lift";
   const finished = useRef(false);
   const [faceReady, setFaceReady] = useState(false);
@@ -368,15 +292,9 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
     };
   }, [plates, units, leave]);
 
-  /** Any key, any click, any wheel: out — and the same gesture unlocks the bed, because a browser will not
-   * start sound without one. Unmuting on the way out is honest: it is the visitor's gesture either way, and
-   * the music continues under the title instead of dying with the film. */
+  /** Any key, any click, any wheel: out. The music is the app's now and plays on; this only ends the sheet. */
   useEffect(() => {
-    const bail = (): void => {
-      const node = bed.current;
-      if (node && node.paused) void node.play().then(() => setSound(true)).catch(() => undefined);
-      skip();
-    };
+    const bail = (): void => skip();
     window.addEventListener("keydown", bail);
     window.addEventListener("pointerdown", bail);
     window.addEventListener("wheel", bail, { passive: true });
@@ -463,38 +381,6 @@ export function Entry({ onDone }: { onDone: () => void }): ReactElement {
       </div>
 
       <div className="entry-mid" />
-
-      {/* The film, before the title: the press at work. It hands over to the title by itself, and it cannot
-          hold the sheet hostage — a sprite that fails or is slow simply skips the film. */}
-      {/* The bed: Kevin MacLeod, CC BY, trimmed and levelled by tools. It lives here, in the entry, so that
-          skipping the film does not stop the music — see the note where `bed` is declared. */}
-      {/* The label is driven by the element itself, so it can only ever say what is true. */}
-      <audio
-        ref={bed}
-        src={`${import.meta.env.BASE_URL}audio/noir-bed.mp3`}
-        loop
-        preload="auto"
-        onPlay={() => setSound(true)}
-        onPause={() => setSound(false)}
-      />
-
-      {/* The bed's own control, sized for a thumb and stopped in the capture phase: the entry leaves on any
-          pointer down, and this button's own tap must not be the one that ends it. */}
-      <button
-        type="button"
-        className="entry-film-sound"
-        data-testid="entry-sound"
-        data-sound={sound ? "on" : "off"}
-        aria-pressed={sound}
-        onPointerDownCapture={(event) => event.stopPropagation()}
-        onKeyDownCapture={(event) => event.stopPropagation()}
-        onClick={(event) => {
-          event.stopPropagation();
-          toggleSound();
-        }}
-      >
-        sound {sound ? "on" : "off"}
-      </button>
 
       <div className="entry-block">
         <motion.p

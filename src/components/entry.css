@@ -150,6 +150,50 @@
 .entry-skip:hover,
 .entry-skip:focus-visible {
   color: var(--color-gold);
+  border-color: rgb(251 191 36 / 55%);
+}
+
+/* Polished to be a door rather than a word: a hairline pill at thumb size, so the way out is visible and
+   easy to hit without ever being the loudest thing on the sheet. */
+.entry-skip {
+  padding: 0 1.05rem;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 999px;
+  transition: color 240ms ease, border-color 240ms ease, background-color 240ms ease;
+}
+
+.entry-skip:hover,
+.entry-skip:focus-visible {
+  background: rgb(251 191 36 / 8%);
+}
+
+/* The one music control, always reachable, from the first frame to the last crop: bottom-right, above the
+   sheet, styled like the rest of the furniture. */
+.sound-pill {
+  position: fixed;
+  right: clamp(1rem, 3vw, 2rem);
+  bottom: clamp(1rem, 3vw, 2rem);
+  z-index: 200;
+  min-height: 44px;
+  padding: 0 1rem;
+  font-family: var(--font-kicker);
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  background: rgb(7 7 10 / 72%);
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 999px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: color 240ms ease, border-color 240ms ease;
+}
+
+.sound-pill:hover,
+.sound-pill:focus-visible,
+.sound-pill[data-sound="on"] {
+  color: var(--color-gold);
+  border-color: rgb(251 191 36 / 45%);
 }
 
 /* One roll of light down the sheet as it arrives — the site's press hairline, at the scale of the door. */

@@ -494,12 +494,87 @@ export function App() {
     .filter(Boolean)
     .join(" · ");
 
+  /**
+   * The bed belongs to the *app*, not to the entry, because the music outlives the welcome: a visitor who taps
+   * once hears it under the whole intro and keeps hearing it while they work. The first gesture anywhere is
+   * what a browser requires, so the same one is what unlocks it. One bed, one owner, one control — always on
+   * screen, because a mute you cannot reach is not a mute.
+   */
+  const [sound, setSound] = useState(false);
+  const bed = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    const node = bed.current;
+    if (!node) return;
+    void node.play().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const unlock = (): void => {
+      const node = bed.current;
+      if (node && node.paused) void node.play().catch(() => undefined);
+    };
+    const retry = (): void => {
+      if (document.visibilityState === "visible") unlock();
+    };
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
+    document.addEventListener("visibilitychange", retry);
+    window.addEventListener("focus", retry);
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+      document.removeEventListener("visibilitychange", retry);
+      window.removeEventListener("focus", retry);
+    };
+  }, []);
+
+  /** By reality, not by label: if it is not playing, the tap starts it; if it is, the tap is the mute. */
+  const toggleSound = (): void => {
+    const node = bed.current;
+    if (!node) return;
+    if (node.paused) {
+      node.volume = 1;
+      void node.play().catch(() => undefined);
+      return;
+    }
+    node.pause();
+  };
+
   return (
     <div className="grain vignette min-h-screen">
       <Fx />
       <Toasts />
       <Alerts />
       <MagneticCursor busy={stage === "converting" || stage === "printing"} />
+      {/* The bed: Kevin MacLeod, CC BY — credited in docs/samples/CREDITS.md. Out here so the music outlives
+          the entry, and labelled from the element's own events so the control can only say what is true. */}
+      <audio
+        ref={bed}
+        src={`${import.meta.env.BASE_URL}audio/noir-bed.mp3`}
+        loop
+        preload="auto"
+        onPlay={() => setSound(true)}
+        onPause={() => setSound(false)}
+      />
+      {/* The entry leaves on *any* pointer down or key, so this control's own gesture has to be stopped in the
+          capture phase — or the very tap that starts the music would end the welcome. Same trap as before. */}
+      <button
+        type="button"
+        className="sound-pill"
+        data-testid="entry-sound"
+        data-sound={sound ? "on" : "off"}
+        aria-pressed={sound}
+        aria-label={sound ? "mute the music" : "play the music"}
+        onPointerDownCapture={(event) => event.stopPropagation()}
+        onKeyDownCapture={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          toggleSound();
+        }}
+      >
+        sound {sound ? "on" : "off"}
+      </button>
       {entered ? null : <Entry onDone={() => setEntered(true)} />}
       <a href="#intake" className="skip">
         Skip to the press

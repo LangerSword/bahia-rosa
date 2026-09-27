@@ -5,6 +5,10 @@ import "./tile.css";
 /**
  * A choice, at the standard of the plates.
  *
+ * A press grows the tile and a hover leans into it — the choice should feel like it came toward you, and
+ * `whileTap` is what a finger gets, so the same motion is true on touch. The spring keeps it alive rather
+ * than eased.
+ *
  * The hour, the place and the finish were three different-looking rows of buttons — one with a graded
  * thumbnail, one with a thumbnail and a different caption colour, one with nothing but two words in a box.
  * They are all the same act: choosing one thing over its neighbours. So they are the same object now, built
@@ -56,7 +60,9 @@ export function Tile({
       onPointerEnter={onHover}
       className={`tile lift w-full text-left sm:w-auto ${className ?? ""}`}
       data-active={active ? "yes" : "no"}
-      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ type: "spring", stiffness: 420, damping: 30, mass: 0.6 }}
+      whileHover={{ scale: 1.035 }}
+      whileTap={{ scale: 1.065 }}
     >
       {media ? <span className="tile-media">{media}</span> : null}
       <span className="tile-caption">
