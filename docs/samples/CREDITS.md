@@ -34,16 +34,33 @@ repository should be straight about this:
 - if you are looking for material you can safely reuse for your own samples, the NASA and Wikimedia
   public-domain route described above is still the shortest path — it is what this folder's other files are.
 
-## the film's figures, and its score
+## the film's cast, and its score
 
-The welcome-screen film presses two real people and plays a bed under them. Both are licence-clean, and both
-are credited on screen under the film as well as here:
+The welcome-screen film presses eight real people — every cell after the four-layer build is a figure — and
+plays a bed under them. All eight are anonymous adults from colour sources, all licence-clean, all credited on
+screen under the film as well as here:
 
-| what | source | licence |
-| --- | --- | --- |
-| the rapper plate (film cell 12) | Wikimedia Commons, `File:Cynic-s.a-daveyton-rapper-red-jacket-graffiti-wall-hip-hop.jpg` — "Cynic - S.A" | CC0 |
-| the guitarist plate (film cell 13) | Wikimedia Commons, `File:Musicians performing on stage during a lively concert in the evening, captivating the audience with powerful music and energy.jpg` — Shixart1985 | CC BY 2.0 |
-| the bed (`public/audio/noir-bed.mp3`) | "Interloper" — Kevin MacLeod, incompetech.com. Trimmed to 26 seconds, faded and levelled with ffmpeg. | CC BY 4.0 |
+| cell | plate | source | author | licence |
+| --- | --- | --- | --- | --- |
+| 4 | the rapper, in the neon | Commons, `File:Cynic-s.a-daveyton-rapper-red-jacket-graffiti-wall-hip-hop.jpg` | Cynic - S.A | CC0 |
+| 5 | the boxer, in the neon | Commons, "All-Marine boxer back for National Golden Gloves" | US Marine Corps | public domain |
+| 6 | the biker, leaving | Commons, "Chrisitan Motorcyclists Association Rider on Lone Mt Rd" | Noah Wulf | CC BY-SA 3.0 |
+| 7 | a runner on the beach | Commons, `File:Lifeguard (24710330115).jpg` | kargaltsev | CC BY 2.0 |
+| 8 | the guitarist, mid-song | Commons, `File:Musicians performing on stage during a lively concert in the evening, captivating the audience with powerful music and energy.jpg` | Shixart1985 | CC BY 2.0 |
+| 9 | a skater, weightless | Commons, `File:2008-08-22 Skateboarder floating in the air.jpg` | Ildar Sagdejev (Specious) | CC BY-SA 4.0 |
+| 10 | a sentinel at dusk | Commons, `File:Lifeguards.jpg` | Sasha Kargaltsev | CC BY 2.0 |
+| 11 | the busker, on the corner | Commons, `File:2026-06-09 Street musician in Novi Sad.jpg` | Alexkom000 | CC BY 4.0 |
+| — | the bed (`public/audio/noir-bed.mp3`) | "Interloper" — Kevin MacLeod, incompetech.com (trimmed to 26s, faded and levelled with ffmpeg) | Kevin MacLeod | CC BY 4.0 |
+
+**The sprite's own licence.** `public/film/plate-film.jpg` is a derivative work of all of the above at once,
+so it is offered under the most restrictive of them: **CC BY-SA 4.0**. The repository's other files are not
+affected — a derivative carries its own licence, a collection does not carry it to its members.
+
+**Three classes of photograph were ruled out** while casting, and they are the three that always come up:
+named celebrities (personality rights do not travel with a Commons licence, so "a famous rapper" or a
+film-star likeness was never an option no matter how good the fit), greyscale sources (a black-and-white
+photograph cannot take a golden or neon grade — it reads as a cold outlier beside the rest, which is exactly
+what happened to the first portrait candidate), and any photograph of a minor.
 
 As with every other plate here: what the repository ships is the *render*. The source photographs are not in
 the repository — `tools/make-film.mjs` stages them under `public/film-src/` (gitignored) only while it runs,

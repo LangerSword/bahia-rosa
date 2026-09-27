@@ -74,20 +74,66 @@ test.describe("the film on the title sheet", () => {
     // The first step names itself, and the counter is the film's own: how a plate is generated, step by step.
     const label = page.locator(".entry-film-label");
     await expect(label).not.toHaveText("");
-    await expect(page.locator(".entry-film-step")).toHaveText(/^\d\d \/ 15$/);
+    await expect(page.locator(".entry-film-step")).toHaveText(/^\d\d \/ 13$/);
 
-    // The score is real, and offered rather than assumed: a bed that exists, that is silent until tapped, and
-    // — the part that needed care — a tap on it must not count as the "any pointer down" that ends the entry.
+    // The signature: "by langersword", hung off the right corner of the wordmark, in the house cursive, tilted,
+    // and written on — read through the same computed-transform route as the hairline, so a lost rule times out
+    // instead of passing quietly.
+    const by = page.locator('[data-testid="entry-film-by"]');
+    await expect(by).toHaveText("by langersword");
+    const byFont = await by.evaluate((el) => getComputedStyle(el).fontFamily);
+    expect(byFont, "the signature is not set in the house cursive").toMatch(/Italianno|Pinyon Script/);
+    const signature = await by.evaluate((el) => {
+      const rect = el.getBoundingClientRect();
+      const word = el.closest(".entry-film-lockup")!.querySelector(".entry-film-mark")!.getBoundingClientRect();
+      const m = new DOMMatrixReadOnly(getComputedStyle(el).transform);
+      return {
+        tilt: Math.atan2(m.b, m.a) * (180 / Math.PI),
+        toRight: rect.right - word.right,
+        below: rect.bottom - word.bottom,
+      };
+    });
+    expect(signature.tilt, "the signature is not tilted").toBeLessThan(-4);
+    expect(signature.toRight, "the signature is not at the wordmark's right corner").toBeLessThan(60);
+    expect(signature.below, "the signature is not at the wordmark's baseline").toBeGreaterThan(0);
+
+    // Smoothness, measured rather than asserted-about: sample the film's own frame intervals while it plays.
+    // Generous thresholds — this is a jank detector (a stuck main thread, a forced layout per frame), not a
+    // benchmark, so CI variance cannot fail it.
+    const frames = await page.evaluate(
+      () =>
+        new Promise<number[]>((resolve) => {
+          const times: number[] = [];
+          let last = performance.now();
+          const tick = (now: number): void => {
+            times.push(now - last);
+            last = now;
+            if (times.length >= 40) resolve(times);
+            else requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        }),
+    );
+    const sorted = [...frames].sort((a, b) => a - b);
+    expect(sorted[Math.floor(sorted.length * 0.9)], "the film's frames are arriving slower than they should").toBeLessThan(60);
+
+    // The score: on by default, as asked — the bed is wired to attempt playback from the first frame, and a
+    // browser that refuses is a policy, not a fault. So what is asserted is the control's honesty, the bed's
+    // wiring, and the part that needed care: a tap on it must not count as the "any pointer down" that ends
+    // the entry. The toggle's *direction* is read from the state first, so this holds whether or not the
+    // environment permits playback.
     const bed = page.locator(".entry-film-wrap audio");
     await expect(bed).toHaveAttribute("src", /audio\/noir-bed\.mp3$/);
+    await expect(bed).toHaveAttribute("preload", "auto");
     const sound = page.locator('[data-testid="entry-film-sound"]');
-    await expect(sound).toHaveAttribute("data-sound", "off");
+    await expect(sound).toHaveAttribute("data-sound", /^on|off$/);
+    const wasOn = (await sound.getAttribute("data-sound")) === "on";
     await sound.click();
-    await expect(sound).toHaveAttribute("data-sound", "on");
-    await expect
-      .poll(async () => await bed.evaluate((el) => (el as HTMLAudioElement).paused), { timeout: 5000 })
-      .toBe(false);
-    // And the film is still running: the sound control is not a skip.
+    await expect(sound).toHaveAttribute("data-sound", wasOn ? "off" : "on");
+    expect(await bed.evaluate((el) => (el as HTMLAudioElement).paused), "the tap did not invert the bed").toBe(wasOn);
+    await sound.click();
+    await expect(sound).toHaveAttribute("data-sound", wasOn ? "on" : "off");
+    // And the film is still running through all of it: the toggle is not a skip.
     await expect(sheet).toHaveAttribute("data-phase", "film");
 
     // While the film runs the title block is not there yet, and a letter is still buried in its mask.

@@ -18,7 +18,7 @@ import { chromium } from "playwright";
 const BASE = process.env.SHOT_BASE ?? "http://localhost:5178";
 const CELL_W = 1600;
 const CELL_H = 900;
-const COLS = 7;
+const COLS = 6;
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
@@ -112,8 +112,12 @@ const result = await page.evaluate(
     const ink = (preset.ink ?? 0.5) * 1.35;
     const detail = (preset.detail ?? 0.5) * 1.15;
     const steps = [
+      /**
+       * The build: four of the press's own layers, in the press's order, so the film opens on a plate being
+       * *drawn* rather than on a finished picture. Four, not seven: this is a cast roll now, and the city's
+       * drawing only needs enough room to say what the press does.
+       */
       { scene: "beach", look: null, layer: null, label: "the city's own drawing" },
-      { scene: "beach", look: "dusk", layer: null, label: "the hour — dusk" },
       {
         scene: "beach",
         look: "dusk",
@@ -124,35 +128,29 @@ const result = await page.evaluate(
         scene: "beach",
         look: "dusk",
         layer: { colours: 6, ink, detail: 0, paper: 0 },
-        label: "+ the ink lines",
-      },
-      {
-        scene: "beach",
-        look: "dusk",
-        layer: { colours: 6, ink, detail, paper: 0 },
-        label: "+ the detail",
-      },
-      {
-        scene: "beach",
-        look: "dusk",
-        layer: { colours: 12, ink, detail, paper: 0 },
-        label: "+ more colours — 12",
+        label: "the ink lines",
       },
       { scene: "beach", look: "dusk", layer: { colours: 20 }, label: "the plate — with its paper" },
-      { scene: "marina", look: "golden", layer: { colours: 20 }, label: "the marina, at golden hour" },
-      { scene: "rooftop", look: "night", layer: { colours: 20 }, label: "the rooftop, at night" },
-      { scene: "boulevard", look: "neon", layer: { colours: 20 }, label: "palm boulevard, in the neon" },
-      { scene: "beach", look: "night", layer: { colours: 20 }, label: "the beach, after dark" },
-      { scene: "marina", look: "dusk", layer: { colours: 20 }, label: "the marina, at dusk" },
       /**
-       * And then the figures: real people, from photographs the Commons carries under CC0 or CC BY — a rapper
-       * against neon graffiti, a guitarist mid-song. They go through the same press as any visitor's
-       * photograph (`portraitFromImage`), which is the point: the plates are not special-cased. A third
-       * candidate — a black-and-white portrait — was cut: a greyscale source cannot take a golden-hour grade,
-       * and it read as a cold outlier beside these two.
+       * And then the cast — eight real people, every one of them an actual photograph pressed through the
+       * *same* call any visitor's photograph goes through (`portraitFromImage`), because the plates are not
+       * special-cased. All eight are anonymous adults, all from colour sources, from Wikimedia Commons under
+       * CC0 / CC BY / public domain, credited under the film and in docs/samples/CREDITS.md.
+       *
+       * Three classes of photograph were ruled out, and they are the three that always come up: named
+       * celebrities (personality rights do not travel with a Commons licence), greyscale sources (a
+       * black-and-white photograph cannot take a golden or neon grade and reads as a cold outlier), and any
+       * photograph of a minor. What is left is a cast a city this size would actually have: the rapper, the
+       * boxer, the biker, the runner, the guitarist, the skater, the sentinel, the busker.
        */
-      { figure: "figure-rapper.jpg", look: "night", label: "a rapper, in the neon" },
-      { figure: "figure-stage.jpg", look: "night", label: "a guitarist, mid-song" },
+      { figure: "figure-rapper.jpg", look: "night", label: "the rapper, in the neon" },
+      { figure: "figure-boxer.jpg", look: "night", label: "the boxer, in the neon" },
+      { figure: "figure-biker.jpg", look: "dusk", label: "the biker, leaving" },
+      { figure: "figure-runner.jpg", look: "golden", label: "a runner on the beach" },
+      { figure: "figure-stage.jpg", look: "night", label: "the guitarist, mid-song" },
+      { figure: "figure-skater.jpg", look: "golden", label: "a skater, weightless" },
+      { figure: "figure-sentinel.jpg", look: "dusk", label: "a sentinel at dusk" },
+      { figure: "figure-busker.jpg", look: "night", label: "the busker, on the corner" },
     ];
 
     const sprite = document.createElement("canvas");

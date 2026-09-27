@@ -173,13 +173,17 @@ motion vocabulary rather than a slideshow. It opens on the city's own **card**: 
 face the title will arrive in, with its gold hairline drawing itself under it. Then the build arrives by
 **press-wipe** — each layer sweeps across the plate behind a travelling gold print head, the seam feathered so
 the head is the only hard thing in the frame, because a hard edge through a picture reads as a stitching
-artifact (it was reported as one) — through the plate's own layers: the drawing, the hour's grade, the flat
-shapes, + the ink lines, + the detail, a fuller palette, the plate with its paper. The tour of the other places
-arrives by **push**, a slow 1.03 → 1.0 camera move, and the film **dissolves** into the sheet so the title
-assembles out of it. **Two figures, licence-clean.** Real people, pressed from photographs Wikimedia Commons carries under CC0 and
-CC BY — a rapper against neon graffiti, a guitarist mid-song — through the same `portraitFromImage` as any
-visitor's photograph, because the plates are not special-cased. The city's own plates are faceless; the figures
-are its guests, and the credit is on screen under the film. The frames are not drawn
+artifact (it was reported as one) — through four of the plate's own layers: the drawing, the flat shapes, the
+ink lines, the plate with its paper. Then the **cast** arrives: eight figures, each cut *shorter* than the one
+before (420ms down to 200), so the montage accelerates into the last frame instead of settling into it, and the
+film **dissolves** into the sheet so the title assembles out of it. **Eight figures, licence-clean, and a
+signature.** Real people, pressed from photographs Wikimedia Commons
+carries under CC0, CC BY and public domain — the rapper, the boxer, the biker, the runner, the guitarist, the
+skater, the sentinel, the busker — through the same `portraitFromImage` as any visitor's photograph, because
+the plates are not special-cased. Every cell after the four-layer build is a figure: a city that prints people
+opens by printing people. The card carries the wordmark with **"by langersword"** written on at its lower right
+in the house cursive, tilted, in the trailer's own pink. The credit is on screen under the film and in
+`docs/samples/CREDITS.md`, with the sprite's own share-alike licence stated there too. The frames are not drawn
 by hand: `tools/make-film.mjs` calls *this app's* `gradePixels`, `gradeFor` and `styliseImageData` through a
 dev-only handle — driving the press's own `ink`, `detail` and `paper` knobs so each frame is the plate with one
 more pass done to it — and lays the 1600×900 outputs into one sprite, played one-to-one with no resampling. Both

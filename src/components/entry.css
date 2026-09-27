@@ -234,6 +234,35 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The signature: hung off the right corner of the wordmark, tilted, set in the cursive the entry's own font
+   gate already loads, and *written on* left-to-right rather than faded in. The pink is the one place this
+   city borrows the trailer's own colour — deliberately, once, on a credit. */
+.entry-film-lockup {
+  position: relative;
+  display: inline-block;
+}
+
+.entry-film-by {
+  position: absolute;
+  right: -0.1em;
+  bottom: -0.42em;
+  font-family: var(--font-signature);
+  font-size: clamp(0.95rem, 2.2vw, 1.9rem);
+  line-height: 1;
+  color: #ff4d8d;
+  white-space: nowrap;
+  transform: rotate(-8deg);
+  transform-origin: right bottom;
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 750ms cubic-bezier(0.22, 0.61, 0.36, 1) 260ms;
+  text-shadow: 0 1px 18px rgb(7 7 10 / 80%);
+}
+
+.entry-film-card[data-shown="yes"] .entry-film-by {
+  /* -8% on the right so the cursive's final tail is never clipped by its own wipe. */
+  clip-path: inset(0 -8% 0 0);
+}
+
 /* The sound control: a small honest switch in the film's own type, bottom-right, finger-sized. */
 .entry-film-sound {
   position: absolute;
@@ -264,11 +293,12 @@
   left: clamp(1.25rem, 4vw, 2.75rem);
   bottom: clamp(0.35rem, 1.2vw, 0.9rem);
   font-family: var(--font-kicker);
-  font-size: 0.58rem;
+  font-size: 0.64rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+  /* At full strength, not dimmed: a design pass on a real frame found this near-illegible against the black
+     card, and a credit that cannot be read is not a credit. */
   color: var(--color-muted);
-  opacity: 0.85;
   text-shadow: 0 1px 14px rgb(7 7 10 / 90%);
 }
 

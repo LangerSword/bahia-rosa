@@ -23,11 +23,11 @@ import { useEffect, useRef, useState, type ReactElement } from "react";
  */
 const CELL_W = 1600;
 const CELL_H = 900;
-const COLS = 7;
+const COLS = 6;
 const GUARD_MS = 8000;
 
 /** The card is step 0; the cells are steps 1..12. Every step names itself while it happens. */
-const CARD_MS = 900;
+const CARD_MS = 1150;
 const CARD_LABEL = "the press, at work";
 const OUT_MS = 340;
 
@@ -44,25 +44,28 @@ interface Beat {
 
 /** The build's layers in the press's order, then the city at other hours — mirrors `tools/make-film.mjs`. */
 const BEATS: Beat[] = [
-  { cell: 0, label: "the city's own drawing", move: "wipe", moveMs: 480, holdMs: 100 },
-  { cell: 1, label: "the hour — dusk", move: "wipe", moveMs: 480, holdMs: 100 },
-  { cell: 2, label: "the flat shapes", move: "wipe", moveMs: 480, holdMs: 100 },
-  { cell: 3, label: "+ the ink lines", move: "wipe", moveMs: 480, holdMs: 100 },
-  { cell: 4, label: "+ the detail", move: "wipe", moveMs: 480, holdMs: 100 },
-  { cell: 5, label: "+ more colours — 12", move: "wipe", moveMs: 480, holdMs: 100 },
-  { cell: 6, label: "the plate — with its paper", move: "wipe", moveMs: 520, holdMs: 220 },
-  { cell: 7, label: "the marina, at golden hour", move: "push", moveMs: 280, holdMs: 90 },
-  { cell: 8, label: "the rooftop, at night", move: "push", moveMs: 280, holdMs: 90 },
-  { cell: 9, label: "palm boulevard, in the neon", move: "push", moveMs: 280, holdMs: 90 },
-  { cell: 10, label: "the beach, after dark", move: "push", moveMs: 280, holdMs: 90 },
-  { cell: 11, label: "the marina, at dusk", move: "push", moveMs: 280, holdMs: 90 },
   /**
-   * And the figures: real people — a rapper against neon graffiti, a guitarist mid-song — pressed from
-   * photographs the Commons carries under CC0 and CC BY, credited under the film. They arrive by push like
-   * the places do, and they hold longest, because a figure is the thing the visitor is here to see.
+   * The build: four wipes at half a second each — the press laying a plate down, back to front, fast enough
+   * to read as one move. The wipe stays *mechanical* on purpose: a press does not accelerate.
    */
-  { cell: 12, label: "a rapper, in the neon", move: "push", moveMs: 400, holdMs: 380 },
-  { cell: 13, label: "a guitarist, mid-song", move: "push", moveMs: 400, holdMs: 620 },
+  { cell: 0, label: "the city's own drawing", move: "wipe", moveMs: 500, holdMs: 80 },
+  { cell: 1, label: "the flat shapes", move: "wipe", moveMs: 500, holdMs: 80 },
+  { cell: 2, label: "the ink lines", move: "wipe", moveMs: 500, holdMs: 80 },
+  { cell: 3, label: "the plate — with its paper", move: "wipe", moveMs: 560, holdMs: 260 },
+  /**
+   * And then the cast — and this is where the intro earns its name. Eight figures, each cut *shorter* than
+   * the one before, 420ms down to 200, so the montage accelerates into the last frame instead of settling
+   * into it. The push is eased (unlike the wipe), and every figure holds just long enough to be read. The
+   * last holds longer: it is the frame the title lands on.
+   */
+  { cell: 4, label: "the rapper, in the neon", move: "push", moveMs: 420, holdMs: 130 },
+  { cell: 5, label: "the boxer, in golden light", move: "push", moveMs: 380, holdMs: 120 },
+  { cell: 6, label: "the biker, leaving", move: "push", moveMs: 340, holdMs: 110 },
+  { cell: 7, label: "a runner on the beach", move: "push", moveMs: 300, holdMs: 100 },
+  { cell: 8, label: "the guitarist, mid-song", move: "push", moveMs: 260, holdMs: 90 },
+  { cell: 9, label: "a skater, weightless", move: "push", moveMs: 230, holdMs: 80 },
+  { cell: 10, label: "a sentinel at dusk", move: "push", moveMs: 210, holdMs: 70 },
+  { cell: 11, label: "the busker, on the corner", move: "push", moveMs: 200, holdMs: 700 },
 ];
 const STEPS = BEATS.length + 1;
 
@@ -71,8 +74,20 @@ export function PlateFilm({ onDone }: { onDone: () => void }): ReactElement {
   const done = useRef(false);
   const [step, setStep] = useState(0);
   const [out, setOut] = useState(false);
-  const [sound, setSound] = useState(false);
+  /* Sound on by default, as asked. `sound` is the state of the *control*, not a stored preference: it starts
+     true because the bed starts trying, and it drops to false the moment a browser refuses. A refusal is
+     policy, not fault, so it is swallowed silently — the film is never louder than the visitor's browser. */
+  const [sound, setSound] = useState(true);
   const audio = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    const node = audio.current;
+    if (!node) return;
+    void node
+      .play()
+      .then(() => setSound(true))
+      .catch(() => setSound(false));
+  }, []);
   /** The callback through a ref: a parent re-render must not restart the film by handing over a new function. */
   const finish = useRef(onDone);
   finish.current = onDone;
@@ -255,7 +270,10 @@ export function PlateFilm({ onDone }: { onDone: () => void }): ReactElement {
       {/* The city's own card: the wordmark in the face the title will arrive in, its hairline drawn under it.
           DOM type, so it stays crisp at any resolution — the canvas is only for the pictures. */}
       <div className="entry-film-card" data-testid="entry-film-card" data-shown={step === 0 ? "yes" : "no"}>
-        <span className="entry-film-mark">bahía rosa</span>
+        <span className="entry-film-lockup">
+          <span className="entry-film-mark">bahía rosa</span>
+          <span className="entry-film-by" data-testid="entry-film-by">by langersword</span>
+        </span>
         <span className="entry-film-rule" />
       </div>
 
